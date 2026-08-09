@@ -299,7 +299,10 @@
             <div class="modal-content modal-lg">
                 <div class="modal-header">
                     <h2 id="detailTitle">Детали двигателя</h2>
-                    <button class="modal-close" onclick="closeDetail()">&times;</button>
+                    <div class="modal-header-actions">
+                        <button class="modal-maximize" id="detailMaximizeBtn" onclick="toggleDetailMaximize()" title="Развернуть на весь экран">⛶</button>
+                        <button class="modal-close" onclick="closeDetail()">&times;</button>
+                    </div>
                 </div>
                 <div id="detailToolbar"></div>
                 <div id="detailContent" class="modal-body">
@@ -387,4 +390,4 @@
         });
     </script>
 </body>
-</html>
+</html>

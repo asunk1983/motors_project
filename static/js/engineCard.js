@@ -14,6 +14,47 @@ function formatRuDateTime(iso) {
     return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ===== РАЗВОРОТ КАРТОЧКИ ДВИГАТЕЛЯ НА ВЕСЬ ЭКРАН =====
+// Как в обычном оконном приложении: первое нажатие разворачивает,
+// повторное — возвращает размер, который был до разворачивания. Если
+// пользователь до этого сам потянул за угол (нативный CSS resize — см.
+// #detailModal .modal-content в style.css), эти изменения хранятся
+// браузером прямо в element.style.width/height; здесь просто читаем и
+// на время разворота откладываем их в переменную, а не пересчитываем
+// заново.
+// Состояние (detailModalPrevSize) живёт, пока не перезагрузили страницу:
+// .modal-content — статический элемент в index.html, его никогда не
+// перерисовывает renderDetailContent() (та трогает только #detailContent
+// и #detailToolbar внутри), поэтому размер/разворот сохраняются и при
+// переключении карточек кнопками Предыдущий/Следующий, и при закрытии/
+// повторном открытии модалки — как и ожидаешь от окна, которое помнишь,
+// что развернул.
+let detailModalPrevSize = null;
+
+function toggleDetailMaximize() {
+    const modalContent = document.querySelector('#detailModal .modal-content');
+    const btn = document.getElementById('detailMaximizeBtn');
+    if (!modalContent) return;
+
+    if (modalContent.classList.contains('maximized')) {
+        // Восстановить: снять класс, вернуть запомненные inline-размеры
+        // (пустая строка — если пользователь никогда не тянул за угол,
+        // тогда просто сработают дефолтные max-width/max-height из CSS).
+        modalContent.classList.remove('maximized');
+        modalContent.style.width = detailModalPrevSize ? detailModalPrevSize.width : '';
+        modalContent.style.height = detailModalPrevSize ? detailModalPrevSize.height : '';
+        detailModalPrevSize = null;
+        if (btn) { btn.textContent = '⛶'; btn.title = 'Развернуть на весь экран'; }
+    } else {
+        detailModalPrevSize = {
+            width: modalContent.style.width || '',
+            height: modalContent.style.height || ''
+        };
+        modalContent.classList.add('maximized');
+        if (btn) { btn.textContent = '❐'; btn.title = 'Восстановить размер'; }
+    }
+}
+
 // ===== ДЕТАЛЬНАЯ МОДАЛКА =====
 function showDetail(id, startInEdit = false) {
     if (window.closeTimeout) {
@@ -1059,6 +1100,27 @@ function navigatePhotoModal(direction) {
 
 
 // ===== ЗАКРЫТИЕ ПО КЛИКУ =====
+
+// Клик "вне модалки" ниже проверяется по e.target события click — но при
+// ресайзе за угол (#detailModal .modal-content { resize: both } —
+// см. style.css) mousedown стартует на ручке внутри карточки, а mouseup
+// в момент завершения перетаскивания может оказаться уже над затемнённым
+// фоном за пределами карточки: click-событие получает target снаружи,
+// и старая проверка (!modalContent.contains(e.target)) ошибочно считает
+// это кликом вне модалки и закрывает карточку. Тот же баг сработал бы и
+// при обычном выделении текста, если отпустить кнопку мыши за пределами
+// карточки. Чиним, запоминая, где реально был mousedown: если жест начался
+// внутри карточки — не закрываем её, независимо от того, где палец/курсор
+// оказался в момент отпускания кнопки.
+let detailMouseDownInside = false;
+document.addEventListener('mousedown', function(e) {
+    const detailModal = document.getElementById('detailModal');
+    if (detailModal && detailModal.classList.contains('active')) {
+        const modalContent = detailModal.querySelector('.modal-content');
+        detailMouseDownInside = !!(modalContent && modalContent.contains(e.target));
+    }
+}, true);
+
 document.addEventListener('DOMContentLoaded', function() {
     const photoModal = document.getElementById('photoModal');
     if (photoModal) {
@@ -1097,7 +1159,7 @@ document.addEventListener('click', function(e) {
     const detailModal = document.getElementById('detailModal');
     if (detailModal && detailModal.classList.contains('active')) {
         const modalContent = detailModal.querySelector('.modal-content');
-        if (modalContent && !modalContent.contains(e.target)) {
+        if (modalContent && !modalContent.contains(e.target) && !detailMouseDownInside) {
             if (e.target.closest('.clickable-row')) return;
             if (e.target.closest('.equipment-card')) return;
             

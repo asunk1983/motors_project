@@ -882,6 +882,55 @@ body.role-reader .write-action {
    меньше рядов по вертикали, меньше скролла, без изменения логики
    рендера. 96vh вместо 90vh — та же идея по высоте. */
 .modal-lg { max-width: 1500px; max-height: 96vh; }
+
+/* ===== РУЧНОЙ РЕСАЙЗ И РАЗВОРОТ НА ВЕСЬ ЭКРАН (карточка двигателя) =====
+   Скопом только #detailModal, а не общий .modal-lg — этот класс делят
+   карточка двигателя и модалка обрезки фото (photoCropModal), и ресайз
+   контейнера с canvas для кропа не проверялся, поведение под вопросом,
+   поэтому туда это намеренно не распространяется.
+
+   Нативный CSS resize, не кастомный JS-драг: работает без доп. кода,
+   браузер сам ограничивает перетаскивание по min/max-width/height ниже.
+   Оговорка: .modal центрирует контент через justify-content/align-items,
+   поэтому при перетаскивании за угол бокс растёт симметрично от центра,
+   а не "из-под курсора" как в оконных ОС-приложениях — курсор будет
+   визуально "убегать" от угла быстрее, чем растёт бокс, примерно в 2
+   раза. Функционально ресайз работает, просто не 1:1 с курсором; для
+   точного оконного поведения потребуется отдельно позиционировать модалку
+   через position:fixed + JS pointermove вместо flex-центровки — не
+   делаю сейчас, чтобы не усложнять непроверенным в браузере кодом. */
+#detailModal .modal-content {
+    resize: both;
+    min-width: 480px;
+    min-height: 360px;
+}
+/* Состояние "развёрнуто" — растягивает поверх текущих ограничений
+   через !important: это единственный чистый способ перебить inline
+   width/height, которые нативный resize пишет прямо в атрибут style
+   элемента при ручном перетаскивании (обычная specificity класса
+   этого не может, инлайн-стиль без !important всегда выигрывает). */
+#detailModal .modal-content.maximized {
+    width: 96vw !important;
+    height: 96vh !important;
+    max-width: 96vw !important;
+    max-height: 96vh !important;
+    resize: none; /* как и в оконных приложениях — из развёрнутого состояния сначала "восстановить", потом снова тянуть за угол */
+}
+.modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+.modal-maximize {
+    background: none;
+    border: none;
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    line-height: 1;
+    padding: var(--space-1);
+}
+.modal-maximize:hover { color: var(--color-text-dark); }
 @keyframes modalSlideIn {
     from { opacity: 0; transform: translateY(-16px) scale(0.97); }
     to { opacity: 1; transform: translateY(0) scale(1); }
