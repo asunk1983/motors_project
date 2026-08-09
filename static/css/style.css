@@ -409,6 +409,7 @@ body {
     display: flex;
     align-items: center;
     gap: var(--space-2);
+    cursor: pointer;
 }
 .tree-add-btn {
     display: none;
@@ -1534,5 +1535,6 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
     padding: 8px 10px; border: 1px solid var(--color-border);
     border-radius: var(--radius-sm, 6px); font-size: 14px;
 }
-.admin-users-table th, .admin-users-table td { padding: 8px 10px; }
+.admin-users-table { width: auto; table-layout: auto; }
+.admin-users-table th, .admin-users-table td { padding: 8px 10px; width: auto; white-space: nowrap; }
  

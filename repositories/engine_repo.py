@@ -67,6 +67,8 @@ def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
         'created_at_desc': 'created_at DESC',
         'updated_at_asc': 'updated_at ASC',
         'updated_at_desc': 'updated_at DESC',
+        'photo_count_asc': 'photo_count ASC',
+        'photo_count_desc': 'photo_count DESC',
     }
     order_by = sort_map.get(sort, 'location ASC')
 
