@@ -1,0 +1,1031 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Управление паспортами двигателей</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* Мокап стили - встроенные для демонстрации */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #0f172a; line-height: 1.5; }
+        .app-shell { display: flex; flex-direction: column; min-height: 100vh; }
+        .topbar { height: 64px; background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 0 24px; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; justify-content: space-between; }
+        .topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.125rem; color: #0f172a; }
+        .sidebar-brand-icon { font-size: 1.5rem; }
+        .sidebar-brand-text small { display: block; font-weight: 400; font-size: 0.7rem; color: #64748b; margin-top: -2px; }
+        .topbar-nav { display: flex; gap: 4px; }
+        .tab-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: none; background: transparent; color: #64748b; font-size: 0.875rem; font-weight: 500; border-radius: 8px; cursor: pointer; transition: all 150ms ease; }
+        .tab-btn:hover { background: #f1f5f9; color: #0f172a; }
+        .tab-btn.active { background: #dbeafe; color: #2563eb; }
+        .topbar-stats { display: flex; gap: 24px; padding-left: 24px; border-left: 1px solid #e2e8f0; }
+        .stat-item { display: flex; flex-direction: column; gap: 2px; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600; }
+        .stat-value { font-size: 1.125rem; font-weight: 700; color: #0f172a; }
+        .topbar-user { display: flex; align-items: center; gap: 12px; }
+        .user-name { font-weight: 500; color: #64748b; font-size: 0.875rem; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 150ms ease; text-decoration: none; white-space: nowrap; }
+        .btn:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-primary { background: #2563eb; color: #ffffff; }
+        .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+        .btn-secondary { background: #f1f5f9; color: #0f172a; border: 1px solid #cbd5e1; }
+        .btn-secondary:hover:not(:disabled) { background: #e2e8f0; }
+        .btn-success { background: #16a34a; color: #ffffff; }
+        .btn-success:hover:not(:disabled) { background: #15803d; }
+        .btn-danger { background: #dc2626; color: #ffffff; }
+        .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+        .btn-outline-light { background: transparent; color: #64748b; border: 1px solid #cbd5e1; font-size: 0.8125rem; padding: 6px 12px; }
+        .btn-outline-light:hover { background: #f1f5f9; }
+        .link-btn { background: none; border: none; color: #2563eb; font-size: 0.8125rem; cursor: pointer; padding: 0; }
+        .link-btn:hover { text-decoration: underline; }
+        .main-content { flex: 1; padding: 24px; max-width: 1400px; width: 100%; margin: 0 auto; }
+        .tab-content { display: none; animation: fadeIn 0.2s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 20px; color: #0f172a; }
+        h3 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: #0f172a; }
+        h4 { font-size: 0.875rem; font-weight: 600; margin-bottom: 10px; color: #64748b; }
+        .catalog-layout { display: grid; grid-template-columns: 280px 1fr; gap: 24px; }
+        .tree-panel { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; height: fit-content; max-height: calc(100vh - 160px); overflow-y: auto; }
+        .tree-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 0.875rem; }
+        .tree-reset-btn { background: none; border: none; color: #94a3b8; cursor: pointer; padding: 4px; border-radius: 4px; font-size: 1rem; line-height: 1; }
+        .tree-reset-btn:hover { background: #f1f5f9; color: #0f172a; }
+        #locationTreeBody { padding: 8px; }
+        .location-tree { list-style: none; }
+        .location-tree li { margin: 2px 0; }
+        .location-tree button { width: 100%; text-align: left; padding: 8px 12px; border: none; background: transparent; border-radius: 4px; font-size: 0.875rem; color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 150ms ease; }
+        .location-tree button:hover { background: #f1f5f9; color: #0f172a; }
+        .location-tree button.active { background: #dbeafe; color: #2563eb; font-weight: 500; }
+        .location-tree .tree-children { padding-left: 20px; border-left: 1px solid #e2e8f0; margin-left: 10px; }
+        .location-tree .tree-count { font-size: 0.75rem; color: #94a3b8; background: #f1f5f9; padding: 2px 6px; border-radius: 999px; margin-left: auto; }
+        .catalog-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .toolbar-left { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .toolbar-right { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        .search-input { padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; width: 280px; transition: all 150ms ease; }
+        .search-input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+        .sort-select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; background: #ffffff; min-width: 180px; cursor: pointer; }
+        .sort-select:focus { outline: none; border-color: #2563eb; }
+        .selection-info { display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: #64748b; }
+        .selection-info.hidden { display: none; }
+        .selection-info b { color: #2563eb; }
+        .table-wrapper { overflow-x: auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .data-table th, .data-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .data-table thead th { background: #f1f5f9; font-weight: 600; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; z-index: 10; }
+        .data-table tbody tr { transition: background 150ms ease; }
+        .data-table tbody tr:hover { background: #e2e8f0; }
+        .data-table tbody tr.selected { background: #dbeafe; }
+        .data-table tbody tr:last-child td { border-bottom: none; }
+        .col-checkbox { width: 48px; text-align: center; }
+        .col-id { width: 60px; font-family: monospace; color: #94a3b8; }
+        .col-photo { width: 60px; text-align: center; }
+        .sortable { cursor: pointer; user-select: none; }
+        .sortable:hover { color: #2563eb; }
+        .sortable::after { content: ' ↕'; font-size: 0.7rem; color: #94a3b8; margin-left: 4px; }
+        .sortable.sorted-asc::after { content: ' ↑'; color: #2563eb; }
+        .sortable.sorted-desc::after { content: ' ↓'; color: #2563eb; }
+        .no-data { text-align: center; padding: 48px !important; color: #94a3b8; font-size: 0.875rem; }
+        .photo-badge { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #f1f5f9; color: #94a3b8; font-size: 0.75rem; font-weight: 600; }
+        .photo-badge.has-photo { background: #dcfce7; color: #16a34a; }
+        .equipment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+        .equipment-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; transition: all 150ms ease; cursor: pointer; }
+        .equipment-card:hover { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border-color: #cbd5e1; transform: translateY(-2px); }
+        .equipment-card.selected { border-color: #2563eb; box-shadow: 0 0 0 2px #dbeafe; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+        .card-id { font-family: monospace; font-size: 0.75rem; color: #94a3b8; }
+        .card-photo-count { display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: #94a3b8; }
+        .card-body { display: grid; gap: 8px; }
+        .card-field { display: flex; flex-direction: column; gap: 2px; }
+        .card-field-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600; }
+        .card-field-value { font-size: 0.875rem; color: #0f172a; font-weight: 500; }
+        .card-field-value.empty { color: #94a3b8; font-style: italic; }
+        .card-modes { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+        .card-modes-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600; margin-bottom: 8px; }
+        .mode-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #f1f5f9; border-radius: 4px; font-size: 0.75rem; color: #64748b; margin: 2px 4px 2px 0; }
+        .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 0.875rem; color: #64748b; }
+        .page-controls { display: flex; align-items: center; gap: 8px; }
+        #pageNumber { min-width: 40px; text-align: center; font-weight: 500; }
+        .form-container { max-width: 900px; }
+        .engine-form { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.full-width { grid-column: 1 / -1; }
+        .form-group label { font-size: 0.8125rem; font-weight: 500; color: #64748b; }
+        .form-group input, .form-group select, .form-group textarea { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; font-family: inherit; background: #ffffff; color: #0f172a; transition: all 150ms ease; }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px #dbeafe; }
+        .form-group input:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+        .form-group input::placeholder { color: #94a3b8; }
+        .form-group input.error { border-color: #dc2626; }
+        .form-group input.error:focus { box-shadow: 0 0 0 3px #fee2e2; }
+        .form-error { font-size: 0.75rem; color: #dc2626; display: none; }
+        .form-group.has-error .form-error { display: block; }
+        .sub-section { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #e2e8f0; }
+        .sub-section:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .sub-toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+        .sub-table-wrapper { overflow-x: auto; }
+        .sub-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+        .sub-table th, .sub-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .sub-table thead th { background: #f1f5f9; font-weight: 600; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .sub-table tbody tr:hover { background: #e2e8f0; }
+        .col-action-narrow { width: 40px; text-align: center; }
+        .btn-icon { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; border-radius: 4px; cursor: pointer; color: #94a3b8; font-size: 1rem; transition: all 150ms ease; }
+        .btn-icon:hover { background: #e2e8f0; color: #dc2626; }
+        .sub-table input, .sub-table select { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8125rem; background: #ffffff; }
+        .sub-table input:focus, .sub-table select:focus { outline: none; border-color: #2563eb; }
+        .photos-preview { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .photo-preview-item { position: relative; width: 80px; height: 80px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; background: #f1f5f9; }
+        .photo-preview-item img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-preview-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.6); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; opacity: 0; transition: opacity 150ms; }
+        .photo-preview-item:hover .photo-preview-remove { opacity: 1; }
+        .photos-hint { font-size: 0.75rem; color: #94a3b8; margin-left: 12px; align-self: center; }
+        .form-actions { display: flex; gap: 12px; justify-content: flex-end; padding-top: 16px; border-top: 1px solid #e2e8f0; margin-top: 8px; }
+        .import-container { max-width: 800px; }
+        .import-info { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .info-card { display: flex; align-items: center; gap: 12px; padding: 16px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .info-icon { font-size: 1.5rem; }
+        .info-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+        .info-value { font-size: 1.125rem; font-weight: 700; color: #0f172a; }
+        .import-actions { display: flex; gap: 12px; margin-bottom: 24px; }
+        .import-progress { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .progress-bar { position: relative; height: 8px; background: #f1f5f9; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+        .progress-fill { height: 100%; background: #2563eb; border-radius: 4px; transition: width 0.3s ease; }
+        .progress-text { position: absolute; right: 0; top: -20px; font-size: 0.75rem; font-weight: 600; color: #64748b; }
+        .progress-log { max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #64748b; background: #f1f5f9; padding: 12px; border-radius: 8px; }
+        .progress-log .log-line { margin: 4px 0; }
+        .progress-log .log-success { color: #16a34a; }
+        .progress-log .log-error { color: #dc2626; }
+        .progress-log .log-warning { color: #f59e0b; }
+        .import-history h4 { margin-bottom: 12px; }
+        .log-container { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; max-height: 300px; overflow-y: auto; }
+        .log-entry { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-size: 0.8125rem; }
+        .log-entry:last-child { border-bottom: none; }
+        .log-entry-header { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.75rem; color: #94a3b8; }
+        .log-entry-files { color: #64748b; font-size: 0.8125rem; }
+        .log-empty { padding: 24px; text-align: center; color: #94a3b8; }
+        .search-container { max-width: 900px; }
+        .search-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .search-filters { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+        .filter-row { display: grid; grid-template-columns: 140px 120px 1fr auto; gap: 10px; align-items: end; margin-bottom: 12px; }
+        .filter-row:last-child { margin-bottom: 0; }
+        .filter-field-label { font-size: 0.75rem; color: #94a3b8; font-weight: 500; }
+        .filter-field-select, .filter-operator-select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.8125rem; background: #ffffff; }
+        .filter-value-input { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.8125rem; }
+        .filter-remove-btn { height: 38px; }
+        .search-results { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; min-height: 200px; }
+        .search-hint { font-size: 0.75rem; color: #94a3b8; align-self: center; margin-left: 8px; }
+        .settings-container { max-width: 700px; }
+        .settings-group { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+        .settings-group h3 { font-size: 0.875rem; font-weight: 600; color: #64748b; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; }
+        .settings-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #e2e8f0; }
+        .settings-item:last-child { border-bottom: none; }
+        .settings-label { font-size: 0.875rem; color: #64748b; }
+        .settings-value { font-size: 0.875rem; font-weight: 500; color: #0f172a; font-family: monospace; }
+        .settings-actions { margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0; }
+        .settings-hint { font-size: 0.8125rem; color: #94a3b8; line-height: 1.6; margin-bottom: 16px; }
+        .settings-hint code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+        .backups-list { margin-top: 16px; }
+        .backup-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f1f5f9; border-radius: 8px; margin-bottom: 8px; }
+        .backup-info { display: flex; flex-direction: column; gap: 2px; }
+        .backup-name { font-weight: 500; font-size: 0.875rem; }
+        .backup-meta { font-size: 0.75rem; color: #94a3b8; }
+        .backup-actions { display: flex; gap: 8px; }
+        .backup-restore-upload { margin-top: 24px; padding-top: 24px; border-top: 1px solid #e2e8f0; }
+        .backup-restore-upload h4 { margin-bottom: 8px; }
+        .backup-upload-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        #backupUploadFileName { font-size: 0.8125rem; color: #94a3b8; }
+        .admin-container { max-width: 800px; }
+        .admin-notice { background: #e0f2fe; border: 1px solid #0ea5e9; border-radius: 8px; padding: 16px; margin-bottom: 20px; font-size: 0.875rem; color: #0f172a; line-height: 1.6; }
+        .admin-actions { margin-bottom: 20px; }
+        .admin-add-form { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+        .admin-add-form input, .admin-add-form select { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; }
+        .admin-add-form input[type="text"] { min-width: 200px; }
+        .admin-add-form input[type="password"] { min-width: 180px; }
+        .admin-add-form select { min-width: 160px; }
+        .admin-users-list { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+        .admin-user-row { display: grid; grid-template-columns: 40px 1fr 120px 100px 1fr auto; gap: 16px; align-items: center; padding: 14px 20px; border-bottom: 1px solid #e2e8f0; }
+        .admin-user-row:last-child { border-bottom: none; }
+        .admin-user-row:hover { background: #e2e8f0; }
+        .admin-user-row.header { background: #f1f5f9; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: #dbeafe; color: #2563eb; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.875rem; }
+        .user-role { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+        .user-role.admin { background: #fee2e2; color: #dc2626; }
+        .user-role.superadmin { background: #fef3c7; color: #f59e0b; }
+        .user-role.user { background: #f1f5f9; color: #64748b; }
+        .user-status { display: inline-flex; align-items: center; gap: 4px; font-size: 0.75rem; }
+        .user-status.active { color: #16a34a; }
+        .user-status.inactive { color: #94a3b8; }
+        .user-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+        .user-actions { display: flex; gap: 4px; }
+        .user-actions .btn-icon { color: #94a3b8; }
+        .user-actions .btn-icon:hover { color: #dc2626; background: #fee2e2; }
+        .info-subtabs { display: flex; gap: 8px; margin-bottom: 20px; }
+        .info-subtab-content { display: none; }
+        .info-subtab-content.active { display: block; animation: fadeIn 0.2s ease; }
+        .changelog-add, .wishlist-add { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .changelog-date-input { padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; min-width: 160px; }
+        .changelog-text-input, .wishlist-text-input { flex: 1; min-width: 200px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 0.875rem; }
+        .changelog-list, .wishlist-list { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .changelog-item, .wishlist-item { padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+        .changelog-item:last-child, .wishlist-item:last-child { border-bottom: none; }
+        .changelog-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .changelog-date { font-weight: 600; color: #0f172a; font-size: 0.875rem; }
+        .changelog-text { color: #64748b; line-height: 1.6; }
+        .wishlist-item { display: flex; justify-content: space-between; align-items: center; }
+        .wishlist-text { flex: 1; color: #0f172a; }
+        .wishlist-actions { display: flex; gap: 8px; }
+        .modal { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(4px); opacity: 0; visibility: hidden; transition: all 250ms ease; padding: 20px; }
+        .modal.active { opacity: 1; visibility: visible; }
+        .modal-content { background: #ffffff; border-radius: 16px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); max-width: 600px; width: 100%; max-height: 90vh; overflow: hidden; transform: scale(0.95) translateY(10px); transition: transform 250ms ease; }
+        .modal.active .modal-content { transform: scale(1) translateY(0); }
+        .modal-lg { max-width: 800px; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #e2e8f0; }
+        .modal-header h2 { margin: 0; font-size: 1.125rem; }
+        .modal-close { width: 36px; height: 36px; border-radius: 8px; border: none; background: transparent; color: #94a3b8; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 150ms ease; }
+        .modal-close:hover { background: #f1f5f9; color: #0f172a; }
+        .modal-body { padding: 20px; overflow-y: auto; max-height: calc(90vh - 120px); }
+        .loading { display: flex; align-items: center; justify-content: center; padding: 40px; color: #94a3b8; }
+        .loading::before { content: ''; width: 24px; height: 24px; border: 2px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #detailToolbar { padding: 12px 20px; border-bottom: 1px solid #e2e8f0; display: flex; gap: 8px; flex-wrap: wrap; }
+        .detail-section { margin-bottom: 24px; }
+        .detail-section:last-child { margin-bottom: 0; }
+        .detail-section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+        .detail-field { display: flex; flex-direction: column; gap: 4px; }
+        .detail-field-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; font-weight: 600; }
+        .detail-field-value { font-size: 0.875rem; color: #0f172a; font-weight: 500; }
+        .detail-field-value.empty { color: #94a3b8; font-style: italic; }
+        .detail-photos { display: flex; flex-wrap: wrap; gap: 8px; }
+        .detail-photo { position: relative; width: 100px; height: 100px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; cursor: pointer; transition: transform 150ms ease; }
+        .detail-photo:hover { transform: scale(1.02); z-index: 10; }
+        .detail-photo img { width: 100%; height: 100%; object-fit: cover; }
+        .detail-modes-table, .detail-works-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+        .detail-modes-table th, .detail-modes-table td, .detail-works-table th, .detail-works-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+        .detail-modes-table thead th, .detail-works-table thead th { background: #f1f5f9; font-weight: 600; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .crop-stage { position: relative; width: 100%; max-width: 600px; aspect-ratio: 4/3; background: #1e293b; border-radius: 8px; overflow: hidden; margin: 0 auto 16px; }
+        .crop-canvas { display: block; max-width: 100%; max-height: 100%; }
+        .crop-selection { position: absolute; border: 2px dashed #2563eb; background: rgba(37, 99, 235, 0.1); cursor: move; min-width: 50px; min-height: 50px; }
+        .crop-handle { position: absolute; width: 14px; height: 14px; background: #2563eb; border: 2px solid white; border-radius: 50%; transform: translate(-50%, -50%); }
+        .crop-handle-nw { top: 0; left: 0; cursor: nw-resize; }
+        .crop-handle-ne { top: 0; right: 0; cursor: ne-resize; }
+        .crop-handle-sw { bottom: 0; left: 0; cursor: sw-resize; }
+        .crop-handle-se { bottom: 0; right: 0; cursor: se-resize; }
+        .crop-hint { text-align: center; font-size: 0.8125rem; color: #94a3b8; margin-bottom: 16px; }
+        .photo-modal { align-items: center; justify-content: center; }
+        .photo-modal .modal-content { max-width: 100%; max-height: 100%; border-radius: 0; background: transparent; box-shadow: none; }
+        .photo-modal-stage { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 80vh; max-height: 800px; }
+        .photo-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); width: 56px; height: 56px; border-radius: 50%; background: rgba(15, 23, 42, 0.6); color: white; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 150ms ease; z-index: 10; }
+        .photo-nav-btn:hover { background: rgba(15, 23, 42, 0.8); transform: translateY(-50%) scale(1.1); }
+        .photo-nav-btn.prev { left: 20px; }
+        .photo-nav-btn.next { right: 20px; }
+        .photo-nav-btn.hidden { opacity: 0; pointer-events: none; }
+        .photo-modal-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1); }
+        .photo-counter { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(15, 23, 42, 0.7); color: white; padding: 8px 16px; border-radius: 999px; font-size: 0.875rem; font-weight: 500; }
+        .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; text-align: center; color: #94a3b8; }
+        .empty-state-icon { font-size: 3rem; margin-bottom: 16px; opacity: 0.5; }
+        .empty-state-title { font-size: 1.125rem; font-weight: 600; color: #64748b; margin-bottom: 8px; }
+        .empty-state-text { font-size: 0.875rem; max-width: 300px; line-height: 1.6; }
+        @media (max-width: 1024px) { .catalog-layout { grid-template-columns: 1fr; } .tree-panel { max-height: 300px; } .toolbar { flex-direction: column; align-items: stretch; } .toolbar-left, .toolbar-right { width: 100%; justify-content: space-between; } .search-input { width: 100%; } }
+        @media (max-width: 768px) { .topbar { padding: 12px 16px; } .topbar-stats { display: none; } .main-content { padding: 16px; } h2 { font-size: 1.125rem; } .form-grid { grid-template-columns: 1fr; } .filter-row { grid-template-columns: 1fr; } .filter-field-label { display: none; } .admin-user-row { grid-template-columns: 40px 1fr; grid-template-rows: auto auto auto; gap: 4px 12px; } .admin-user-row.header { display: none; } .admin-user-row .user-avatar { grid-row: 1 / 4; } .admin-user-row .user-name { grid-column: 2; } .admin-user-row .user-role { grid-column: 2; } .admin-user-row .user-status { grid-column: 2; } .admin-user-row .user-email { grid-column: 2; } .admin-user-row .user-actions { grid-column: 2; justify-self: end; } .modal-content { margin: 10px; max-height: calc(100vh - 20px); } .photo-nav-btn { width: 44px; height: 44px; } .photo-nav-btn.prev { left: 10px; } .photo-nav-btn.next { right: 10px; } }
+        @media (max-width: 480px) { .tab-btn span:not(.tab-icon) { display: none; } .tab-btn { padding: 8px 10px; } .btn span:not(.tab-icon) { display: none; } .btn { padding: 8px 12px; } .btn-lg { padding: 10px 16px; } .equipment-grid { grid-template-columns: 1fr; } }
+        @media print { .topbar, .toolbar, .pagination, .form-actions, .modal-header, .modal-close, .btn { display: none !important; } .modal { position: static; opacity: 1; visibility: visible; background: none; } .modal-content { box-shadow: none; border: 1px solid #ccc; max-width: 100%; } .main-content { padding: 0; max-width: 100%; } .detail-photo { break-inside: avoid; } }
+    </style>
+</head>
+<body>
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="topbar-brand">
+                <span class="sidebar-brand-icon">⚙️</span>
+                <span class="sidebar-brand-text">Паспорта двигателей<small>Учёт оборудования</small></span>
+            </div>
+
+            <nav class="topbar-nav">
+                <button class="tab-btn active" data-tab="catalog">
+                    <span class="tab-icon">📋</span> Каталог
+                </button>
+                <button class="tab-btn" data-tab="add">
+                    <span class="tab-icon">➕</span> Добавить
+                </button>
+                <button class="tab-btn" data-tab="import" style="display:none">
+                    <span class="tab-icon">📥</span> Импорт
+                </button>
+                <button class="tab-btn" data-tab="search">
+                    <span class="tab-icon">🔍</span> Поиск
+                </button>
+                <button class="tab-btn" data-tab="settings">
+                    <span class="tab-icon">⚙️</span> Настройки
+                </button>
+                <button class="tab-btn" data-tab="info">
+                    <span class="tab-icon">ℹ️</span> Инфо
+                </button>
+                <button class="tab-btn" data-tab="admin" style="display:none">
+                    <span class="tab-icon">🛡️</span> Админ
+                </button>
+            </nav>
+
+            <div class="topbar-stats">
+                <span class="stat-item">
+                    <span class="stat-label">Двигателей</span>
+                    <span class="stat-value" id="totalEngines">18</span>
+                </span>
+                <span class="stat-item">
+                    <span class="stat-label">Фото</span>
+                    <span class="stat-value" id="totalPhotos">42</span>
+                </span>
+            </div>
+
+            <div class="topbar-user">
+                <span class="user-name" id="userName">Иван Петров (admin)</span>
+                <button id="logoutBtn" class="btn btn-outline-light btn-sm">Выйти</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="tab-content active" id="tab-catalog">
+                <h2>📋 Каталог оборудования</h2>
+
+                <div class="catalog-layout">
+                    <aside class="tree-panel" id="locationTreePanel">
+                        <div class="tree-panel-header">
+                            <span>Цехи и места</span>
+                            <button type="button" class="tree-reset-btn" onclick="resetLocationFilter()" title="Сбросить фильтр">✕</button>
+                        </div>
+                        <div id="locationTreeBody"><div class="no-data">Загрузка...</div></div>
+                    </aside>
+
+                    <div class="catalog-main">
+                        <div class="toolbar">
+                            <div class="toolbar-left">
+                                <input type="text" id="searchInput" placeholder="🔍 Быстрый поиск..." class="search-input">
+                                <select id="searchFieldSelect" class="sort-select">
+                                    <option value="all">Все поля</option>
+                                    <option value="location">Место установки</option>
+                                    <option value="engine_type">Тип</option>
+                                    <option value="serial_number">Зав. номер</option>
+                                    <option value="manufacturer">Производитель</option>
+                                    <option value="purpose">Назначение</option>
+                                    <option value="workshop">Цех</option>
+                                </select>
+                                <select id="sortSelect" class="sort-select">
+                                    <option value="location_asc">По месту установки (А-Я)</option>
+                                    <option value="location_desc">По месту установки (Я-А)</option>
+                                    <option value="id_desc">По ID (новые сверху)</option>
+                                    <option value="id_asc">По ID (старые сверху)</option>
+                                    <option value="engine_type_asc">По типу (А-Я)</option>
+                                    <option value="engine_type_desc">По типу (Я-А)</option>
+                                    <option value="manufacturer_asc">По производителю (А-Я)</option>
+                                    <option value="manufacturer_desc">По производителю (Я-А)</option>
+                                </select>
+                                <button class="btn btn-primary btn-sm" id="viewTableBtn" onclick="toggleView('table')">📋 Таблица</button>
+                                <button class="btn btn-secondary btn-sm" id="viewCardsBtn" onclick="toggleView('cards')">📇 Карточки</button>
+                            </div>
+                            <div class="toolbar-right">
+                                <span id="selectionInfo" class="selection-info hidden">Выбрано: <b id="selectionCount">0</b> <button type="button" class="link-btn" onclick="clearSelection()">✕ снять</button></span>
+                                <button class="btn btn-secondary" id="exportBtn" onclick="exportSelected()" disabled>📊 Экспорт в Excel</button>
+                                <button class="btn btn-success" onclick="refreshTable()">🔄 Обновить</button>
+                            </div>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"></th>
+                                        <th class="col-id">ID</th>
+                                        <th class="sortable" onclick="sortTable('location')">Место установки ↕</th>
+                                        <th class="sortable" onclick="sortTable('engine_type')">Тип ↕</th>
+                                        <th class="sortable" onclick="sortTable('serial_number')">Зав. номер ↕</th>
+                                        <th class="sortable" onclick="sortTable('manufacturer')">Производитель ↕</th>
+                                        <th class="sortable" onclick="sortTable('purpose')">Назначение ↕</th>
+                                        <th class="col-photo">Фото</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody">
+                                    <tr><td colspan="8" class="no-data">Загрузка данных...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div id="cardWrapper" class="equipment-grid hidden"></div>
+
+                        <div class="pagination">
+                            <span class="page-info" id="pageInfo">Показано 0 из 0</span>
+                            <div class="page-controls">
+                                <button class="btn btn-sm btn-secondary" onclick="prevPage()">◀</button>
+                                <span id="pageNumber">1</span>
+                                <button class="btn btn-sm btn-secondary" onclick="nextPage()">▶</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-add">
+                <div class="form-container">
+                    <h2>➕ Добавление нового двигателя</h2>
+                    <form id="engineForm" class="engine-form">
+
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Место установки *</label>
+                                <input type="text" id="f_location" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Тип двигателя *</label>
+                                <input type="text" id="f_engine_type" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Заводской номер *</label>
+                                <input type="text" id="f_serial_number" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Производитель</label>
+                                <input type="text" id="f_manufacturer">
+                            </div>
+                            <div class="form-group">
+                                <label>Назначение</label>
+                                <input type="text" id="f_purpose">
+                            </div>
+                            <div class="form-group">
+                                <label>Цех</label>
+                                <input type="number" step="any" id="f_workshop">
+                            </div>
+                            <div class="form-group">
+                                <label>Степень защиты</label>
+                                <input type="text" id="f_protection_class">
+                            </div>
+                            <div class="form-group">
+                                <label>Тип крепления</label>
+                                <input type="text" id="f_mounting_type">
+                            </div>
+                            <div class="form-group">
+                                <label>Диаметр вала (мм)</label>
+                                <input type="number" step="any" id="f_shaft_diameter">
+                            </div>
+                            <div class="form-group">
+                                <label>Подшипник передний</label>
+                                <input type="text" id="f_bearing_front">
+                            </div>
+                            <div class="form-group">
+                                <label>Подшипник задний</label>
+                                <input type="text" id="f_bearing_rear">
+                            </div>
+                            <div class="form-group">
+                                <label>Датчик температуры</label>
+                                <input type="text" id="f_temp_sensor">
+                            </div>
+                            <div class="form-group">
+                                <label>Энкодер</label>
+                                <input type="text" id="f_encoder">
+                            </div>
+                            <div class="form-group">
+                                <label>Охлаждение</label>
+                                <input type="text" id="f_cooling">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>Примечание</label>
+                                <textarea id="f_note" rows="2"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="sub-section">
+                            <h4>⚡ Режимы работы</h4>
+                            <div class="sub-toolbar">
+                                <button type="button" class="btn btn-success btn-sm" onclick="addModeRow()">➕ Добавить режим</button>
+                            </div>
+                            <div class="sub-table-wrapper">
+                                <table class="sub-table" id="modesTable">
+                                    <thead><tr><th>Частота (Гц)</th><th>Мощность (кВт)</th><th>Напряжение (В)</th><th>Тип подключения</th><th>Ток (А)</th><th>Обороты (об/мин)</th><th class="col-action-narrow"></th></tr></thead>
+                                    <tbody id="modesBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="sub-section maintenance">
+                            <h4>🔧 Произведенные работы</h4>
+                            <div class="sub-toolbar">
+                                <button type="button" class="btn btn-success btn-sm" onclick="addWorkRow()">➕ Добавить запись</button>
+                            </div>
+                            <div class="sub-table-wrapper">
+                                <table class="sub-table" id="worksTable">
+                                    <thead><tr><th>№ п/п</th><th>Дата</th><th>Вид производимых работ</th><th>Сопротивление изоляции</th><th>Внешний осмотр и проверка работы</th><th>ФИО исполнителя</th><th class="col-action-narrow"></th></tr></thead>
+                                    <tbody id="worksBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="sub-section">
+                            <h4>📸 Фото</h4>
+                            <div class="sub-toolbar">
+                                <label class="btn btn-secondary btn-sm file-input-label">
+                                    ➕ Выбрать фото
+                                    <input type="file" id="f_photos" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" multiple class="file-input-hidden">
+                                </label>
+                                <span id="photosHint" class="photos-hint">Можно выбрать несколько файлов; загрузятся после сохранения</span>
+                            </div>
+                            <div id="photosPreview" class="detail-photos photos-preview"></div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" onclick="resetForm()">Очистить</button>
+                            <button type="button" class="btn btn-success" onclick="saveEngine()" id="applyBtn">✅ Применить</button>
+                            <button type="submit" class="btn btn-primary" id="saveBtn">💾 Сохранить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-import">
+                <div class="import-container">
+                    <h2>📥 Импорт из Excel</h2>
+
+                    <div class="import-info">
+                        <div class="info-card">
+                            <span class="info-icon">📁</span>
+                            <div><div class="info-label">Папка с файлами</div><div class="info-value">motors/</div></div>
+                        </div>
+                        <div class="info-card">
+                            <span class="info-icon">📄</span>
+                            <div><div class="info-label">Найдено файлов</div><div class="info-value" id="filesCount">5</div></div>
+                        </div>
+                        <div class="info-card">
+                            <span class="info-icon">📸</span>
+                            <div><div class="info-label">Извлечено фото</div><div class="info-value" id="photosCount">23</div></div>
+                        </div>
+                    </div>
+
+                    <div class="import-actions">
+                        <button class="btn btn-primary btn-lg" onclick="importFiles()">📥 Импортировать все файлы</button>
+                        <button class="btn btn-danger" onclick="confirmClearDatabase()">🗑 Очистить БД</button>
+                    </div>
+
+                    <div class="import-progress hidden" id="importProgress">
+                        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div><span class="progress-text" id="progressText">0%</span></div>
+                        <div class="progress-log" id="progressLog"></div>
+                    </div>
+
+                    <div class="import-history">
+                        <h4>📋 История импорта</h4>
+                        <div id="importLog" class="log-container"><div class="log-empty">Нет записей</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-search">
+                <div class="search-container">
+                    <h2>🔍 Расширенный поиск</h2>
+
+                    <div class="search-actions">
+                        <button class="btn btn-primary btn-sm" id="addSearchBtn">➕ Добавить условие</button>
+                        <button class="btn btn-danger btn-sm" id="clearSearchBtn">🗑 Очистить всё</button>
+                        <button class="btn btn-success btn-sm" id="searchBtn">🔍 Найти</button>
+                        <span class="search-hint">Нажмите Enter для поиска</span>
+                    </div>
+
+                    <div id="searchConditions" class="search-filters"></div>
+
+                    <div class="search-results" id="searchResults">
+                        <div class="no-data">Введите параметры поиска</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-settings">
+                <div class="settings-container">
+                    <h2>⚙️ Настройки</h2>
+
+                    <div class="settings-group">
+                        <h3>База данных</h3>
+                        <div class="settings-item"><span class="settings-label">Количество записей</span><span class="settings-value" id="settingsRecords">18</span></div>
+                        <div class="settings-item"><span class="settings-label">Размер БД</span><span class="settings-value" id="settingsDbSize">2.4 MB</span></div>
+                        <div class="settings-actions"><button class="btn btn-danger" onclick="confirmClearDatabase()">🗑 Очистить БД</button></div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Фото</h3>
+                        <div class="settings-item"><span class="settings-label">Количество фото</span><span class="settings-value" id="settingsPhotos">42</span></div>
+                        <div class="settings-item"><span class="settings-label">Папка</span><span class="settings-value">photos/</span></div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>💾 Резервные копии</h3>
+                        <p class="settings-hint">Только вручную — автоматических бэкапов нет. Один клик сохраняет копию и на сервере (папка <code>backups/</code>), и на вашем компьютере (скачивается сразу), чтобы не потерять данные, если умрёт диск на сервере.</p>
+                        <div class="settings-actions">
+                            <button class="btn btn-success" onclick="createBackup()">📦 Создать резервную копию</button>
+                        </div>
+                        <div id="backupsList" class="backups-list"><div class="no-data">Загрузка...</div></div>
+
+                        <div class="backup-restore-upload">
+                            <h4>Восстановить из файла</h4>
+                            <p class="settings-hint">Если бэкап скачивался на этот компьютер (или на другой) — можно загрузить его обратно и восстановить.</p>
+                            <div class="backup-upload-row">
+                                <input type="file" id="backupUploadInput" accept=".zip" class="file-input-hidden">
+                                <label for="backupUploadInput" class="btn btn-secondary file-input-label">📤 Выбрать файл резервной копии</label>
+                                <span id="backupUploadFileName" class="settings-hint"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3>Система</h3>
+                        <div class="settings-item"><span class="settings-label">Версия</span><span class="settings-value">2.0</span></div>
+                        <div class="settings-item"><span class="settings-label">Лог-файл</span><span class="settings-value">import_log.txt</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-admin">
+                <div class="admin-container">
+                    <h2>🛡️ Панель администратора</h2>
+                    <div class="admin-notice">
+                        Здесь выдаются учётные записи сотрудникам. Самостоятельная регистрация отключена — нового пользователя создаёт только администратор. Чтобы забрать доступ у сотрудника, нажмите 🔄 (сброс всех сессий) или 🗑 (удаление).
+                    </div>
+                    <div class="admin-actions">
+                        <button class="btn btn-success btn-sm" onclick="showAddUserForm()">➕ Добавить пользователя</button>
+                    </div>
+                    <div id="addUserForm" class="admin-add-form" style="display:none">
+                        <input type="text" id="newUsername" placeholder="Логин">
+                        <input type="password" id="newPassword" placeholder="Пароль (мин. 6)">
+                        <select id="newRole">
+                            <option value="user">Пользователь</option>
+                            <option value="admin">Админ</option>
+                            <option value="superadmin">Суперадмин</option>
+                        </select>
+                        <button class="btn btn-primary btn-sm" onclick="adminCreateUser()">Создать</button>
+                        <button class="btn btn-secondary btn-sm" onclick="document.getElementById('addUserForm').style.display='none'">Отмена</button>
+                    </div>
+                    <div id="adminUsersList" class="admin-users-list"><div class="no-data">Загрузка...</div></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-info">
+                <h2>ℹ️ Инфо</h2>
+
+                <div class="info-subtabs">
+                    <button class="btn btn-sm btn-primary" id="infoSubtabChangelogBtn" onclick="switchInfoSubtab('changelog')">📋 Лог изменений</button>
+                    <button class="btn btn-sm btn-secondary" id="infoSubtabWishlistBtn" onclick="switchInfoSubtab('wishlist')">💡 Пожелания</button>
+                </div>
+
+                <div class="info-subtab-content active" id="infoSubtab-changelog">
+                    <div class="changelog-add">
+                        <input type="date" id="changelogDateInput" class="changelog-date-input">
+                        <input type="text" id="changelogTextInput" class="changelog-text-input" placeholder="Что изменилось...">
+                        <button type="button" class="btn btn-success btn-sm" onclick="addChangelogEntry()">➕ Добавить запись</button>
+                    </div>
+                    <div id="changelogList"><div class="no-data">Загрузка...</div></div>
+                </div>
+
+                <div class="info-subtab-content" id="infoSubtab-wishlist">
+                    <div class="wishlist-add">
+                        <input type="text" id="wishlistTextInput" class="wishlist-text-input" placeholder="Новое пожелание...">
+                        <button type="button" class="btn btn-success btn-sm" onclick="addWishlistItem()">➕ Добавить</button>
+                    </div>
+                    <div id="wishlistList"><div class="no-data">Загрузка...</div></div>
+                </div>
+            </div>
+        </main>
+
+        <div class="modal" id="detailModal">
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h2 id="detailTitle">Детали двигателя</h2>
+                    <button class="modal-close" onclick="closeDetail()">&times;</button>
+                </div>
+                <div id="detailToolbar"></div>
+                <div id="detailContent" class="modal-body">
+                    <div class="loading">Загрузка...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="photoAddModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>📸 Добавить фото</h2>
+                    <button class="modal-close" onclick="closePhotoAddModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <label class="btn btn-secondary file-input-label">
+                        ➕ Выбрать фото
+                        <input type="file" id="detailPhotoInput" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" multiple class="file-input-hidden">
+                    </label>
+                    <div id="detailPhotoPreview" class="detail-photos photos-preview"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closePhotoAddModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="submitDetailPhotoAdd()">💾 Загрузить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal" id="photoCropModal">
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h2>✂️ Обрезка фото</h2>
+                    <button class="modal-close" onclick="closeCropModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="crop-stage" id="cropStage">
+                        <canvas id="cropCanvas" class="crop-canvas"></canvas>
+                        <div class="crop-selection" id="cropSelection">
+                            <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+                            <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+                            <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+                            <div class="crop-handle crop-handle-se" data-handle="se"></div>
+                        </div>
+                    </div>
+                    <div class="crop-hint">Перетащите рамку целиком или потяните за угол, чтобы изменить область обрезки.</div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCropModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="applyCrop()">✂️ Обрезать и применить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal photo-modal" id="photoModal">
+            <button class="modal-close" onclick="closePhotoModal()">&times;</button>
+            <div class="photo-modal-stage">
+                <button id="photoPrevBtn" class="photo-nav-btn prev hidden" onclick="navigatePhotoModal(-1)">◀</button>
+                <img id="modalImage" src="" alt="Фото" class="photo-modal-img" onclick="event.stopPropagation()">
+                <button id="photoNextBtn" class="photo-nav-btn next hidden" onclick="navigatePhotoModal(1)">▶</button>
+            </div>
+            <div id="photoCounter" class="photo-counter">1 / 1</div>
+        </div>
+    </div>
+
+    <script src="/static/js/common.js"></script>
+    <script src="/static/js/catalog.js"></script>
+    <script src="/static/js/locationTree.js"></script>
+    <script src="/static/js/engineCard.js"></script>
+    <script src="/static/js/importer.js"></script>
+    <script src="/static/js/exportManager.js"></script>
+    <script src="/static/js/backupManager.js"></script>
+    <script src="/static/js/engines.js"></script>
+    <script src="/static/js/search.js"></script>
+    <script src="/static/js/auth.js?v=20260721"></script>
+    <script>
+        // Мокап данные - 18 вымышленных двигателей
+        const MOCK_ENGINES = [
+            { id: 1, location: "Цех №1, участок А", engine_type: "АИР112М4", serial_number: "1234567", manufacturer: "ОАО «Роселектро»", purpose: "Привод насоса НШ-50", workshop: 1, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 28, bearing_front: "6206-2RS", bearing_rear: "6205-2RS", temp_sensor: "Pt100", encoder: "ОИШ-100", cooling: "IC411", note: "Работает в штатном режиме", modes: [{freq: 50, power: 4, voltage: 380, connection: "Y", current: 8.2, rpm: 1440}], works: [{date: "15.01.2024", work_type: "Плановое ТО", insulation: "500 МОм", inspection: "Без замечаний", executor: "Иванов И.И."}, {date: "10.07.2023", work_type: "Замена подшипников", insulation: "480 МОм", inspection: "Подшипники заменены", executor: "Петров П.П."}], photos: 3 },
+            { id: 2, location: "Цех №1, участок Б", engine_type: "АИР132S4", serial_number: "2345678", manufacturer: "ОАО «Роселектро»", purpose: "Привод вентилятора ВЦ-100", workshop: 1, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 38, bearing_front: "6208-2RS", bearing_rear: "6207-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Повышенная вибрация на валовом конце", modes: [{freq: 50, power: 5.5, voltage: 380, connection: "Y", current: 11.2, rpm: 1450}, {freq: 50, power: 4, voltage: 220, connection: "Δ", current: 14.5, rpm: 1450}], works: [{date: "20.01.2024", work_type: "Балансировка ротора", insulation: "520 МОм", inspection: "Вибрация в норме", executor: "Сидоров С.С."}], photos: 2 },
+            { id: 3, location: "Цех №2, участок А", engine_type: "АИР160M4", serial_number: "3456789", manufacturer: "ЗАО «Электромаш»", purpose: "Привод компрессора К-20", workshop: 2, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 42, bearing_front: "6309-2RS", bearing_rear: "6308-2RS", temp_sensor: "Pt100", encoder: "ОИШ-200", cooling: "IC411", note: "Новый, введен в эксплуатацию 2023", modes: [{freq: 50, power: 11, voltage: 380, connection: "Y", current: 21.5, rpm: 1460}], works: [{date: "01.02.2024", work_type: "Ввод в эксплуатацию", insulation: "1000 МОм", inspection: "Заводские параметры", executor: "Козлов К.К."}], photos: 4 },
+            { id: 4, location: "Цех №2, участок Б", engine_type: "АИР180M4", serial_number: "4567890", manufacturer: "ЗАО «Электромаш»", purpose: "Привод конвейера КЛ-200", workshop: 2, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 48, bearing_front: "6310-2RS", bearing_rear: "6309-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Требует замены подшипников к 03.2024", modes: [{freq: 50, power: 18.5, voltage: 380, connection: "Y", current: 35.2, rpm: 1470}], works: [{date: "15.12.2023", work_type: "Плановое ТО", insulation: "450 МОм", inspection: "Подшипники на контроле", executor: "Волков В.В."}], photos: 1 },
+            { id: 5, location: "Цех №3, участок А", engine_type: "АИР200M4", serial_number: "5678901", manufacturer: "ОАО «Роселектро»", purpose: "Привод пресса П-500", workshop: 3, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 55, bearing_front: "6312-2RS", bearing_rear: "6311-2RS", temp_sensor: "Pt100", encoder: "ОИШ-200", cooling: "IC411", note: "Работает в 2 смены", modes: [{freq: 50, power: 30, voltage: 380, connection: "Y", current: 56.8, rpm: 1475}], works: [{date: "10.01.2024", work_type: "Замена уплотнений", insulation: "480 МОм", inspection: "Уплотнения заменены", executor: "Новиков Н.Н."}], photos: 2 },
+            { id: 6, location: "Цех №3, участок Б", engine_type: "АИР225S4", serial_number: "6789012", manufacturer: "ОАО «Роселектро»", purpose: "Привод мельницы МШ-300", workshop: 3, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 60, bearing_front: "6313-2RS", bearing_rear: "6312-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Высокая нагрузка, контроль температуры", modes: [{freq: 50, power: 37, voltage: 380, connection: "Y", current: 69.5, rpm: 1480}], works: [{date: "05.01.2024", work_type: "Чистка воздушных каналов", insulation: "500 МОм", inspection: "Каналы чистые", executor: "Смирнов С.С."}], photos: 3 },
+            { id: 7, location: "Цех №4, участок А", engine_type: "АИР250M4", serial_number: "7890123", manufacturer: "ЗАО «Электромаш»", purpose: "Привод насоса НШ-200", workshop: 4, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 65, bearing_front: "6314-2RS", bearing_rear: "6313-2RS", temp_sensor: "Pt100", encoder: "ОИШ-300", cooling: "IC411", note: "Резервный насос", modes: [{freq: 50, power: 55, voltage: 380, connection: "Y", current: 102, rpm: 1485}], works: [{date: "01.01.2024", work_type: "Консервация снята", insulation: "550 МОм", inspection: "Готов к пуску", executor: "Козлова М.К."}], photos: 1 },
+            { id: 8, location: "Цех №4, участок Б", engine_type: "АИР280S4", serial_number: "8901234", manufacturer: "ЗАО «Электромаш»", purpose: "Привод вентилятора ВЦ-300", workshop: 4, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 75, bearing_front: "6316-2RS", bearing_rear: "6315-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Частота регулируется ЧРП", modes: [{freq: 50, power: 75, voltage: 380, connection: "Y", current: 138, rpm: 1485}, {freq: 25, power: 37.5, voltage: 380, connection: "Y", current: 72, rpm: 740}], works: [{date: "20.12.2023", work_type: "Настройка ЧРП", insulation: "520 МОм", inspection: "Параметры настроены", executor: "Петров А.П."}], photos: 2 },
+            { id: 9, location: "Склад №1, ряд А", engine_type: "АИР71В2", serial_number: "9012345", manufacturer: "ОАО «Роселектро»", purpose: "Резерв (малый привод)", workshop: 0, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 14, bearing_front: "6202-2RS", bearing_rear: "6201-2RS", temp_sensor: "—", encoder: "—", cooling: "IC411", note: "На складе, сохранен", modes: [{freq: 50, power: 0.37, voltage: 380, connection: "Y", current: 1.1, rpm: 2800}], works: [], photos: 0 },
+            { id: 10, location: "Склад №1, ряд Б", engine_type: "АИР80В2", serial_number: "0123456", manufacturer: "ОАО «Роселектро»", purpose: "Резерв (малый привод)", workshop: 0, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 19, bearing_front: "6204-2RS", bearing_rear: "6203-2RS", temp_sensor: "—", encoder: "—", cooling: "IC411", note: "На складе, сохранен", modes: [{freq: 50, power: 0.75, voltage: 380, connection: "Y", current: 2.0, rpm: 2820}], works: [], photos: 0 },
+            { id: 11, location: "Цех №5, участок А", engine_type: "АИР315S4", serial_number: "1122334", manufacturer: "ЗАО «Электромаш»", purpose: "Привод компрессора К-50", workshop: 5, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 80, bearing_front: "6317-2RS", bearing_rear: "6316-2RS", temp_sensor: "Pt100", encoder: "ОИШ-300", cooling: "IC411", note: "Самый мощный на заводе", modes: [{freq: 50, power: 110, voltage: 380, connection: "Y", current: 200, rpm: 1488}], works: [{date: "15.01.2024", work_type: "Капитальный ремонт", insulation: "600 МОм", inspection: "После ремонта", executor: "Мастер цеха 5"}], photos: 5 },
+            { id: 12, location: "Цех №5, участок Б", engine_type: "АИР315M4", serial_number: "2233445", manufacturer: "ЗАО «Электромаш»", purpose: "Привод насоса НШ-300", workshop: 5, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 80, bearing_front: "6317-2RS", bearing_rear: "6316-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Парный к ID 11", modes: [{freq: 50, power: 132, voltage: 380, connection: "Y", current: 240, rpm: 1488}], works: [{date: "10.01.2024", work_type: "Плановое ТО", insulation: "580 МОм", inspection: "Без замечаний", executor: "Мастер цеха 5"}], photos: 4 },
+            { id: 13, location: "Котельная, участок 1", engine_type: "АИР100L4", serial_number: "3344556", manufacturer: "ОАО «Роселектро»", purpose: "Привод насоса питания котла", workshop: 6, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 28, bearing_front: "6206-2RS", bearing_rear: "6205-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Работает в отопительный сезон", modes: [{freq: 50, power: 3, voltage: 380, connection: "Y", current: 6.5, rpm: 1430}], works: [{date: "01.10.2023", work_type: "Подготовка к сезону", insulation: "500 МОм", inspection: "Готов к работе", executor: "Котловщик И.И."}], photos: 1 },
+            { id: 14, location: "Котельная, участок 2", engine_type: "АИР112М4", serial_number: "4455667", manufacturer: "ОАО «Роселектро»", purpose: "Привод вентилятора дымососа", workshop: 6, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 28, bearing_front: "6206-2RS", bearing_rear: "6205-2RS", temp_sensor: "—", encoder: "—", cooling: "IC411", note: "Высокая температура среды", modes: [{freq: 50, power: 4, voltage: 380, connection: "Y", current: 8.2, rpm: 1440}], works: [{date: "01.10.2023", work_type: "Проверка изоляции", insulation: "480 МОм", inspection: "В норме", executor: "Котловщик И.И."}], photos: 1 },
+            { id: 15, location: "Водоподъемная станция", engine_type: "АИР160L4", serial_number: "5566778", manufacturer: "ЗАО «Электромаш»", purpose: "Привод насоса ВН-100", workshop: 7, protection_class: "IP55", mounting_type: "IM1001 (B3)", shaft_diameter: 42, bearing_front: "6309-2RS", bearing_rear: "6308-2RS", temp_sensor: "Pt100", encoder: "ОИШ-200", cooling: "IC411", note: "Работает круглый год", modes: [{freq: 50, power: 15, voltage: 380, connection: "Y", current: 29, rpm: 1465}], works: [{date: "01.01.2024", work_type: "Ежегодное ТО", insulation: "520 МОм", inspection: "Без замечаний", executor: "Насосник П.П."}], photos: 2 },
+            { id: 16, location: "Цех №6, участок А", engine_type: "АИР132M4", serial_number: "6677889", manufacturer: "ОАО «Роселектро»", purpose: "Привод станка Токарный 16К20", workshop: 6, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 38, bearing_front: "6208-2RS", bearing_rear: "6207-2RS", temp_sensor: "Pt100", encoder: "—", cooling: "IC411", note: "Точная обработка", modes: [{freq: 50, power: 7.5, voltage: 380, connection: "Y", current: 15, rpm: 1455}], works: [{date: "15.12.2023", work_type: "Проверка точности", insulation: "500 МОм", inspection: "В допусках", executor: "Наладчик С.С."}], photos: 1 },
+            { id: 17, location: "Цех №6, участок Б", engine_type: "АИР180L4", serial_number: "7788990", manufacturer: "ОАО «Роселектро»", purpose: "Привод станка Фрезерный 6Р82", workshop: 6, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 48, bearing_front: "6310-2RS", bearing_rear: "6309-2RS", temp_sensor: "Pt100", encoder: "ОИШ-200", cooling: "IC411", note: "Тяжелая обработка", modes: [{freq: 50, power: 22, voltage: 380, connection: "Y", current: 41, rpm: 1470}], works: [{date: "10.12.2023", work_type: "Замена щеток", insulation: "490 МОм", inspection: "Щетки заменены", executor: "Наладчик С.С."}], photos: 2 },
+            { id: 18, location: "Лаборатория испытаний", engine_type: "АИР90L4", serial_number: "8899001", manufacturer: "ЗАО «Электромаш»", purpose: "Испытательный стенд", workshop: 8, protection_class: "IP54", mounting_type: "IM1001 (B3)", shaft_diameter: 24, bearing_front: "6205-2RS", bearing_rear: "6204-2RS", temp_sensor: "Pt100", encoder: "ОИШ-100", cooling: "IC411", note: "Для испытаний новых двигателей", modes: [{freq: 50, power: 2.2, voltage: 380, connection: "Y", current: 4.8, rpm: 1420}, {freq: 50, power: 1.5, voltage: 220, connection: "Δ", current: 6.2, rpm: 1420}], works: [{date: "01.02.2024", work_type: "Калибровка стенда", insulation: "1000 МОм", inspection: "Стенд калиброван", executor: "Инженер Л.Л."}], photos: 3 }
+        ];
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            // Заглушка для демонстрации
+            document.getElementById('tableBody').innerHTML = MOCK_ENGINES.slice(0, 10).map(eng => `
+                <tr data-id="${eng.id}">
+                    <td class="col-checkbox"><input type="checkbox"></td>
+                    <td class="col-id">${eng.id}</td>
+                    <td>${eng.location}</td>
+                    <td>${eng.engine_type}</td>
+                    <td><code>${eng.serial_number}</code></td>
+                    <td>${eng.manufacturer || '—'}</td>
+                    <td>${eng.purpose || '—'}</td>
+                    <td class="col-photo"><span class="photo-badge ${eng.photos > 0 ? 'has-photo' : ''}">${eng.photos > 0 ? eng.photos : '—'}</span></td>
+                </tr>
+            `).join('');
+            document.getElementById('totalEngines').textContent = MOCK_ENGINES.length;
+            document.getElementById('totalPhotos').textContent = MOCK_ENGINES.reduce((sum, e) => sum + e.photos, 0);
+            document.getElementById('settingsRecords').textContent = MOCK_ENGINES.length;
+            document.getElementById('settingsPhotos').textContent = MOCK_ENGINES.reduce((sum, e) => sum + e.photos, 0);
+            document.getElementById('settingsDbSize').textContent = '2.4 MB';
+            document.getElementById('filesCount').textContent = 5;
+            document.getElementById('photosCount').textContent = MOCK_ENGINES.reduce((sum, e) => sum + e.photos, 0);
+            document.getElementById('adminUsersList').innerHTML = `
+                <div class="admin-user-row header">
+                    <span></span><span>Пользователь</span><span>Роль</span><span>Статус</span><span>Email</span><span>Действия</span>
+                </div>
+                <div class="admin-user-row" data-id="1">
+                    <div class="user-avatar">ИП</div>
+                    <div><div class="user-name">Иван Петров</div><div style="font-size:0.75rem;color:#94a3b8">ivan.petrov</div></div>
+                    <span class="user-role superadmin">Суперадмин</span>
+                    <span class="user-status active">Активен</span>
+                    <span>ivan@company.ru</span>
+                    <div class="user-actions">
+                        <button class="btn-icon" onclick="resetUserSessions(1)" title="Сбросить сессии">🔄</button>
+                        <button class="btn-icon" onclick="deleteUser(1)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="admin-user-row" data-id="2">
+                    <div class="user-avatar">АС</div>
+                    <div><div class="user-name">Алексей Смирнов</div><div style="font-size:0.75rem;color:#94a3b8">alex.smirnov</div></div>
+                    <span class="user-role admin">Админ</span>
+                    <span class="user-status active">Активен</span>
+                    <span>alex@company.ru</span>
+                    <div class="user-actions">
+                        <button class="btn-icon" onclick="resetUserSessions(2)" title="Сбросить сессии">🔄</button>
+                        <button class="btn-icon" onclick="deleteUser(2)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="admin-user-row" data-id="3">
+                    <div class="user-avatar">МК</div>
+                    <div><div class="user-name">Мария Козлова</div><div style="font-size:0.75rem;color:#94a3b8">maria.kozlova</div></div>
+                    <span class="user-role user">Пользователь</span>
+                    <span class="user-status active">Активен</span>
+                    <span>maria@company.ru</span>
+                    <div class="user-actions">
+                        <button class="btn-icon" onclick="resetUserSessions(3)" title="Сбросить сессии">🔄</button>
+                        <button class="btn-icon" onclick="deleteUser(3)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="admin-user-row" data-id="4">
+                    <div class="user-avatar">ДВ</div>
+                    <div><div class="user-name">Дмитрий Волков</div><div style="font-size:0.75rem;color:#94a3b8">dmitry.volkov</div></div>
+                    <span class="user-role user">Пользователь</span>
+                    <span class="user-status inactive">Неактивен</span>
+                    <span>dmitry@company.ru</span>
+                    <div class="user-actions">
+                        <button class="btn-icon" onclick="resetUserSessions(4)" title="Сбросить сессии">🔄</button>
+                        <button class="btn-icon" onclick="deleteUser(4)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="admin-user-row" data-id="5">
+                    <div class="user-avatar">ЕН</div>
+                    <div><div class="user-name">Елена Новикова</div><div style="font-size:0.75rem;color:#94a3b8">elena.novikova</div></div>
+                    <span class="user-role user">Пользователь</span>
+                    <span class="user-status active">Активен</span>
+                    <span>elena@company.ru</span>
+                    <div class="user-actions">
+                        <button class="btn-icon" onclick="resetUserSessions(5)" title="Сбросить сессии">🔄</button>
+                        <button class="btn-icon" onclick="deleteUser(5)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('changelogList').innerHTML = `
+                <div class="changelog-item">
+                    <div class="changelog-item-header">
+                        <span class="changelog-date">15.01.2024</span>
+                        <button class="btn-icon" onclick="deleteChangelog(this)" title="Удалить">🗑</button>
+                    </div>
+                    <div class="changelog-text">Добавлена поддержка множественного выбора фото при импорте. Исправлена ошибка с кодировкой при экспорте в Excel.</div>
+                </div>
+                <div class="changelog-item">
+                    <div class="changelog-item-header">
+                        <span class="changelog-date">10.01.2024</span>
+                        <button class="btn-icon" onclick="deleteChangelog(this)" title="Удалить">🗑</button>
+                    </div>
+                    <div class="changelog-text">Реализован расширенный поиск с поддержкой нескольких условий (И/ИЛИ). Добавлена сортировка по всем колонкам.</div>
+                </div>
+                <div class="changelog-item">
+                    <div class="changelog-item-header">
+                        <span class="changelog-date">05.01.2024</span>
+                        <button class="btn-icon" onclick="deleteChangelog(this)" title="Удалить">🗑</button>
+                    </div>
+                    <div class="changelog-text">Обновлён интерфейс каталога: добавлен вид карточек, дерево локаций, пагинация. Исправлены баги с модалками.</div>
+                </div>
+                <div class="changelog-item">
+                    <div class="changelog-item-header">
+                        <span class="changelog-date">28.12.2023</span>
+                        <button class="btn-icon" onclick="deleteChangelog(this)" title="Удалить">🗑</button>
+                    </div>
+                    <div class="changelog-text">Добавлена система резервного копирования (бэкапы в ZIP). Реализован импорт из Excel с извлечением фото.</div>
+                </div>
+                <div class="changelog-item">
+                    <div class="changelog-item-header">
+                        <span class="changelog-date">20.12.2023</span>
+                        <button class="btn-icon" onclick="deleteChangelog(this)" title="Удалить">🗑</button>
+                    </div>
+                    <div class="changelog-text">Первая версия системы: каталог двигателей, добавление/редактирование, фото, режимы работы, ТО.</div>
+                </div>
+            `;
+            document.getElementById('wishlistList').innerHTML = `
+                <div class="wishlist-item">
+                    <span class="wishlist-text">Добавить экспорт в PDF с шаблоном паспорта двигателя</span>
+                    <div class="wishlist-actions">
+                        <button class="btn-icon" onclick="voteWishlist(this)" title="Голосовать">👍 <span>3</span></button>
+                        <button class="btn-icon" onclick="deleteWishlist(this)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="wishlist-item">
+                    <span class="wishlist-text">Интеграция с 1С для синхронизации оборудования</span>
+                    <div class="wishlist-actions">
+                        <button class="btn-icon" onclick="voteWishlist(this)" title="Голосовать">👍 <span>7</span></button>
+                        <button class="btn-icon" onclick="deleteWishlist(this)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="wishlist-item">
+                    <span class="wishlist-text">Мобильное приложение для сканирования QR-кодов на двигателях</span>
+                    <div class="wishlist-actions">
+                        <button class="btn-icon" onclick="voteWishlist(this)" title="Голосовать">👍 <span>5</span></button>
+                        <button class="btn-icon" onclick="deleteWishlist(this)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="wishlist-item">
+                    <span class="wishlist-text">Автоматические напоминания о плановом ТО по датам</span>
+                    <div class="wishlist-actions">
+                        <button class="btn-icon" onclick="voteWishlist(this)" title="Голосовать">👍 <span>12</span></button>
+                        <button class="btn-icon" onclick="deleteWishlist(this)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+                <div class="wishlist-item">
+                    <span class="wishlist-text">Тёмная тема интерфейса</span>
+                    <div class="wishlist-actions">
+                        <button class="btn-icon" onclick="voteWishlist(this)" title="Голосовать">👍 <span>8</span></button>
+                        <button class="btn-icon" onclick="deleteWishlist(this)" title="Удалить">🗑</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('backupsList').innerHTML = `
+                <div class="backup-item">
+                    <div class="backup-info">
+                        <span class="backup-name">backup_2024-01-15_14-30-00.zip</span>
+                        <span class="backup-meta">15.01.2024 14:30 • 2.4 MB • 18 записей, 42 фото</span>
+                    </div>
+                    <div class="backup-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="downloadBackup(this)">⬇️ Скачать</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteBackup(this)">🗑</button>
+                    </div>
+                </div>
+                <div class="backup-item">
+                    <div class="backup-info">
+                        <span class="backup-name">backup_2024-01-10_09-15-00.zip</span>
+                        <span class="backup-meta">10.01.2024 09:15 • 1.8 MB • 12 записей, 28 фото</span>
+                    </div>
+                    <div class="backup-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="downloadBackup(this)">⬇️ Скачать</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteBackup(this)">🗑</button>
+                    </div>
+                </div>
+                <div class="backup-item">
+                    <div class="backup-info">
+                        <span class="backup-name">backup_2024-01-05_16-45-00.zip</span>
+                        <span class="backup-meta">05.01.2024 16:45 • 1.2 MB • 8 записей, 15 фото</span>
+                    </div>
+                    <div class="backup-actions">
+                        <button class="btn btn-secondary btn-sm" onclick="downloadBackup(this)">⬇️ Скачать</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteBackup(this)">🗑</button>
+                    </div>
+                </div>
+            `;
+        });
+
+        // Утилиты
+        function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+        function showToast(type, message) { const container = document.getElementById('toastContainer') || document.body; const toast = document.createElement('div'); toast.className = `toast ${type}`; const icons = { success: '✅', error: '❌', warning: '⚠️', info: 'ℹ️' }; toast.innerHTML = `<span style="margin-right:8px">${icons[type] || 'ℹ️'}</span><span>${escapeHtml(message)}</span>`; container.appendChild(toast); setTimeout(() => toast.remove(), 3000); }
+
+        // Функции для демонстрации
+        function resetLocationFilter() { showToast('info', 'Фильтр сброшен'); }
+        function toggleView(view) { 
+            const table = document.getElementById('tableView');
+            const cards = document.getElementById('cardWrapper');
+            if (view === 'table') {
+                table.classList.remove('hidden');
+                cards.classList.add('hidden');
+                document.getElementById('viewTableBtn').classList.add('active');
+                document.getElementById('viewCardsBtn').classList.remove('active');
+            } else {
+                table.classList.add('hidden');
+                cards.classList.remove('hidden');
+                document.getElementById('viewCardsBtn').classList.add('active');
+                document.getElementById('viewTableBtn').classList.remove('active');
+            }
+        }
+        function refreshTable() { showToast('success', 'Данные обновлены'); }
+        function exportSelected() { showToast('info', 'Экспорт в Excel (демо)'); }
+        function prevPage() { showToast('info', 'Переход на предыдущую страницу'); }
+        function nextPage() { showToast('info', 'Переход на следующую страницу'); }
+        function sortTable(field) { showToast('info', `Сортировка по ${field}`); }
+        function toggleSelectAll(checked) { showToast('info', `Выбрано: ${checked ? 'все' : 'ничего'}`); }
+        function clearSelection() { showToast('info', 'Выделение снято'); }
+        function addModeRow() { showToast('info', 'Добавлена строка режима'); }
+        function addWorkRow() { showToast('info', 'Добавлена запись ТО'); }
+        function resetForm() { showToast('info', 'Форма очищена'); }
+        function saveEngine() { showToast('success', 'Двигатель сохранён'); }
+        function importFiles() { showToast('info', 'Импорт начинается...'); }
+        function confirmClearDatabase() { if (confirm('Удалить всю базу данных?')) showToast('warning', 'База данных очищена'); }
+        function createBackup() { showToast('success', 'Резервная копия создана'); }
+        function downloadBackup(btn) { showToast('info', 'Скачивание начинается...'); }
+        function deleteBackup(btn) { if (confirm('Удалить резервную копию?')) { btn.closest('.backup-item').remove(); showToast('success', 'Резервная копия удалена'); } }
+        function showAddUserForm() { document.getElementById('addUserForm').style.display = 'flex'; }
+        function adminCreateUser() { const username = document.getElementById('newUsername').value; const password = document.getElementById('newPassword').value; const role = document.getElementById('newRole').value; if (!username || !password) { showToast('error', 'Введите логин и пароль'); return; } if (password.length < 6) { showToast('error', 'Пароль должен быть не короче 6 символов'); return; } showToast('success', `Пользователь ${username} создан с ролью ${role}`); document.getElementById('addUserForm').style.display = 'none'; document.getElementById('newUsername').value = ''; document.getElementById('newPassword').value = ''; }
+        function resetUserSessions(userId) { showToast('info', 'Сессии пользователя сброшены'); }
+        function deleteUser(userId) { if (confirm('Удалить пользователя?')) { document.querySelector(`.admin-user-row[data-id="${userId}"]`).remove(); showToast('success', 'Пользователь удалён'); } }
+        function addChangelogEntry() { const date = document.getElementById('changelogDateInput').value; const text = document.getElementById('changelogTextInput').value; if (!date || !text) { showToast('error', 'Введите дату и текст записи'); return; } const list = document.getElementById('changelogList'); const item = document.createElement('div'); item.className = 'changelog-item'; item.innerHTML = `<div class="changelog-item-header"><span class="changelog-date">${date}</span><button class="btn-icon" onclick="deleteChangelog(this)" title="Удалить">🗑</button></div><div class="changelog-text">${escapeHtml(text)}</div>`; list.insertBefore(item, list.firstChild); document.getElementById('changelogTextInput').value = ''; showToast('success', 'Запись добавлена'); }
+        function deleteChangelog(btn) { btn.closest('.changelog-item').remove(); }
+        function addWishlistItem() { const text = document.getElementById('wishlistTextInput').value; if (!text) { showToast('error', 'Введите текст пожелания'); return; } const list = document.getElementById('wishlistList'); const item = document.createElement('div'); item.className = 'wishlist-item'; item.innerHTML = `<span class="wishlist-text">${escapeHtml(text)}</span><div class="wishlist-actions"><button class="btn-icon" onclick="voteWishlist(this)" title="Голосовать">👍 <span>0</span></button><button class="btn-icon" onclick="deleteWishlist(this)" title="Удалить">🗑</button></div>`; list.appendChild(item); document.getElementById('wishlistTextInput').value = ''; showToast('success', 'Пожелание добавлено'); }
+        function voteWishlist(btn) { const count = btn.querySelector('span'); count.textContent = parseInt(count.textContent) + 1; }
+        function deleteWishlist(btn) { btn.closest('.wishlist-item').remove(); }
+        function switchInfoSubtab(subtab) { document.querySelectorAll('.info-subtab-content').forEach(c => c.classList.remove('active')); document.getElementById(`infoSubtab-${subtab}`).classList.add('active'); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 *)",
+      "Bash(pip3 install *)",
+      "Bash(apt-get update *)",
+      "Bash(apt-get install *)",
+      "Bash(curl *)",
+      "Bash(.venv/bin/python *)",
+      "Bash(grep *)"
+    ]
+  }
+}

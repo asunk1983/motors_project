@@ -1,0 +1,33 @@
+# --- Динамические данные (создаются на сервере) ---
+engine_data.db
+*.db
+*.sqlite3
+import_log.txt
+*.log
+photos/
+backups/
+backup_staging/
+motors/
+
+# --- Виртуальное окружение ---
+venv/
+.venv/
+env/
+
+# --- Python-кэш и компилированные файлы ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# --- IDE и системные файлы ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+docs/
+tests/
+get-pip.py
+config/
+
