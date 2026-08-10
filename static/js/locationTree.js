@@ -31,13 +31,13 @@ function createAndOpenEngine(workshop, location) {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('❌ ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
                 return;
             }
             pendingNewEngineId = data.id;
             showDetail(data.id, true);
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 function loadLocationTree() {

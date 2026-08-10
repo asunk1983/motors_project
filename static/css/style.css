@@ -1538,3 +1538,54 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .admin-users-table { width: auto; table-layout: auto; }
 .admin-users-table th, .admin-users-table td { padding: 8px 10px; width: auto; white-space: nowrap; }
  
+/* ===== ИКОНКИ (замена emoji на SVG через mask-image) ===== */
+.icon {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    background-color: currentColor;
+    mask-size: contain;
+    mask-repeat: no-repeat;
+    mask-position: center;
+    -webkit-mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    vertical-align: -0.15em;
+    flex-shrink: 0;
+}
+.icon-chevron-right { transform: scaleX(-1); }
+.icon-settings { mask-image: url('/static/ico/settings.svg'); -webkit-mask-image: url('/static/ico/settings.svg'); }
+.icon-list-alt { mask-image: url('/static/ico/list_alt.svg'); -webkit-mask-image: url('/static/ico/list_alt.svg'); }
+.icon-folder-open { mask-image: url('/static/ico/folder_open.svg'); -webkit-mask-image: url('/static/ico/folder_open.svg'); }
+.icon-search { mask-image: url('/static/ico/search.svg'); -webkit-mask-image: url('/static/ico/search.svg'); }
+.icon-info { mask-image: url('/static/ico/info.svg'); -webkit-mask-image: url('/static/ico/info.svg'); }
+.icon-shield { mask-image: url('/static/ico/shield.svg'); -webkit-mask-image: url('/static/ico/shield.svg'); }
+.icon-photo-camera { mask-image: url('/static/ico/photo_camera.svg'); -webkit-mask-image: url('/static/ico/photo_camera.svg'); }
+.icon-delete { mask-image: url('/static/ico/delete.svg'); -webkit-mask-image: url('/static/ico/delete.svg'); }
+.icon-add { mask-image: url('/static/ico/add.svg'); -webkit-mask-image: url('/static/ico/add.svg'); }
+.icon-close { mask-image: url('/static/ico/close.svg'); -webkit-mask-image: url('/static/ico/close.svg'); }
+.icon-edit { mask-image: url('/static/ico/edit.svg'); -webkit-mask-image: url('/static/ico/edit.svg'); }
+.icon-save { mask-image: url('/static/ico/save.svg'); -webkit-mask-image: url('/static/ico/save.svg'); }
+.icon-chevron-left { mask-image: url('/static/ico/chevron_left.svg'); -webkit-mask-image: url('/static/ico/chevron_left.svg'); }
+.icon-print { mask-image: url('/static/ico/print.svg'); -webkit-mask-image: url('/static/ico/print.svg'); }
+.icon-content-cut { mask-image: url('/static/ico/content_cut.svg'); -webkit-mask-image: url('/static/ico/content_cut.svg'); }
+.icon-download { mask-image: url('/static/ico/download.svg'); -webkit-mask-image: url('/static/ico/download.svg'); }
+.icon-fullscreen { mask-image: url('/static/ico/open_in_full.svg'); -webkit-mask-image: url('/static/ico/open_in_full.svg'); }
+.icon-restore { mask-image: url('/static/ico/restore.svg'); -webkit-mask-image: url('/static/ico/restore.svg'); }
+.icon-package-2 { mask-image: url('/static/ico/package_2.svg'); -webkit-mask-image: url('/static/ico/package_2.svg'); }
+.icon-upload { mask-image: url('/static/ico/upload.svg'); -webkit-mask-image: url('/static/ico/upload.svg'); }
+.icon-check-circle { mask-image: url('/static/ico/check_circle.svg'); -webkit-mask-image: url('/static/ico/check_circle.svg'); }
+.icon-cancel { mask-image: url('/static/ico/cancel.svg'); -webkit-mask-image: url('/static/ico/cancel.svg'); }
+.icon-progress-activity { mask-image: url('/static/ico/progress_activity.svg'); -webkit-mask-image: url('/static/ico/progress_activity.svg'); }
+.icon-warning { mask-image: url('/static/ico/warning.svg'); -webkit-mask-image: url('/static/ico/warning.svg'); }
+.icon-sync { mask-image: url('/static/ico/sync.svg'); -webkit-mask-image: url('/static/ico/sync.svg'); }
+.icon-lock { mask-image: url('/static/ico/lock.svg'); -webkit-mask-image: url('/static/ico/lock.svg'); }
+.icon-workspace-premium { mask-image: url('/static/ico/workspace_premium.svg'); -webkit-mask-image: url('/static/ico/workspace_premium.svg'); }
+.icon-visibility { mask-image: url('/static/ico/visibility.svg'); -webkit-mask-image: url('/static/ico/visibility.svg'); }
+.icon-person { mask-image: url('/static/ico/person.svg'); -webkit-mask-image: url('/static/ico/person.svg'); }
+.icon-open-in-full { mask-image: url('/static/ico/open_in_full.svg'); -webkit-mask-image: url('/static/ico/open_in_full.svg'); }
+.icon-close-fullscreen { mask-image: url('/static/ico/close_fullscreen.svg'); -webkit-mask-image: url('/static/ico/close_fullscreen.svg'); }
+.icon-table-chart { mask-image: url('/static/ico/table_chart.svg'); -webkit-mask-image: url('/static/ico/table_chart.svg'); }
+.icon-lightbulb { mask-image: url('/static/ico/lightbulb.svg'); -webkit-mask-image: url('/static/ico/lightbulb.svg'); }
+.icon-bolt { mask-image: url('/static/ico/bolt.svg'); -webkit-mask-image: url('/static/ico/bolt.svg'); }
+.icon-build { mask-image: url('/static/ico/build.svg'); -webkit-mask-image: url('/static/ico/build.svg'); }

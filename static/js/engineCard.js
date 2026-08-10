@@ -35,7 +35,6 @@ function toggleDetailMaximize() {
     const modalContent = document.querySelector('#detailModal .modal-content');
     const btn = document.getElementById('detailMaximizeBtn');
     if (!modalContent) return;
-
     if (modalContent.classList.contains('maximized')) {
         // Восстановить: снять класс, вернуть запомненные inline-размеры
         // (пустая строка — если пользователь никогда не тянул за угол,
@@ -44,15 +43,15 @@ function toggleDetailMaximize() {
         modalContent.style.width = detailModalPrevSize ? detailModalPrevSize.width : '';
         modalContent.style.height = detailModalPrevSize ? detailModalPrevSize.height : '';
         detailModalPrevSize = null;
-        if (btn) { btn.textContent = '⛶'; btn.title = 'Развернуть на весь экран'; }
+        if (btn) { btn.innerHTML = '<span class="icon icon-open-in-full"></span>'; btn.title = 'Развернуть на весь экран'; }
     } else {
         detailModalPrevSize = {
             width: modalContent.style.width || '',
             height: modalContent.style.height || ''
         };
         modalContent.classList.add('maximized');
-        if (btn) { btn.textContent = '❐'; btn.title = 'Восстановить размер'; }
-    }
+        if (btn) { btn.innerHTML = '<span class="icon icon-close-fullscreen"></span>'; btn.title = 'Восстановить размер'; }
+      }
 }
 
 // ===== ДЕТАЛЬНАЯ МОДАЛКА =====
@@ -135,20 +134,20 @@ function renderDetailContent() {
     // между шапкой модалки и этой панелью.
     const infoHtml = isPendingNew
         ? `<span class="detail-toolbar-title">🆕 Новый двигатель</span>`
-        : `<span class="detail-toolbar-title">📄 Карточка двигателя</span>
+        : `<span class="detail-toolbar-title"><span class="icon icon-description"></span> Карточка двигателя</span>
            <span class="detail-toolbar-position">${currentIndex + 1} / ${total}</span>
            <span class="detail-toolbar-dates">Изменено: ${formatRuDateTime(data.updated_at)} · Создано: ${formatRuDateTime(data.created_at)}</span>`;
 
     const editButtonsHtml = isEdit
-        ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); saveDetailEdit()">💾 Сохранить</button>
-           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); cancelDetailEdit()">✕ Отмена</button>`
-        : `<button class="btn btn-warning btn-sm write-action" onclick="event.stopPropagation(); enterEditMode()">✏️ Редактировать</button>`;
+        ? `<button class="btn btn-success btn-sm" onclick="event.stopPropagation(); saveDetailEdit()"><span class="icon icon-save"></span> Сохранить</button>
+           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); cancelDetailEdit()"><span class="icon icon-close"></span> Отмена</button>`
+        : `<button class="btn btn-warning btn-sm write-action" onclick="event.stopPropagation(); enterEditMode()"><span class="icon icon-edit"></span> Редактировать</button>`;
 
     const navButtonsHtml = isPendingNew ? '' : `
            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigateEngine(-1)" ${currentIndex <= 0 ? 'disabled' : ''}>◀ Предыдущий</button>
            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigateEngine(1)" ${currentIndex === total - 1 ? 'disabled' : ''}>Следующий ▶</button>
-           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); printEngineCard()">🖨 Печать</button>
-           <button class="btn btn-danger btn-sm write-action" onclick="event.stopPropagation(); deleteCurrentEngine()">🗑 Удалить</button>`;
+           <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); printEngineCard()"><span class="icon icon-print"></span> Печать</button>
+           <button class="btn btn-danger btn-sm write-action" onclick="event.stopPropagation(); deleteCurrentEngine()"><span class="icon icon-delete"></span> Удалить</button>`;
 
     toolbar.innerHTML = `<div class="detail-toolbar">
         <div class="detail-toolbar-info">${infoHtml}</div>
@@ -159,8 +158,8 @@ function renderDetailContent() {
 
     // ---- Фото ----
     html += `<div class="detail-subsection-header">
-        <h4>📸 Фото${currentPhotos.length ? ' (' + currentPhotos.length + ')' : ''}</h4>
-        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="openPhotoAddModal()">➕ Добавить</button>' : ''}
+        <h4><span class="icon icon-photo-camera"></span> Фото${currentPhotos.length ? ' (' + currentPhotos.length + ')' : ''}</h4>
+        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="openPhotoAddModal()"><span class="icon icon-add"></span> Добавить</button>' : ''}
     </div>`;
     if (currentPhotos.length > 0) {
         html += '<div class="detail-photos" id="photoGallery">';
@@ -173,7 +172,7 @@ function renderDetailContent() {
             const safePath = p.path.replace(/'/g, "\\'");
             html += `<div class="gallery-thumb-wrap">
                 <img src="${authPhotoUrl(p.path)}?v=${photoCacheBust}" class="gallery-thumb" onclick="event.stopPropagation(); openPhotoModalWithNav('${safePath}')" loading="lazy">
-                ${isEdit ? `<button type="button" class="gallery-thumb-crop" title="Обрезать" onclick="event.stopPropagation(); openCropModal('existing', '${safeFilename}', '${safePath}')">✂️</button>` : ''}
+                ${isEdit ? `<button type="button" class="gallery-thumb-crop" title="Обрезать" onclick="event.stopPropagation(); openCropModal('existing', '${safeFilename}', '${safePath}')"><span class="icon icon-content-cut"></span></button>` : ''}
                 ${isEdit ? `<button type="button" class="gallery-thumb-remove" title="Удалить фото" onclick="event.stopPropagation(); removeDetailPhoto('${safeFilename}')">−</button>` : ''}
             </div>`;
         });
@@ -183,7 +182,7 @@ function renderDetailContent() {
     }
 
     // ---- Характеристики ----
-    html += `<div class="detail-subsection-header"><h4>📊 Характеристики</h4></div><div class="detail-grid">`;
+    html += `<div class="detail-subsection-header"><h4><span class="icon icon-table-chart"></span> Характеристики</h4></div><div class="detail-grid">`;
     DETAIL_CHAR_FIELDS.forEach(f => {
         const val = data[f.key];
         const safeVal = val && val !== 'nan' ? escapeHtml(val) : '';
@@ -210,8 +209,8 @@ function renderDetailContent() {
     // логично уметь поправить целиком. "Сохранить режимы" шлёт весь
     // список на PUT /api/engine/:id/modes — он и раньше делал полную
     // замену (DELETE+INSERT), так что backend не менялся.
-    html += `<div class="detail-subsection-header"><h4>⚡ Режимы работы</h4>
-        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="addModeRowInline()">➕ Добавить режим</button>' : ''}
+    html += `<div class="detail-subsection-header"><h4><span class="icon icon-bolt"></span> Режимы работы</h4>
+        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="addModeRowInline()"><span class="icon icon-add"></span> Добавить режим</button>' : ''}
     </div>`;
     if (isEdit) {
         html += '<div class="table-wrapper"><table class="data-table modes-table"><thead><tr>';
@@ -258,8 +257,8 @@ function renderDetailContent() {
     // редактируемое поле, а чистая позиция в списке (как и было у
     // read-only строк) — это заодно убирает баг с задвоением номера
     // при добавлении нескольких строк подряд без сохранения.
-    html += `<div class="detail-subsection-header"><h4>🔧 Произведенные работы</h4>
-        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="addWorkRowInline()">➕ Добавить</button>' : ''}
+    html += `<div class="detail-subsection-header"><h4><span class="icon icon-build"></span> Произведенные работы</h4>
+        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="addWorkRowInline()"><span class="icon icon-add"></span> Добавить</button>' : ''}
     </div>`;
     if (isEdit) {
         html += '<div class="table-wrapper"><table class="data-table works-table"><thead><tr>';
@@ -372,7 +371,7 @@ function addWorkRowInline() {
         }
     }, 100);
 
-    showToast('➕ Добавлена строка. Заполните поля и нажмите "Сохранить" или Enter.', 'success');
+    showToast('<span class="icon icon-add"></span> Добавлена строка. Заполните поля и нажмите "Сохранить" или Enter.', 'success');
 }
 
 
@@ -394,7 +393,7 @@ function removeWorkRowInline(idx) {
     if (!confirm(`Удалить запись №${idx + 1} (${work.date || 'без даты'})?`)) return;
     currentEngineData.works.splice(idx, 1);
     renderDetailContent();
-    showToast('🗑 Запись удалена из списка — не забудьте нажать "Сохранить"', 'info');
+    showToast('<span class="icon icon-delete"></span> Запись удалена из списка — не забудьте нажать "Сохранить"', 'info');
 }
 
 
@@ -405,7 +404,7 @@ function removeWorkRowInline(idx) {
 // режимов-работ, detailEditMode для характеристик) — путаница и источник
 // как минимум одного реального бага (saveWorksOnly стирала историю работ,
 // см. комментарий у works ниже). Теперь один detailMode('view'|'edit') на
-// всю карточку и одна кнопка "💾 Сохранить" в шапке (см. renderDetailContent).
+// всю карточку и одна кнопка "<span class="icon icon-save"></span> Сохранить" в шапке (см. renderDetailContent).
 
 function enterEditMode() {
     detailMode = 'edit';
@@ -474,7 +473,7 @@ function saveDetailEdit() {
     .then(r => r.json())
     .then(result => {
         if (result.error) {
-            showToast('❌ ' + result.error, 'error');
+            showToast('<span class="icon icon-cancel"></span> ' + result.error, 'error');
             return;
         }
         const wasPendingNew = currentEngineId === pendingNewEngineId;
@@ -482,12 +481,12 @@ function saveDetailEdit() {
         loadEngines();
         loadLocationTree();
         updateStats();
-        showToast(wasPendingNew ? '✅ Двигатель добавлен' : '✅ Изменения сохранены', 'success');
+        showToast(wasPendingNew ? '<span class="icon icon-check-circle"></span> Двигатель добавлен' : '<span class="icon icon-check-circle"></span> Изменения сохранены', 'success');
         // Перечитываем карточку с сервера — актуальные updated_at/created_at,
         // и переключаемся в режим просмотра только что сохранённых данных.
         showDetail(currentEngineId, false);
     })
-    .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+    .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
 }
 
 
@@ -508,7 +507,7 @@ function printEngineCard() {
 // ===== УДАЛЕНИЕ КАРТОЧКИ =====
 function deleteCurrentEngine() {
     if (!currentEngineId) {
-        showToast('⚠️ Нет открытой карточки', 'warning');
+        showToast('<span class="icon icon-warning"></span> Нет открытой карточки', 'warning');
         return;
     }
     if (!confirm(`Удалить двигатель ID=${currentEngineId}?`)) return;
@@ -517,15 +516,15 @@ function deleteCurrentEngine() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('❌ ' + data.error, 'error');
+                showToast('<span class="icon icon-cancel"></span> ' + data.error, 'error');
                 return;
             }
-            showToast('✅ ' + data.message, 'success');
+            showToast('<span class="icon icon-check-circle"></span> ' + data.message, 'success');
             closeDetail();
             loadEngines();
             updateStats();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
 }
 
 
@@ -603,7 +602,7 @@ function renderDetailPhotoPreview() {
         const url = URL.createObjectURL(file);
         const box = document.createElement('div');
         box.className = 'photo-thumb is-pending';
-        box.innerHTML = `<img src="${url}" alt="Новое фото"><button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('detail', ${idx})">✂️</button><button type="button" class="photo-thumb-remove" onclick="removeDetailPendingPhoto(${idx})">✕</button>`;
+        box.innerHTML = `<img src="${url}" alt="Новое фото"><button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('detail', ${idx})"><span class="icon icon-content-cut"></span></button><button type="button" class="photo-thumb-remove" onclick="removeDetailPendingPhoto(${idx})"><span class="icon icon-close"></span></button>`;
         wrap.appendChild(box);
     });
 }
@@ -616,7 +615,7 @@ function removeDetailPendingPhoto(idx) {
 function submitDetailPhotoAdd() {
     if (!currentEngineId) return;
     if (detailPhotoFiles.length === 0) {
-        showToast('⚠️ Выберите хотя бы одно фото', 'warning');
+        showToast('<span class="icon icon-warning"></span> Выберите хотя бы одно фото', 'warning');
         return;
     }
     const formData = new FormData();
@@ -625,10 +624,10 @@ function submitDetailPhotoAdd() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('❌ ' + data.error, 'error');
+                showToast('<span class="icon icon-cancel"></span> ' + data.error, 'error');
                 return null;
             }
-            showToast(`✅ Загружено фото: ${data.uploaded}`, 'success');
+            showToast(`<span class="icon icon-check-circle"></span> Загружено фото: ${data.uploaded}`, 'success');
             closePhotoAddModal();
             return apiFetch(`/api/engine/${currentEngineId}/photos`).then(r => r.json());
         })
@@ -640,7 +639,7 @@ function submitDetailPhotoAdd() {
             loadEngines();
             updateStats();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
 }
 
 function removeDetailPhoto(filename) {
@@ -650,7 +649,7 @@ function removeDetailPhoto(filename) {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('❌ ' + data.error, 'error');
+                showToast('<span class="icon icon-cancel"></span> ' + data.error, 'error');
                 return;
             }
             currentPhotos = currentPhotos.filter(p => p.filename !== filename);
@@ -658,9 +657,9 @@ function removeDetailPhoto(filename) {
             renderDetailContent();
             loadEngines();
             updateStats();
-            showToast('🗑 Фото удалено', 'success');
+            showToast('<span class="icon icon-delete"></span> Фото удалено', 'success');
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
 }
 
 
@@ -746,7 +745,7 @@ function openCropModal(list, a, b) {
 
         const img = new Image();
         img.onload = function() { _openCropStage(img); };
-        img.onerror = function() { showToast('❌ Не удалось загрузить фото для обрезки', 'error'); };
+        img.onerror = function() { showToast('<span class="icon icon-cancel"></span> Не удалось загрузить фото для обрезки', 'error'); };
         // Тот же путь, что и в галерее (без cache-bust параметра) — грузим
         // актуальную версию с сервера, same-origin, canvas не будет "грязным".
         // authPhotoUrl добавляет токен в query (?token=), иначе <img>
@@ -902,7 +901,7 @@ function _applyCropFile() {
 
     out.toBlob(function(blob) {
         if (!blob) {
-            showToast('❌ Не удалось обрезать фото', 'error');
+            showToast('<span class="icon icon-cancel"></span> Не удалось обрезать фото', 'error');
             return;
         }
         const croppedFile = new File([blob], file.name, { type: mimeType });
@@ -914,7 +913,7 @@ function _applyCropFile() {
         } else {
             renderPhotosPreview();
         }
-        showToast('✅ Фото обрезано', 'success');
+        showToast('<span class="icon icon-check-circle"></span> Фото обрезано', 'success');
     }, mimeType, 0.92);
 }
 
@@ -948,7 +947,7 @@ function _applyCropExisting() {
 
     out.toBlob(function(blob) {
         if (!blob) {
-            showToast('❌ Не удалось обрезать фото', 'error');
+            showToast('<span class="icon icon-cancel"></span> Не удалось обрезать фото', 'error');
             return;
         }
         const formData = new FormData();
@@ -957,7 +956,7 @@ function _applyCropExisting() {
             .then(r => r.json())
             .then(result => {
                 if (result.error) {
-                    showToast('❌ ' + result.error, 'error');
+                    showToast('<span class="icon icon-cancel"></span> ' + result.error, 'error');
                     return;
                 }
                 closeCropModal();
@@ -968,9 +967,9 @@ function _applyCropExisting() {
                 if (!photos) return;
                 currentPhotos = photos;
                 renderDetailContent();
-                showToast('✅ Фото обрезано', 'success');
+                showToast('<span class="icon icon-check-circle"></span> Фото обрезано', 'success');
             })
-            .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+            .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
     }, mimeType, 0.92);
 }
 
@@ -1086,7 +1085,7 @@ function navigatePhotoModal(direction) {
     if (!currentPhotos || currentPhotos.length === 0) return;
     const newIndex = currentPhotoIndex + direction;
     if (newIndex < 0 || newIndex >= currentPhotos.length) {
-        showToast('⚠️ Фото больше нет', 'warning');
+        showToast('<span class="icon icon-warning"></span> Фото больше нет', 'warning');
         return;
     }
     currentPhotoIndex = newIndex;

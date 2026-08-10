@@ -24,12 +24,12 @@ const SEARCH_FIELDS = [
     // по параметрам режима: мощность, напряжение, обороты и т.д.
     // Если задать несколько таких условий сразу, backend проверяет их
     // в рамках ОДНОГО режима работы, а не вразнобой по всем режимам двигателя.
-    { value: 'power', label: '⚡ Режим: мощность (кВт)', type: 'number' },
-    { value: 'voltage', label: '⚡ Режим: напряжение (В)', type: 'number' },
-    { value: 'frequency', label: '⚡ Режим: частота (Гц)', type: 'number' },
-    { value: 'rpm', label: '⚡ Режим: обороты (об/мин)', type: 'number' },
-    { value: 'current', label: '⚡ Режим: ток (А)', type: 'number' },
-    { value: 'connection_type', label: '⚡ Режим: тип подключения', type: 'text' },
+    { value: 'power', label: 'Режим: мощность (кВт)', type: 'number' },
+    { value: 'voltage', label: 'Режим: напряжение (В)', type: 'number' },
+    { value: 'frequency', label: 'Режим: частота (Гц)', type: 'number' },
+    { value: 'rpm', label: 'Режим: обороты (об/мин)', type: 'number' },
+    { value: 'current', label: 'Режим: ток (А)', type: 'number' },
+    { value: 'connection_type', label: 'Режим: тип подключения', type: 'text' },
 ];
 
 // ===== ОПЕРАТОРЫ ПО ТИПУ ПОЛЯ =====
@@ -70,7 +70,7 @@ const DEFAULT_RESULT_FIELDS = ['id', 'location', 'engine_type', 'serial_number',
 function _resultColumnLabel(field) {
     if (field === 'id') return 'ID';
     // Подписи для остальных полей уже есть в SEARCH_FIELDS (включая
-    // ⚡-поля режима) — единый источник вместо второго списка меток.
+    // поля режима) — единый источник вместо второго списка меток.
     const f = SEARCH_FIELDS.find(f => f.value === field);
     return f ? f.label : field;
 }
@@ -185,10 +185,10 @@ function addSearchRow() {
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'btn btn-danger btn-sm';
-    removeBtn.textContent = '✕';
+    removeBtn.innerHTML = '<span class="icon icon-close"></span>';
     removeBtn.onclick = function() {
         if (document.querySelectorAll('.search-row').length <= 1) {
-            showToast('⚠️ Должна быть хотя бы одна строка поиска', 'warning');
+            showToast('Должна быть хотя бы одна строка поиска', 'warning', 'icon-warning');
             return;
         }
         row.remove();
@@ -260,7 +260,7 @@ function executeSearch() {
     });
     
     if (conditions.length === 0) {
-        showToast('⚠️ Введите хотя бы одно условие поиска', 'warning');
+        showToast('Введите хотя бы одно условие поиска', 'warning', 'icon-warning');
         return;
     }
     
@@ -300,7 +300,7 @@ function executeSearch() {
             // "Поиск"), не переключая пользователя на вкладку "catalog".
             // Колонки таблицы результатов: сначала поля, по которым реально
             // искали (в порядке добавления условий, без повторов — если
-            // искали и по 'location', и по 'power', то Location и ⚡Мощность
+            // искали и по 'location', и по 'power', то Location и Мощность
             // идут первыми), затем — остальные базовые поля из
             // DEFAULT_RESULT_FIELDS, которых ещё нет среди уже добавленных.
             const searchedFields = [];
@@ -333,7 +333,7 @@ function executeSearch() {
                      </div>`;
 
             container.innerHTML = html;
-            showToast(`🔍 Найдено ${data.length} записей`, 'success');
+            showToast(`Найдено ${data.length} записей`, 'success', 'icon-check-circle');
         })
         .catch(e => {
             document.getElementById('searchResults').innerHTML = `<div class="no-data">Ошибка: ${e.message}</div>`;

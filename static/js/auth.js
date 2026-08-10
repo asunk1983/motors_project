@@ -88,7 +88,7 @@ function ensureLoginScreen() {
     overlay.id = 'login-overlay';
     overlay.innerHTML = `
         <div class="login-card">
-            <div class="login-brand">⚙️ Паспорта двигателей</div>
+            <div class="login-brand"><span class="icon icon-settings"></span> Паспорта двигателей</div>
             <div class="login-hint">Доступ только для сотрудников. Учётные записи выдаёт администратор.</div>
             <form id="login-form" class="login-form">
                 <label>Логин
@@ -194,7 +194,7 @@ function applyRoleUI() {
         : user.role === 'admin' ? 'админ'
         : user.role === 'reader' ? 'читатель'
         : 'пользователь';
-    badge.innerHTML = `👤 ${escapeHtml(user.username || '')} <span class="auth-role">${roleLabel}</span> <button id="logout-btn" class="logout-btn">Выйти</button>`;
+    badge.innerHTML = `<span class="icon icon-person"></span> ${escapeHtml(user.username || '')} <span class="auth-role">${roleLabel}</span> <button id="logout-btn" class="logout-btn">Выйти</button>`;
     const lb = document.getElementById('logout-btn');
     if (lb) lb.addEventListener('click', logout);
     // Опции admin/superadmin в #newRole видимы только суперадмину.
@@ -265,15 +265,15 @@ async function loadAdminUsers() {
                 <tr>
                     <td>${u.id}</td>
                     <td>${escapeHtml(u.username)}</td>
-                    <td>${u.role === 'superadmin' ? '👑 суперадмин' : (u.role === 'admin' ? '🛡️ админ' : (u.role === 'reader' ? '👁️ читатель' : 'пользователь'))}</td>
+                    <td>${u.role === 'superadmin' ? '<span class="icon icon-workspace-premium"></span> суперадмин' : (u.role === 'admin' ? '<span class="icon icon-shield"></span> админ' : (u.role === 'reader' ? '<span class="icon icon-visibility"></span> читатель' : 'пользователь'))}</td>
                     <td>${u.active_sessions || 0}</td>
                     <td>${escapeHtml((u.created_at || '').slice(0, 10))}</td>
                     <td>${escapeHtml((u.last_login || '').slice(0, 10))}</td>
                     <td>${escapeHtml((u.last_edit || '').slice(0, 10))}</td>
                     <td class="col-action-narrow">
-                        <button class="btn btn-warning btn-sm" onclick="adminRevokeUser(${u.id})" title="Сбросить все сессии">🔄</button>
-                        <button class="btn btn-secondary btn-sm" onclick="promptChangePassword(${u.id}, '${escapeHtml(u.username)}')" title="Сменить пароль">🔐</button>
-                        ${u.id !== me.id && (me.role === 'superadmin' || u.role === 'user') ? `<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(${u.id})">🗑</button>` : ''}
+                        <button class="btn btn-warning btn-sm" onclick="adminRevokeUser(${u.id})" title="Сбросить все сессии"><span class="icon icon-sync"></span></button>
+                        <button class="btn btn-secondary btn-sm" onclick="promptChangePassword(${u.id}, '${escapeHtml(u.username)}')" title="Сменить пароль"><span class="icon icon-lock"></span></button>
+                        ${u.id !== me.id && (me.role === 'superadmin' || u.role === 'user') ? `<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(${u.id})"><span class="icon icon-delete"></span></button>` : ''}
                     </td>
                 </tr>`).join('')}
             </tbody>

@@ -13,8 +13,8 @@ function renderPhotosPreview() {
         box.className = 'photo-thumb is-pending';
         box.innerHTML = `
             <img src="${url}" alt="Новое фото (не загружено)">
-            <button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('pending', ${idx})">✂️</button>
-            <button type="button" class="photo-thumb-remove" title="Убрать из выбора" onclick="removePendingPhoto(${idx})">✕</button>
+            <button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('pending', ${idx})"><span class="icon icon-content-cut"></span></button>
+            <button type="button" class="photo-thumb-remove" title="Убрать из выбора" onclick="removePendingPhoto(${idx})"><span class="icon icon-close"></span></button>
         `;
         wrap.appendChild(box);
     });
@@ -33,11 +33,11 @@ function uploadPendingPhotos(engineId) {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('⚠️ Паспорт сохранён, но фото не загрузились: ' + data.error, 'warning');
+                showToast('Паспорт сохранён, но фото не загрузились: ' + data.error, 'warning', 'icon-warning');
             }
             pendingPhotoFiles = [];
         })
-        .catch(e => showToast('⚠️ Паспорт сохранён, но фото не загрузились: ' + e.message, 'warning'));
+        .catch(e => showToast('Паспорт сохранён, но фото не загрузились: ' + e.message, 'warning', 'icon-warning'));
 }
 
 document.getElementById('f_photos')?.addEventListener('change', function() {
@@ -128,18 +128,18 @@ function saveEngine() {
     .then(r => r.json())
     .then(result => {
         if (result.error) {
-            showToast('❌ ' + result.error, 'error');
+            showToast(result.error, 'error', 'icon-cancel');
             return;
         }
         uploadPendingPhotos(result.id).then(() => {
-            showToast('✅ ' + result.message, 'success');
+            showToast(result.message, 'success', 'icon-check-circle');
             resetForm();
             loadEngines();
             updateStats();
             document.querySelector('[data-tab="catalog"]').click();
         });
     })
-    .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+    .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 
@@ -153,7 +153,7 @@ function addModeRow(freq = '', power = '', voltage = '', conn = '', current = ''
         <td><input type="text" value="${escapeHtml(conn)}"></td>
         <td><input type="number" step="any" value="${escapeHtml(current)}"></td>
         <td><input type="number" step="any" value="${escapeHtml(rpm)}"></td>
-        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
+        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"><span class="icon icon-close"></span></button></td>
     `;
     document.getElementById(targetId).appendChild(tr);
     attachFieldAutocomplete(tr.children[0].querySelector('input'), 'frequency');
@@ -173,7 +173,7 @@ function addWorkRow(num = '', date = '', desc = '', isol = '', insp = '', sign =
         <td><input type="number" step="any" value="${escapeHtml(isol)}"></td>
         <td><input type="text" value="${escapeHtml(insp)}"></td>
         <td><input type="text" value="${escapeHtml(sign)}"></td>
-        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">✕</button></td>
+        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"><span class="icon icon-close"></span></button></td>
     `;
     document.getElementById(targetId).appendChild(tr);
 }
@@ -188,5 +188,3 @@ function collectRows(tbodyId, keys) {
     });
     return rows;
 }
-
-

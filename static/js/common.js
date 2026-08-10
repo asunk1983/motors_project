@@ -63,10 +63,21 @@ function _formatRuDate(isoDate) {
     return escapeHtml(`${parts[2]}.${parts[1]}.${parts[0]}`);
 }
 
-function showToast(message, type = 'info') {
+// showToast(message, type, iconClass) — iconClass опционален.
+// ВАЖНО: сообщение по-прежнему добавляется через createTextNode, а не
+// innerHTML — это защита от XSS (message может содержать текст ошибки
+// от сервера без серверной санитизации). Иконка собирается отдельным
+// DOM-узлом, а не строкой, поэтому textContent-подход не нарушается.
+function showToast(message, type = 'info', iconClass = null) {
     const toast = document.createElement('div');
-    toast.textContent = message;
     toast.className = 'toast' + (type !== 'info' ? ` toast-${type}` : '');
+    if (iconClass) {
+        const icon = document.createElement('span');
+        icon.className = 'icon ' + iconClass;
+        toast.appendChild(icon);
+        toast.appendChild(document.createTextNode(' '));
+    }
+    toast.appendChild(document.createTextNode(message));
     document.body.appendChild(toast);
     setTimeout(() => {
         toast.classList.add('toast-hide');

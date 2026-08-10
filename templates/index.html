@@ -10,28 +10,28 @@
     <div class="app-shell">
         <header class="topbar">
             <div class="topbar-brand">
-                <span class="sidebar-brand-icon">⚙️</span>
+                <span class="sidebar-brand-icon icon icon-settings"></span>
                 <span class="sidebar-brand-text">Паспорта двигателей<small>Учёт оборудования</small></span>
             </div>
 
             <nav class="topbar-nav">
                 <button class="tab-btn active" data-tab="catalog">
-                    <span class="tab-icon">📋</span> Каталог
+                    <span class="icon icon-list-alt"></span> Каталог
                 </button>
                 <button class="tab-btn" data-tab="import" style="display:none">
-                    <span class="tab-icon">📥</span> Импорт
+                    <span class="icon icon-folder-open"></span> Импорт
                 </button>
                 <button class="tab-btn" data-tab="search">
-                    <span class="tab-icon">🔍</span> Поиск
+                    <span class="icon icon-search"></span> Поиск
                 </button>
                 <button class="tab-btn" data-tab="settings">
-                    <span class="tab-icon">⚙️</span> Настройки
+                    <span class="icon icon-settings"></span> Настройки
                 </button>
                 <button class="tab-btn" data-tab="info">
-                    <span class="tab-icon">ℹ️</span> Инфо
+                    <span class="icon icon-info"></span> Инфо
                 </button>
                 <button class="tab-btn" data-tab="admin" style="display:none">
-                    <span class="tab-icon">🛡️</span> Админ
+                    <span class="icon icon-shield"></span> Админ
                 </button>
             </nav>
 
@@ -57,16 +57,16 @@
         <main class="main-content">
             <!-- Вкладка: Каталог -->
             <div class="tab-content active" id="tab-catalog">
-                <h2>📋 Каталог оборудования</h2>
+                <h2><span class="icon icon-list-alt"></span> Каталог оборудования</h2>
 
                 <div class="catalog-layout">
                     <aside class="tree-panel" id="locationTreePanel">
                         <div class="tree-panel-header">
                             <div class="tree-panel-header-title" onclick="resetLocationFilter()">
                                 <span>МЕСТО УСТАНОВКИ</span>
-                                <button type="button" class="tree-add-btn write-action" onclick="event.stopPropagation(); createAndOpenEngine()" title="Добавить двигатель">+</button>
+                                <button type="button" class="tree-add-btn write-action" onclick="event.stopPropagation(); createAndOpenEngine()" title="Добавить двигатель"><span class="icon icon-add"></span></button>
                             </div>
-                            <button type="button" class="tree-reset-btn" onclick="resetLocationFilter()" title="Сбросить фильтр">✕</button>
+                            <button type="button" class="tree-reset-btn" onclick="resetLocationFilter()" title="Сбросить фильтр"><span class="icon icon-close"></span></button>
                         </div>
                         <div id="locationTreeBody"><div class="no-data">Загрузка...</div></div>
                     </aside>
@@ -74,7 +74,7 @@
                     <div class="catalog-main">
                         <div class="toolbar">
                             <div class="toolbar-left">
-                                <input type="text" id="searchInput" placeholder="🔍 Быстрый поиск..." class="search-input">
+                                <input type="text" id="searchInput" placeholder="Быстрый поиск..." class="search-input">
                                 <select id="searchFieldSelect" class="sort-select">
                                     <option value="all">Все поля</option>
                                     <option value="location">Место установки</option>
@@ -100,8 +100,8 @@
                                 </select>
                             </div>
                             <div class="toolbar-right">
-                                <span id="selectionInfo" class="selection-info hidden">Выбрано: <b id="selectionCount">0</b> <button type="button" class="link-btn" onclick="clearSelection()">✕ снять</button></span>
-                                <button class="btn btn-secondary" id="exportBtn" onclick="exportSelected()" disabled>📊 Экспорт в Excel</button>
+                                <span id="selectionInfo" class="selection-info hidden">Выбрано: <b id="selectionCount">0</b> <button type="button" class="link-btn" onclick="clearSelection()"><span class="icon icon-close"></span> снять</button></span>
+                                <button class="btn btn-secondary" id="exportBtn" onclick="exportSelected()" disabled><span class="icon icon-table-chart"></span> Экспорт в Excel</button>
                             </div>
                         </div>
 
@@ -110,14 +110,14 @@
                                 <thead>
                                     <tr>
                                         <th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"></th>
-                                        <th class="col-id sortable" onclick="sortTable('id')">ID ↕</th>
+                                        <th class="col-id">ID</th>
                                         <th class="sortable" onclick="sortTable('location')">Место установки ↕</th>
                                         <th class="sortable" onclick="sortTable('engine_type')">Тип ↕</th>
                                         <th class="sortable" onclick="sortTable('serial_number')">Зав. номер ↕</th>
                                         <th class="sortable" onclick="sortTable('manufacturer')">Производитель ↕</th>
                                         <th class="sortable" onclick="sortTable('purpose')">Назначение ↕</th>
                                         <th class="sortable" onclick="sortTable('updated_at')">Изменено ↕</th>
-                                        <th class="col-photo sortable" onclick="sortTable('photo_count')">Фото ↕</th>
+                                        <th class="col-photo">Фото</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tableBody">
@@ -129,9 +129,9 @@
                         <div class="pagination">
                             <span class="page-info" id="pageInfo">Показано 0 из 0</span>
                             <div class="page-controls">
-                                <button class="btn btn-sm btn-secondary" onclick="prevPage()">◀</button>
+                                <button class="btn btn-sm btn-secondary" onclick="prevPage()"><span class="icon icon-chevron-left"></span></button>
                                 <span id="pageNumber">1</span>
-                                <button class="btn btn-sm btn-secondary" onclick="nextPage()">▶</button>
+                                <button class="btn btn-sm btn-secondary" onclick="nextPage()"><span class="icon icon-chevron-left icon-chevron-right"></span></button>
                             </div>
                         </div>
                     </div>
@@ -141,26 +141,26 @@
             <!-- Вкладка: Импорт -->
             <div class="tab-content" id="tab-import">
                 <div class="import-container">
-                    <h2>📥 Импорт из Excel</h2>
+                    <h2><span class="icon icon-folder-open"></span> Импорт из Excel</h2>
 
                     <div class="import-info">
                         <div class="info-card">
-                            <span class="info-icon">📁</span>
+                            <span class="info-icon icon icon-folder-open"></span>
                             <div><div class="info-label">Папка с файлами</div><div class="info-value">motors/</div></div>
                         </div>
                         <div class="info-card">
-                            <span class="info-icon">📄</span>
+                            <span class="info-icon icon icon-list-alt"></span>
                             <div><div class="info-label">Найдено файлов</div><div class="info-value" id="filesCount">0</div></div>
                         </div>
                         <div class="info-card">
-                            <span class="info-icon">📸</span>
+                            <span class="info-icon icon icon-photo-camera"></span>
                             <div><div class="info-label">Извлечено фото</div><div class="info-value" id="photosCount">0</div></div>
                         </div>
                     </div>
 
                     <div class="import-actions">
-                        <button class="btn btn-primary btn-lg" onclick="importFiles()">📥 Импортировать все файлы</button>
-                        <button class="btn btn-danger" onclick="confirmClearDatabase()">🗑 Очистить БД</button>
+                        <button class="btn btn-primary btn-lg" onclick="importFiles()"><span class="icon icon-folder-open"></span> Импортировать все файлы</button>
+                        <button class="btn btn-danger" onclick="confirmClearDatabase()"><span class="icon icon-delete"></span> Очистить БД</button>
                     </div>
 
                     <div class="import-progress hidden" id="importProgress">
@@ -169,7 +169,7 @@
                     </div>
 
                     <div class="import-history">
-                        <h4>📋 История импорта</h4>
+                        <h4><span class="icon icon-list-alt"></span> История импорта</h4>
                         <div id="importLog" class="log-container"><div class="log-empty">Нет записей</div></div>
                     </div>
                 </div>
@@ -178,12 +178,12 @@
             <!-- Вкладка: Поиск -->
             <div class="tab-content" id="tab-search">
                 <div class="search-container">
-                    <h2>🔍 Расширенный поиск</h2>
+                    <h2><span class="icon icon-search"></span> Расширенный поиск</h2>
 
                     <div class="search-actions">
-                        <button class="btn btn-primary btn-sm" id="addSearchBtn">➕ Добавить условие</button>
-                        <button class="btn btn-danger btn-sm" id="clearSearchBtn">🗑 Очистить всё</button>
-                        <button class="btn btn-success btn-sm" id="searchBtn">🔍 Найти</button>
+                        <button class="btn btn-primary btn-sm" id="addSearchBtn"><span class="icon icon-add"></span> Добавить условие</button>
+                        <button class="btn btn-danger btn-sm" id="clearSearchBtn"><span class="icon icon-delete"></span> Очистить всё</button>
+                        <button class="btn btn-success btn-sm" id="searchBtn"><span class="icon icon-search"></span> Найти</button>
                         <span class="search-hint">Нажмите Enter для поиска</span>
                     </div>
 
@@ -198,13 +198,13 @@
             <!-- Вкладка: Настройки -->
             <div class="tab-content" id="tab-settings">
                 <div class="settings-container">
-                    <h2>⚙️ Настройки</h2>
+                    <h2><span class="icon icon-settings"></span> Настройки</h2>
 
                     <div class="settings-group">
                         <h3>База данных</h3>
                         <div class="settings-item"><span class="settings-label">Количество записей</span><span class="settings-value" id="settingsRecords">0</span></div>
                         <div class="settings-item"><span class="settings-label">Размер БД</span><span class="settings-value" id="settingsDbSize">0 KB</span></div>
-                        <div class="settings-actions"><button class="btn btn-danger" onclick="confirmClearDatabase()">🗑 Очистить БД</button></div>
+                        <div class="settings-actions"><button class="btn btn-danger" onclick="confirmClearDatabase()"><span class="icon icon-delete"></span> Очистить БД</button></div>
                     </div>
 
                     <div class="settings-group">
@@ -214,10 +214,10 @@
                     </div>
 
                     <div class="settings-group">
-                        <h3>💾 Резервные копии</h3>
+                        <h3><span class="icon icon-save"></span> Резервные копии</h3>
                         <p class="settings-hint">Только вручную — автоматических бэкапов нет. Один клик сохраняет копию и на сервере (папка <code>backups/</code>), и на вашем компьютере (скачивается сразу), чтобы не потерять данные, если умрёт диск на сервере.</p>
                         <div class="settings-actions">
-                            <button class="btn btn-success" onclick="createBackup()">📦 Создать резервную копию</button>
+                            <button class="btn btn-success" onclick="createBackup()"><span class="icon icon-package-2"></span> Создать резервную копию</button>
                         </div>
                         <div id="backupsList" class="backups-list"><div class="no-data">Загрузка...</div></div>
 
@@ -226,7 +226,7 @@
                             <p class="settings-hint">Если бэкап скачивался на этот компьютер (или на другой) — можно загрузить его обратно и восстановить.</p>
                             <div class="backup-upload-row">
                                 <input type="file" id="backupUploadInput" accept=".zip" class="file-input-hidden">
-                                <label for="backupUploadInput" class="btn btn-secondary file-input-label">📤 Выбрать файл резервной копии</label>
+                                <label for="backupUploadInput" class="btn btn-secondary file-input-label"><span class="icon icon-upload"></span> Выбрать файл резервной копии</label>
                                 <span id="backupUploadFileName" class="settings-hint"></span>
                             </div>
                         </div>
@@ -243,12 +243,12 @@
             <!-- Вкладка: Админ (только для role='admin') -->
             <div class="tab-content" id="tab-admin">
                 <div class="admin-container">
-                    <h2>🛡️ Панель администратора</h2>
+                    <h2><span class="icon icon-shield"></span> Панель администратора</h2>
                     <div class="admin-notice">
-                        Здесь выдаются учётные записи сотрудникам. Самостоятельная регистрация отключена — нового пользователя создаёт только администратор. Чтобы забрать доступ у сотрудника, нажмите 🔄 (сброс всех сессий) или 🗑 (удаление).
+                        Здесь выдаются учётные записи сотрудникам. Самостоятельная регистрация отключена — нового пользователя создаёт только администратор. Чтобы забрать доступ у сотрудника, нажмите <span class="icon icon-sync"></span> (сброс всех сессий) или <span class="icon icon-delete"></span> (удаление).
                     </div>
                     <div class="admin-actions">
-                        <button class="btn btn-success btn-sm" onclick="showAddUserForm()">➕ Добавить пользователя</button>
+                        <button class="btn btn-success btn-sm" onclick="showAddUserForm()"><span class="icon icon-add"></span> Добавить пользователя</button>
                     </div>
                     <div id="addUserForm" class="admin-add-form" style="display:none">
                         <input type="text" id="newUsername" placeholder="Логин">
@@ -268,18 +268,18 @@
 
             <!-- Вкладка: Инфо -->
             <div class="tab-content" id="tab-info">
-                <h2>ℹ️ Инфо</h2>
+                <h2><span class="icon icon-info"></span> Инфо</h2>
 
                 <div class="info-subtabs">
-                    <button class="btn btn-sm btn-primary" id="infoSubtabChangelogBtn" onclick="switchInfoSubtab('changelog')">📋 Лог изменений</button>
-                    <button class="btn btn-sm btn-secondary" id="infoSubtabWishlistBtn" onclick="switchInfoSubtab('wishlist')">💡 Пожелания</button>
+                    <button class="btn btn-sm btn-primary" id="infoSubtabChangelogBtn" onclick="switchInfoSubtab('changelog')"><span class="icon icon-list-alt"></span> Лог изменений</button>
+                    <button class="btn btn-sm btn-secondary" id="infoSubtabWishlistBtn" onclick="switchInfoSubtab('wishlist')"><span class="icon icon-lightbulb"></span> Пожелания</button>
                 </div>
 
                 <div class="info-subtab-content active" id="infoSubtab-changelog">
                     <div class="changelog-add">
                         <input type="date" id="changelogDateInput" class="changelog-date-input">
                         <input type="text" id="changelogTextInput" class="changelog-text-input" placeholder="Что изменилось...">
-                        <button type="button" class="btn btn-success btn-sm" onclick="addChangelogEntry()">➕ Добавить запись</button>
+                        <button type="button" class="btn btn-success btn-sm" onclick="addChangelogEntry()"><span class="icon icon-add"></span> Добавить запись</button>
                     </div>
                     <div id="changelogList"><div class="no-data">Загрузка...</div></div>
                 </div>
@@ -287,7 +287,7 @@
                 <div class="info-subtab-content" id="infoSubtab-wishlist">
                     <div class="wishlist-add">
                         <input type="text" id="wishlistTextInput" class="wishlist-text-input" placeholder="Новое пожелание...">
-                        <button type="button" class="btn btn-success btn-sm" onclick="addWishlistItem()">➕ Добавить</button>
+                        <button type="button" class="btn btn-success btn-sm" onclick="addWishlistItem()"><span class="icon icon-add"></span> Добавить</button>
                     </div>
                     <div id="wishlistList"><div class="no-data">Загрузка...</div></div>
                 </div>
@@ -300,7 +300,7 @@
                 <div class="modal-header">
                     <h2 id="detailTitle">Детали двигателя</h2>
                     <div class="modal-header-actions">
-                        <button class="modal-maximize" id="detailMaximizeBtn" onclick="toggleDetailMaximize()" title="Развернуть на весь экран">⛶</button>
+                        <button class="modal-maximize" id="detailMaximizeBtn" onclick="toggleDetailMaximize()" title="Развернуть на весь экран"><span class="icon icon-open-in-full"></span></button>
                         <button class="modal-close" onclick="closeDetail()">&times;</button>
                     </div>
                 </div>
@@ -315,18 +315,18 @@
         <div class="modal" id="photoAddModal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h2>📸 Добавить фото</h2>
+                    <h2><span class="icon icon-photo-camera"></span> Добавить фото</h2>
                     <button class="modal-close" onclick="closePhotoAddModal()">&times;</button>
                 </div>
                 <div class="modal-body">
                     <label class="btn btn-secondary file-input-label">
-                        ➕ Выбрать фото
+                        <span class="icon icon-add"></span> Выбрать фото
                         <input type="file" id="detailPhotoInput" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" multiple class="file-input-hidden">
                     </label>
                     <div id="detailPhotoPreview" class="detail-photos photos-preview"></div>
                     <div class="form-actions">
                         <button type="button" class="btn btn-secondary" onclick="closePhotoAddModal()">Отмена</button>
-                        <button type="button" class="btn btn-success" onclick="submitDetailPhotoAdd()">💾 Загрузить</button>
+                        <button type="button" class="btn btn-success" onclick="submitDetailPhotoAdd()"><span class="icon icon-save"></span> Загрузить</button>
                     </div>
                 </div>
             </div>
@@ -339,7 +339,7 @@
         <div class="modal" id="photoCropModal">
             <div class="modal-content modal-lg">
                 <div class="modal-header">
-                    <h2>✂️ Обрезка фото</h2>
+                    <h2><span class="icon icon-content-cut"></span> Обрезка фото</h2>
                     <button class="modal-close" onclick="closeCropModal()">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -355,7 +355,7 @@
                     <div class="crop-hint">Перетащите рамку целиком или потяните за угол, чтобы изменить область обрезки.</div>
                     <div class="form-actions">
                         <button type="button" class="btn btn-secondary" onclick="closeCropModal()">Отмена</button>
-                        <button type="button" class="btn btn-success" onclick="applyCrop()">✂️ Обрезать и применить</button>
+                        <button type="button" class="btn btn-success" onclick="applyCrop()"><span class="icon icon-content-cut"></span> Обрезать и применить</button>
                     </div>
                 </div>
             </div>
@@ -365,9 +365,9 @@
         <div class="modal photo-modal" id="photoModal">
             <button class="modal-close" onclick="closePhotoModal()">&times;</button>
             <div class="photo-modal-stage">
-                <button id="photoPrevBtn" class="photo-nav-btn prev hidden" onclick="navigatePhotoModal(-1)">◀</button>
+                <button id="photoPrevBtn" class="photo-nav-btn prev hidden" onclick="navigatePhotoModal(-1)"><span class="icon icon-chevron-left"></span></button>
                 <img id="modalImage" src="" alt="Фото" class="photo-modal-img" onclick="event.stopPropagation()">
-                <button id="photoNextBtn" class="photo-nav-btn next hidden" onclick="navigatePhotoModal(1)">▶</button>
+                <button id="photoNextBtn" class="photo-nav-btn next hidden" onclick="navigatePhotoModal(1)"><span class="icon icon-chevron-left icon-chevron-right"></span></button>
             </div>
             <div id="photoCounter" class="photo-counter">1 / 1</div>
         </div>

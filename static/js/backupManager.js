@@ -60,9 +60,9 @@ function renderBackupsList(backups) {
                 <span class="backup-item-meta">Двигателей: ${b.engine_count ?? '—'} · Фото: ${b.photos_count_files ?? '—'} · ${_formatBackupSize(b.size)}</span>
             </div>
             <div class="backup-item-actions">
-                <button type="button" class="btn btn-secondary btn-sm" onclick="downloadBackup('${safeFilename}')" title="Скачать на компьютер">⬇️</button>
-                <button type="button" class="btn btn-warning btn-sm" onclick="restoreServerBackup('${safeFilename}', ${b.engine_count ?? 0})" title="Восстановить">♻️</button>
-                <button type="button" class="btn btn-danger btn-sm" onclick="deleteBackupFile('${safeFilename}')" title="Удалить копию">✕</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="downloadBackup('${safeFilename}')" title="Скачать на компьютер"><span class="icon icon-download"></span></button>
+                <button type="button" class="btn btn-warning btn-sm" onclick="restoreServerBackup('${safeFilename}', ${b.engine_count ?? 0})" title="Восстановить"><span class="icon icon-restore"></span></button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteBackupFile('${safeFilename}')" title="Удалить копию"><span class="icon icon-close"></span></button>
             </div>
         </li>
     `;
@@ -70,7 +70,7 @@ function renderBackupsList(backups) {
 }
 
 function createBackup() {
-    showToast('⏳ Создаю резервную копию...', 'info');
+    showToast('Создаю резервную копию...', 'info', 'icon-progress-activity');
     apiFetch('/api/backup/create', { method: 'POST' })
         .then(response => {
             if (!response.ok) {
@@ -93,10 +93,10 @@ function createBackup() {
             a.click();
             a.remove();
             URL.revokeObjectURL(url);
-            showToast('✅ Резервная копия сохранена на сервере и скачана', 'success');
+            showToast('Резервная копия сохранена на сервере и скачана', 'success', 'icon-check-circle');
             loadBackupsList();
         })
-        .catch(e => showToast('❌ ' + e.message, 'error'));
+        .catch(e => showToast(e.message, 'error', 'icon-cancel'));
 }
 
 function downloadBackup(filename) {
@@ -109,31 +109,31 @@ function deleteBackupFile(filename) {
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
             loadBackupsList();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 function restoreServerBackup(filename, engineCount) {
     if (!confirm(`Восстановить резервную копию от ${filename}?\n\nВ ней двигателей: ${engineCount}.\n\nТЕКУЩЕЕ состояние базы и фото будет ПОЛНОСТЬЮ заменено содержимым этой копии. Подстраховочная копия текущего состояния перед восстановлением НЕ создаётся. Продолжить?`)) return;
-    showToast('⏳ Восстанавливаю из резервной копии...', 'info');
+    showToast('Восстанавливаю из резервной копии...', 'info', 'icon-progress-activity');
     apiFetch(`/api/backup/restore/${encodeURIComponent(filename)}`, { method: 'POST' })
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
-            showToast('✅ Восстановлено. Страница сейчас перезагрузится...', 'success');
+            showToast('Восстановлено. Страница сейчас перезагрузится...', 'success', 'icon-check-circle');
             // Весь клиентский кэш (allEngines, currentEngineData и т.д.) теперь
             // относится к УЖЕ ЗАМЕНЁННЫМ данным — перезагрузка страницы дешевле
             // и надёжнее, чем вручную сбрасывать десяток переменных состояния.
             setTimeout(() => location.reload(), 1500);
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 document.getElementById('backupUploadInput')?.addEventListener('change', function() {
@@ -145,13 +145,13 @@ document.getElementById('backupUploadInput')?.addEventListener('change', functio
     const formData = new FormData();
     formData.append('backup', file);
 
-    showToast('⏳ Проверяю файл резервной копии...', 'info');
+    showToast('Проверяю файл резервной копии...', 'info', 'icon-progress-activity');
     apiFetch('/api/backup/inspect-upload', { method: 'POST', body: formData })
         .then(r => r.json())
         .then(result => {
             this.value = '';
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
             const m = result.manifest || {};
@@ -167,7 +167,7 @@ document.getElementById('backupUploadInput')?.addEventListener('change', functio
                 showToast('Восстановление отменено', 'info');
                 return;
             }
-            showToast('⏳ Восстанавливаю из загруженного файла...', 'info');
+            showToast('Восстанавливаю из загруженного файла...', 'info', 'icon-progress-activity');
             return apiFetch('/api/backup/confirm-restore', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -176,14 +176,14 @@ document.getElementById('backupUploadInput')?.addEventListener('change', functio
                 .then(r => r.json())
                 .then(confirmResult => {
                     if (confirmResult.error) {
-                        showToast('❌ ' + confirmResult.error, 'error');
+                        showToast(confirmResult.error, 'error', 'icon-cancel');
                         return;
                     }
-                    showToast('✅ Восстановлено. Страница сейчас перезагрузится...', 'success');
+                    showToast('Восстановлено. Страница сейчас перезагрузится...', 'success', 'icon-check-circle');
                     setTimeout(() => location.reload(), 1500);
                 });
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 });
 
 
@@ -219,7 +219,7 @@ function loadChangelog() {
             changelogEntries = Array.isArray(data) ? data : [];
             renderChangelog();
         })
-        .catch(() => showToast('❌ Не удалось загрузить лог изменений', 'error'));
+        .catch(() => showToast('Не удалось загрузить лог изменений', 'error', 'icon-cancel'));
 }
 
 
@@ -248,7 +248,7 @@ function renderChangelog() {
                 ${g.items.map(e => `
                     <li class="changelog-item">
                         <span class="changelog-text">${escapeHtml(e.text)}</span>
-                        <button type="button" class="link-btn changelog-delete" title="Удалить запись" onclick="deleteChangelogEntry(${e.id})">✕</button>
+                        <button type="button" class="link-btn changelog-delete" title="Удалить запись" onclick="deleteChangelogEntry(${e.id})"><span class="icon icon-close"></span></button>
                     </li>
                 `).join('')}
             </ul>
@@ -261,7 +261,7 @@ function addChangelogEntry() {
     const textInput = document.getElementById('changelogTextInput');
     const text = textInput.value.trim();
     if (!text) {
-        showToast('⚠️ Введите текст записи', 'warning');
+        showToast('Введите текст записи', 'warning', 'icon-warning');
         return;
     }
     const date = dateInput.value || new Date().toISOString().slice(0, 10);
@@ -273,14 +273,14 @@ function addChangelogEntry() {
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
             textInput.value = '';
             loadChangelog();
-            showToast('✅ Запись добавлена в лог изменений', 'success');
+            showToast('Запись добавлена в лог изменений', 'success', 'icon-check-circle');
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 function deleteChangelogEntry(id) {
@@ -289,12 +289,12 @@ function deleteChangelogEntry(id) {
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
             loadChangelog();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 // ---- Пожелания ----
@@ -305,7 +305,7 @@ function loadWishlist() {
             wishlistItems = Array.isArray(data) ? data : [];
             renderWishlist();
         })
-        .catch(() => showToast('❌ Не удалось загрузить пожелания', 'error'));
+        .catch(() => showToast('Не удалось загрузить пожелания', 'error', 'icon-cancel'));
 }
 
 function renderWishlist() {
@@ -319,7 +319,7 @@ function renderWishlist() {
         <li class="wishlist-item${item.done ? ' done' : ''}">
             <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleWishlistItem(${item.id}, this.checked)">
             <span class="wishlist-text">${escapeHtml(item.text)}</span>
-            <button type="button" class="link-btn wishlist-delete" title="Удалить пожелание" onclick="deleteWishlistItem(${item.id})">✕</button>
+            <button type="button" class="link-btn wishlist-delete" title="Удалить пожелание" onclick="deleteWishlistItem(${item.id})"><span class="icon icon-close"></span></button>
         </li>
     `).join('')}</ul>`;
 }
@@ -328,7 +328,7 @@ function addWishlistItem() {
     const input = document.getElementById('wishlistTextInput');
     const text = input.value.trim();
     if (!text) {
-        showToast('⚠️ Введите текст пожелания', 'warning');
+        showToast('Введите текст пожелания', 'warning', 'icon-warning');
         return;
     }
     apiFetch('/api/wishlist', {
@@ -339,13 +339,13 @@ function addWishlistItem() {
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
             input.value = '';
             loadWishlist();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 function toggleWishlistItem(id, done) {
@@ -357,7 +357,7 @@ function toggleWishlistItem(id, done) {
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 loadWishlist(); // откатить чекбокс, если backend отказал
                 return;
             }
@@ -365,7 +365,7 @@ function toggleWishlistItem(id, done) {
             if (item) item.done = done;
             renderWishlist();
         })
-        .catch(e => { showToast('❌ Ошибка: ' + e.message, 'error'); loadWishlist(); });
+        .catch(e => { showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'); loadWishlist(); });
 }
 
 function deleteWishlistItem(id) {
@@ -374,12 +374,12 @@ function deleteWishlistItem(id) {
         .then(r => r.json())
         .then(result => {
             if (result.error) {
-                showToast('❌ ' + result.error, 'error');
+                showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
             loadWishlist();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 document.addEventListener('keydown', function(e) {
@@ -387,5 +387,3 @@ document.addEventListener('keydown', function(e) {
     if (e.target && e.target.id === 'changelogTextInput') { e.preventDefault(); addChangelogEntry(); }
     if (e.target && e.target.id === 'wishlistTextInput') { e.preventDefault(); addWishlistItem(); }
 });
-
-

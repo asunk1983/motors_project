@@ -164,7 +164,7 @@ function loadEngines() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('❌ ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
                 return;
             }
             allEngines = data;
@@ -175,7 +175,7 @@ function loadEngines() {
             // перерисовываем уже с точным количеством строк на экран.
             applyDynamicPageSize();
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 
@@ -202,7 +202,7 @@ function renderTable() {
             <td>${escapeHtml(e.manufacturer) || '—'}</td>
             <td>${escapeHtml(e.purpose) || '—'}</td>
             <td>${formatRuDateTime(e.updated_at)}</td>
-            <td class="col-photo">${e.photo_count > 0 ? `<span class="photo-badge">📸 ${e.photo_count}</span>` : '—'}</td>
+            <td class="col-photo">${e.photo_count > 0 ? `<span class="photo-badge"><span class="icon icon-photo-camera"></span> ${e.photo_count}</span>` : '—'}</td>
         </tr>
     `).join('');
 
@@ -279,12 +279,12 @@ function _visibleRowCheckboxes() {
 function clearSelection() {
     selectedEngineIds.clear();
     // Полная очистка выбора — сбрасываем чекбоксы в ОБОИХ видах (не только
-    // видимом), иначе при следующем переключении вида увидим "призрачные"
-    // отмеченные чекбоксы, не соответствующие уже опустевшему selectedEngineIds.
+    // видимом), иначе при следующем переключении вида увидим
+// отмеченные чекбоксы, не соответствующие уже опустевшему selectedEngineIds.
     document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
     updateSelectAllState();
     updateExportButton();
-    showToast('✅ Выбор снят', 'success');
+    showToast('Выбор снят', 'success', 'icon-check-circle');
 }
 
 function updateSelectAllState() {
@@ -331,11 +331,11 @@ function exportSelected() {
     const ids = Array.from(selectedEngineIds);
     
     if (ids.length === 0) {
-        showToast('⚠️ Не выбрано ни одного двигателя', 'warning');
+        showToast('Не выбрано ни одного двигателя', 'warning', 'icon-warning');
         return;
     }
     
-    showToast('⏳ Подготовка экспорта...', 'info');
+    showToast('Подготовка экспорта...', 'info', 'icon-progress-activity');
     
     apiFetch('/api/engines/export', {
         method: 'POST',
@@ -357,10 +357,10 @@ function exportSelected() {
         a.click();
         a.remove();
         URL.revokeObjectURL(url);
-        showToast('✅ Экспорт завершен!', 'success');
+        showToast('Экспорт завершен!', 'success', 'icon-check-circle');
     })
     .catch(e => {
-        showToast('❌ Ошибка экспорта: ' + e.message, 'error');
+        showToast('Ошибка экспорта: ' + e.message, 'error', 'icon-cancel');
     });
 }
 
@@ -372,7 +372,7 @@ function navigateEngine(direction) {
     if (currentIndex === -1) return;
     const newIndex = currentIndex + direction;
     if (newIndex < 0 || newIndex >= allEngines.length) {
-        showToast('⚠️ Двигателей больше нет', 'warning');
+        showToast('Двигателей больше нет', 'warning', 'icon-warning');
         return;
     }
     
@@ -400,9 +400,9 @@ function deleteEngine(id) {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('❌ ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
             } else {
-                showToast('✅ ' + data.message, 'success');
+                showToast(data.message, 'success', 'icon-check-circle');
                 loadEngines();
                 updateStats();
             }

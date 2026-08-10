@@ -137,7 +137,7 @@ function loadAndRender() {
 
     const engineId = getEngineIdFromUrl();
     if (!engineId) {
-        root.innerHTML = '<div class="no-data">❌ Двигатель не найден в URL</div>';
+        root.innerHTML = '<div class="no-data"><span class="icon icon-cancel"></span> Двигатель не найден в URL</div>';
         return;
     }
 
@@ -153,7 +153,7 @@ function loadAndRender() {
     ])
         .then(([engine, photos]) => {
             if (engine.error) {
-                root.innerHTML = `<div class="no-data">❌ ${escapeHtml(engine.error)}</div>`;
+                root.innerHTML = `<div class="no-data"><span class="icon icon-cancel"></span> ${escapeHtml(engine.error)}</div>`;
                 return;
             }
             root.innerHTML = renderPage(engine, photos || []);
@@ -165,7 +165,7 @@ function loadAndRender() {
             });
         })
         .catch(e => {
-            root.innerHTML = `<div class="no-data">❌ Ошибка загрузки: ${escapeHtml(e.message)}</div>`;
+            root.innerHTML = `<div class="no-data"><span class="icon icon-cancel"></span> Ошибка загрузки: ${escapeHtml(e.message)}</div>`;
         });
 }
 

@@ -13,32 +13,32 @@ function importFiles() {
     progress.classList.remove('hidden');
     fill.style.width = '0%';
     text.textContent = '0%';
-    log.innerHTML = '<div class="log-line">⏳ Запуск импорта...</div>';
+    log.innerHTML = '<div class="log-line"><span class="icon icon-progress-activity"></span> Запуск импорта...</div>';
 
     apiFetch('/api/import-folder', { method: 'POST' })
         .then(r => r.json())
         .then(data => {
             if (data.success) {
                 fill.style.width = '100%';
-                text.textContent = '✅ Завершено!';
-                log.innerHTML += `<div class="log-line">✅ ${data.message}</div>`;
-                showToast('✅ ' + data.message, 'success');
+                text.textContent = 'Завершено!';
+                log.innerHTML += `<div class="log-line"><span class="icon icon-check-circle"></span> ${data.message}</div>`;
+                showToast(data.message, 'success', 'icon-check-circle');
                 loadEngines();
                 updateStats();
                 document.getElementById('filesCount').textContent = data.total_files || 0;
                 document.getElementById('photosCount').textContent = data.total_photos || 0;
             } else {
                 fill.style.width = '100%';
-                text.textContent = '❌ Ошибка';
-                log.innerHTML += `<div class="log-line">❌ ${data.error}</div>`;
-                showToast('❌ ' + data.error, 'error');
+                text.textContent = 'Ошибка';
+                log.innerHTML += `<div class="log-line"><span class="icon icon-cancel"></span> ${data.error}</div>`;
+                showToast(data.error, 'error', 'icon-cancel');
             }
         })
         .catch(e => {
             fill.style.width = '100%';
-            text.textContent = '❌ Ошибка';
-            log.innerHTML += `<div class="log-line">❌ ${e.message}</div>`;
-            showToast('❌ Ошибка: ' + e.message, 'error');
+            text.textContent = 'Ошибка';
+            log.innerHTML += `<div class="log-line"><span class="icon icon-cancel"></span> ${e.message}</div>`;
+            showToast('Ошибка: ' + e.message, 'error', 'icon-cancel');
         });
 }
 
@@ -47,16 +47,16 @@ function clearAll() {
         .then(r => r.json())
         .then(data => {
             if (data.success) {
-                showToast('✅ ' + data.message, 'success');
+                showToast(data.message, 'success', 'icon-check-circle');
                 loadEngines();
                 updateStats();
                 document.getElementById('filesCount').textContent = '0';
                 document.getElementById('photosCount').textContent = '0';
             } else {
-                showToast('❌ ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
             }
         })
-        .catch(e => showToast('❌ Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 function confirmClearDatabase() {
@@ -64,7 +64,7 @@ function confirmClearDatabase() {
         .then(r => r.json())
         .then(status => {
             if (status.error) {
-                showToast('❌ Не удалось получить статус: ' + status.error, 'error');
+                showToast('Не удалось получить статус: ' + status.error, 'error', 'icon-cancel');
                 return;
             }
             const engineCount = status.engine_count || 0;
@@ -76,5 +76,5 @@ function confirmClearDatabase() {
                 clearAll();
             }
         })
-        .catch(e => showToast('❌ Ошибка при получении статуса: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка при получении статуса: ' + e.message, 'error', 'icon-cancel'));
 }
