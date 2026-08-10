@@ -70,7 +70,6 @@ function switchTab(tabId) {
         searchFieldSelect.value = 'all';
         searchFieldSelect.dispatchEvent(new Event('change'));
         resetLocationFilter();
-        loadEngines();
     } else {
         if (tabId === 'import') updateStats();
         if (tabId === 'settings') loadSettings();

@@ -68,12 +68,12 @@
 
                 <div class="catalog-layout">
                     <aside class="tree-panel" id="locationTreePanel">
-                        <div class="tree-panel-header">
-                            <div class="tree-panel-header-title" onclick="resetLocationFilter()">
+                        <div class="tree-panel-header" onclick="resetLocationFilter()">
+                            <div class="tree-panel-header-title">
                                 <span>МЕСТО УСТАНОВКИ</span>
                                 <button type="button" class="tree-add-btn write-action" onclick="event.stopPropagation(); createAndOpenEngine()" title="Добавить двигатель"><span class="icon icon-add"></span></button>
                             </div>
-                            <button type="button" class="tree-reset-btn" onclick="resetLocationFilter()" title="Сбросить фильтр"><span class="icon icon-close"></span></button>
+                            <button type="button" class="tree-reset-btn" title="Сбросить фильтр"><span class="icon icon-close"></span></button>
                         </div>
                         <div id="locationTreeBody"><div class="no-data">Загрузка...</div></div>
                     </aside>
@@ -381,13 +381,13 @@
     </div>
 
     <script src="/static/js/common.js"></script>
+    <script src="/static/js/engines.js"></script>
     <script src="/static/js/catalog.js"></script>
     <script src="/static/js/locationTree.js"></script>
     <script src="/static/js/engineCard.js"></script>
     <script src="/static/js/importer.js"></script>
     <script src="/static/js/exportManager.js"></script>
     <script src="/static/js/backupManager.js"></script>
-    <script src="/static/js/engines.js"></script>
     <script src="/static/js/search.js"></script>
     <script src="/static/js/auth.js?v=20260721"></script>
     <script>

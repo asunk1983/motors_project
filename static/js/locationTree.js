@@ -135,6 +135,7 @@ function resetLocationFilter() {
     activeWorkshop = null;
     activeLocation = null;
     currentPage = 1;
+    loadEngines();
     loadLocationTree();
 }
 

@@ -64,7 +64,7 @@ function resetForm() {
     addWorkRow();
 }
 
-document.getElementById('engineForm').addEventListener('submit', function(e) {
+document.getElementById('engineForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     saveEngine();
 });
