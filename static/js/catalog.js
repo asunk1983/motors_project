@@ -1,6 +1,8 @@
 // static/js/catalog.js — список/фильтры/пагинация/сортировка/поиск.
 // Требует: common.js, engines.js (глобальные переменные состояния)
 
+let currentSearchQuery = '';
+
 // ===== СТАТИСТИКА =====
 function updateStats() {
     apiFetch('/api/status')
@@ -145,6 +147,7 @@ if (document.fonts && document.fonts.ready) {
 // ===== ЗАГРУЗКА ДАННЫХ =====
 function loadEngines() {
     const search = document.getElementById('searchInput').value;
+    currentSearchQuery = search;   // ← добавлено: используется в renderTable() для подсветки
     const searchField = document.getElementById('searchFieldSelect').value;
     let url = `/api/engines?sort_by=${currentSort.field}&sort_order=${currentSort.order}`;
     
@@ -202,11 +205,11 @@ function renderTable() {
         <tr class="clickable-row" onclick="showDetail(${e.id})" data-id="${e.id}">
             <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedEngineIds.has(e.id) ? 'checked' : ''} onchange="toggleEngineSelection(${e.id}, this.checked)"></td>
             <td><span class="badge-id">${e.id}</span></td>
-            <td>${escapeHtml(e.location) || '—'}</td>
-            <td>${escapeHtml(e.engine_type) || '—'}</td>
-            <td>${escapeHtml(e.serial_number) || '—'}</td>
-            <td>${escapeHtml(e.manufacturer) || '—'}</td>
-            <td>${escapeHtml(e.purpose) || '—'}</td>
+            <td>${highlightMatch(e.location, currentSearchQuery) || '—'}</td>
+            <td>${highlightMatch(e.engine_type, currentSearchQuery) || '—'}</td>
+            <td>${highlightMatch(e.serial_number, currentSearchQuery) || '—'}</td>
+            <td>${highlightMatch(e.manufacturer, currentSearchQuery) || '—'}</td>
+            <td>${highlightMatch(e.purpose, currentSearchQuery) || '—'}</td>
             <td>${formatRuDateTime(e.updated_at)}</td>
             <td class="col-photo">${e.photo_count > 0 ? `<span class="photo-badge"><span class="icon icon-photo-camera"></span> ${e.photo_count}</span>` : '—'}</td>
         </tr>

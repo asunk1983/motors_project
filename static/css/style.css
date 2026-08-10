@@ -525,7 +525,15 @@ body.role-reader .write-action {
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px rgba(67,56,202,0.12);
 }
- 
+
+/* ===== ПОДСВЕТКА СОВПАДЕНИЙ БЫСТРОГО ПОИСКА ===== */
+mark.search-highlight {
+    background: rgba(67, 56, 202, 0.22); /* --color-accent, полупрозрачно */
+    color: inherit;
+    padding: 0 1px;
+    border-radius: 2px;
+}
+
 /* ===== ТАБЛИЦА ===== */
 .table-wrapper {
     flex: 1;

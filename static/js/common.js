@@ -22,6 +22,32 @@ function debounce(fn, delay) {
     };
 }
 
+// Подсвечивает вхождения query в str, экранируя HTML в обеих частях
+// (совпавшей и нет) — используется в catalog.js::renderTable() для
+// подсветки быстрого поиска прямо в ячейках таблицы. Регистронезависимо,
+// т.к. backend ищет через LIKE '%query%' без учёта регистра (SQLite LIKE
+// по умолчанию case-insensitive для ASCII).
+function highlightMatch(str, query) {
+    const text = str === null || str === undefined ? '' : String(str);
+    if (!query) return escapeHtml(text);
+    // Экранируем спецсимволы regex в самом запросе — иначе ввод вроде
+    // "3.5" или "(1)" сломал бы регулярку или дал неверные совпадения.
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let regex;
+    try {
+        regex = new RegExp('(' + escapedQuery + ')', 'ig');
+    } catch (e) {
+        return escapeHtml(text);
+    }
+    // split с одной capture-группой даёт [до, совпадение, до, совпадение, ...] —
+    // совпадения всегда оказываются на нечётных индексах.
+    return text.split(regex).map((part, i) =>
+        i % 2 === 1
+            ? '<mark class="search-highlight">' + escapeHtml(part) + '</mark>'
+            : escapeHtml(part)
+    ).join('');
+}
+
 // Список полей характеристик двигателя.
 // Используется в engines.js (renderDetailContent, saveDetailEdit) и print.js
 // (renderCharacteristics). Раньше дублировался как PRINT_CHAR_FIELDS в print.js —
