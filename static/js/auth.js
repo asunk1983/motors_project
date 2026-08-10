@@ -170,6 +170,13 @@ function applyRoleUI() {
     const settingsTab = document.querySelector('.tab-btn[data-tab="settings"]');
     if (settingsTab) settingsTab.style.display = isReader ? 'none' : '';
 
+    // Восстанавливаем вкладку, на которой пользователь был до перезагрузки
+    // страницы (см. catalog.js::switchTab). Делаем это здесь, а не раньше:
+    // видимость вкладок admin/import определяется выше в этой же функции,
+    // и восстанавливать пользователя на вкладку, которая ему не положена
+    // по роли, нельзя.
+    restoreActiveTab();
+
     // Обновляем кнопку выхода и имя пользователя в топбаре.
     const userNameEl = document.getElementById('userName');
     if (userNameEl) {
@@ -205,6 +212,15 @@ function applyRoleUI() {
         if (adminOpt) adminOpt.style.display = user.role === 'superadmin' ? '' : 'none';
         if (superOpt) superOpt.style.display = user.role === 'superadmin' ? '' : 'none';
     }
+}
+
+function restoreActiveTab() {
+    let saved;
+    try { saved = localStorage.getItem('motors_active_tab'); } catch (e) { saved = null; }
+    if (!saved) return;
+    const btn = document.querySelector(`.tab-btn[data-tab="${saved}"]`);
+    if (!btn || btn.style.display === 'none') return;
+    if (typeof switchTab === 'function') switchTab(saved);
 }
 
 async function logout() {

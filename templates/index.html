@@ -110,14 +110,14 @@
                                 <thead>
                                     <tr>
                                         <th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"></th>
-                                        <th class="col-id">ID</th>
+                                        <th class="col-id sortable" onclick="sortTable('id')">ID ↕</th>
                                         <th class="sortable" onclick="sortTable('location')">Место установки ↕</th>
                                         <th class="sortable" onclick="sortTable('engine_type')">Тип ↕</th>
                                         <th class="sortable" onclick="sortTable('serial_number')">Зав. номер ↕</th>
                                         <th class="sortable" onclick="sortTable('manufacturer')">Производитель ↕</th>
                                         <th class="sortable" onclick="sortTable('purpose')">Назначение ↕</th>
                                         <th class="sortable" onclick="sortTable('updated_at')">Изменено ↕</th>
-                                        <th class="col-photo">Фото</th>
+                                        <th class="col-photo sortable" onclick="sortTable('photo_count')">Фото ↕</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tableBody">

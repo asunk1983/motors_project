@@ -54,20 +54,26 @@ function switchTab(tabId) {
     const content = document.getElementById(`tab-${tabId}`);
     if (content) content.classList.add('active');
 
-        if (tabId === 'catalog') {
-            const searchInput = document.getElementById('searchInput');
-            const searchFieldSelect = document.getElementById('searchFieldSelect');
-            searchInput.value = '';
-            searchInput.dispatchEvent(new Event('input'));
-            searchFieldSelect.value = 'all';
-            searchFieldSelect.dispatchEvent(new Event('change'));
-            resetLocationFilter();
-            loadEngines();
-        } else {
-            if (tabId === 'import') updateStats();
-            if (tabId === 'settings') loadSettings();
-            if (tabId === 'info') loadInfoTab();
-        }
+    // Запоминаем активную вкладку — при обычном F5 DOM пересоздаётся из
+    // статического index.html, где "Каталог" всегда помечен active в
+    // разметке. Без сохранения пользователь после каждого обновления
+    // страницы оказывался на Каталоге, даже если работал на другой вкладке.
+    try { localStorage.setItem('motors_active_tab', tabId); } catch (e) {}
+
+    if (tabId === 'catalog') {
+        const searchInput = document.getElementById('searchInput');
+        const searchFieldSelect = document.getElementById('searchFieldSelect');
+        searchInput.value = '';
+        searchInput.dispatchEvent(new Event('input'));
+        searchFieldSelect.value = 'all';
+        searchFieldSelect.dispatchEvent(new Event('change'));
+        resetLocationFilter();
+        loadEngines();
+    } else {
+        if (tabId === 'import') updateStats();
+        if (tabId === 'settings') loadSettings();
+        if (tabId === 'info') loadInfoTab();
+    }
 }
 function recalcPageSize() {
     const wrapper = document.querySelector('.table-wrapper');
