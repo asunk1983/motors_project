@@ -80,6 +80,16 @@ async function parseJsonResponse(resp) {
     }
 }
 
+// Убирает экран загрузки после того, как authInit() определился с
+// состоянием (логин или уже загруженный интерфейс). Идемпотентна —
+// повторные вызовы (например, showLoginScreen() после logout) безопасны.
+function hideAppLoadingOverlay() {
+    const overlay = document.getElementById('appLoadingOverlay');
+    if (!overlay) return;
+    overlay.classList.add('overlay-hidden');
+    setTimeout(() => overlay.remove(), 350);
+}
+
 // ----- Экран логина / регистрации -----
 
 function ensureLoginScreen() {
@@ -131,6 +141,7 @@ function ensureLoginScreen() {
 }
 
 function showLoginScreen() {
+    hideAppLoadingOverlay();
     ensureLoginScreen();
     document.getElementById('login-overlay').style.display = 'flex';
 }
@@ -142,6 +153,7 @@ function hideLoginScreen() {
 
 // Вызывается после успешного логина (обновляет UI, права, списки).
 function onLoggedIn() {
+    hideAppLoadingOverlay();
     applyRoleUI();
     if (typeof loadEngines === 'function') loadEngines();
     if (typeof updateStats === 'function') updateStats();

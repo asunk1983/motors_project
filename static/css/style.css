@@ -1611,3 +1611,55 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .icon-lightbulb { mask-image: url('/static/ico/lightbulb.svg'); -webkit-mask-image: url('/static/ico/lightbulb.svg'); }
 .icon-bolt { mask-image: url('/static/ico/bolt.svg'); -webkit-mask-image: url('/static/ico/bolt.svg'); }
 .icon-build { mask-image: url('/static/ico/build.svg'); -webkit-mask-image: url('/static/ico/build.svg'); }
+
+/* =====================================================================
+   ЭКРАН ЗАГРУЗКИ ПРИ ОТКРЫТИИ/ОБНОВЛЕНИИ СТРАНИЦЫ (F5)
+   Стандартный паттерн: сплошной фон + спиннер по центру, держится, пока
+   authInit() не определится с состоянием (логин или уже загруженный
+   каталог), затем гаснет. Скрывает "сборку" интерфейса по кускам.
+   ===================================================================== */
+#appLoadingOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000; /* выше #login-overlay (9999) */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-bg-main);
+    opacity: 1;
+    transition: opacity 0.3s ease;
+}
+#appLoadingOverlay.overlay-hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+.app-loading-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+.app-loading-icon {
+    font-size: 40px;
+    line-height: 1;
+    animation: appLoadingPulse 1.6s ease-in-out infinite;
+}
+.app-loading-spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: appLoadingSpin 0.8s linear infinite;
+}
+@keyframes appLoadingSpin {
+    to { transform: rotate(360deg); }
+}
+@keyframes appLoadingPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .app-loading-icon { animation: none; }
+    .app-loading-spinner { animation-duration: 1.6s; }
+}

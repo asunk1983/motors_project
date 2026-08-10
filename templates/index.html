@@ -7,6 +7,13 @@
     <link rel="stylesheet" href="/static/css/style.css?v=20260808">
 </head>
 <body>
+    <div id="appLoadingOverlay">
+        <div class="app-loading-inner">
+            <div class="app-loading-icon">⚙️</div>
+            <div class="app-loading-spinner"></div>
+        </div>
+    </div>
+
     <div class="app-shell">
         <header class="topbar">
             <div class="topbar-brand">
@@ -387,6 +394,11 @@
         // Инициализация авторизации после загрузки DOM и скриптов.
         document.addEventListener('DOMContentLoaded', function() {
             authInit();
+            // Предохранитель на случай сбоя сети: если authInit() не
+            // определился с состоянием (токен не проверился, /api/auth/me
+            // повис или вернул ошибку) — гасим оверлей принудительно,
+            // чтобы пользователь не смотрел на крутящийся спиннер вечно.
+            setTimeout(hideAppLoadingOverlay, 8000);
         });
     </script>
 </body>
