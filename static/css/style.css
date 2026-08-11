@@ -371,6 +371,54 @@ body {
     margin-bottom: var(--space-4);
 }
 
+/* Вкладка "Поиск" — та же схема, что и у каталога выше
+   (#tab-catalog.active): .main-content задаёт overflow:hidden (см.
+   выше), поэтому если вкладка не ограничена по высоте явно, то всё,
+   что не поместилось, не прокручивается, а просто ОБРЕЗАЕТСЯ — это и
+   была причина "результаты уезжают за экран". Растягиваем вкладку на
+   100% доступной высоты, а #searchResults делаем прокручиваемым
+   отдельно (как .table-wrapper у каталога) — форма условий и
+   пагинация остаются на месте, видимыми, скроллится только список. */
+#tab-search.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+#tab-search.active .search-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+#tab-search.active .search-container > h2 {
+    flex-shrink: 0;
+    margin-top: var(--space-5);
+    margin-bottom: var(--space-4);
+}
+#tab-search.active .search-actions {
+    flex-shrink: 0;
+}
+/* Список условий поиска — сам прокручивается, если условий много,
+   вместо того чтобы бесконечно раздвигать вкладку по высоте. */
+#tab-search.active .search-filters {
+    flex-shrink: 0;
+    max-height: 220px;
+    overflow-y: auto;
+}
+/* Ключевая часть: результаты занимают всё оставшееся место (как
+   .table-wrapper в каталоге) и скроллятся сами. */
+#tab-search.active .search-results {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+#tab-search.active #searchPagination {
+    flex-shrink: 0;
+}
+
 /* =====================================================================
    BUTTONS
    ===================================================================== */

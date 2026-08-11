@@ -212,10 +212,19 @@
                         <span class="search-hint">Нажмите Enter для поиска</span>
                     </div>
 
-                    <div id="searchConditions" class="search-filters"></div>
+                                        <div id="searchConditions" class="search-filters"></div>
 
                     <div class="search-results" id="searchResults">
                         <div class="no-data">Введите параметры поиска</div>
+                    </div>
+
+                    <div class="pagination hidden" id="searchPagination">
+                        <span class="page-info" id="searchPageInfo">Показано 0 из 0</span>
+                        <div class="page-controls">
+                            <button class="btn btn-sm btn-secondary" onclick="prevSearchPage()">◀</button>
+                            <span id="searchPageNumber">1</span>
+                            <button class="btn btn-sm btn-secondary" onclick="nextSearchPage()">▶</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -433,7 +442,7 @@
     <script src="/static/js/importer.js"></script>
     <script src="/static/js/exportManager.js"></script>
     <script src="/static/js/backupManager.js"></script>
-    <script src="/static/js/search.js"></script>
+    <script src="/static/js/search.js?v=20260811"></script>
     <script src="/static/js/auth.js?v=20260721"></script>
     <script>
         // ===== Переключатель темы =====

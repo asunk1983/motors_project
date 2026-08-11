@@ -1,5 +1,7 @@
 // static/js/search.js — РАСШИРЕННЫЙ ПОИСК С ДИНАМИЧЕСКИМИ ПОЛЯМИ
 
+
+
 // ===== ДОСТУПНЫЕ ПОЛЯ ДЛЯ ПОИСКА =====
 const SEARCH_FIELDS = [
     { value: 'id', label: 'ID', type: 'number' },
@@ -83,6 +85,20 @@ function _resultColumnValue(row, field) {
 
 // ===== СОСТОЯНИЕ =====
 let searchFieldIndex = 0;
+
+// ===== ПАГИНАЦИЯ РЕЗУЛЬТАТОВ ПОИСКА =====
+// Раньше вся выдача рендерилась одной большой таблицей без пагинации —
+// при большом количестве найденных записей блок #searchResults вытягивался
+// далеко вниз экрана, и переключаться между "страницами" было нечем (в
+// отличии от вкладки "Каталог", где есть pageInfo/pageNumber + ◀/▶, см.
+// catalog.js::renderTable). Ниже — тот же паттерн, но для #searchResults:
+// searchResultsData хранит ПОЛНУЮ выдачу с сервера, на экран рендерится
+// только текущая страница (SEARCH_PAGE_SIZE записей), пагинация обновляет
+// #searchPagination (см. index.html).
+let searchResultsData = [];
+let searchResultColumns = [];
+let searchCurrentPage = 1;
+const SEARCH_PAGE_SIZE = 20;
 
 // Резервная копия исходного списка allEngines (из engines.js), чтобы
 // восстанавливать её при очистке поиска. allEngines — глобальная переменная
@@ -226,16 +242,87 @@ function clearAllSearch() {
     searchFieldIndex = 0;
     addSearchRow();
     document.getElementById('searchResults').innerHTML = '<div class="no-data">Введите параметры поиска</div>';
+
+    // Сброс пагинации результатов поиска — иначе следующий поиск мог бы
+    // на мгновение отрисоваться со старым searchCurrentPage (например,
+    // страница 3), если бы renderSearchResultsPage() вызвался раньше,
+    // чем executeSearch() успеал его перезаписать.
+    searchResultsData = [];
+    searchResultColumns = [];
+    searchCurrentPage = 1;
+    document.getElementById('searchPagination')?.classList.add('hidden');
     
-    // Восстанавливаем исходный список allEngines, если поиск уже
-    // перезаписал его результатами. Без этого после очистки пагинация
-    // и навигация по карточкам продолжали бы работать с последними
-    // результатами поиска вместо полного каталога.
     if (originalAllEngines !== null) {
         allEngines = originalAllEngines;
         originalAllEngines = null;
     }
     currentPage = 1;
+}
+
+function renderSearchResultsPage() {
+    const container = document.getElementById('searchResults');
+    const pagination = document.getElementById('searchPagination');
+
+    if (!searchResultsData.length) {
+        container.innerHTML = '<div class="no-data">Ничего не найдено</div>';
+        if (pagination) pagination.classList.add('hidden');
+        return;
+    }
+
+    const start = (searchCurrentPage - 1) * SEARCH_PAGE_SIZE;
+    const end = start + SEARCH_PAGE_SIZE;
+    const pageData = searchResultsData.slice(start, end);
+    const columns = searchResultColumns;
+
+    let html = `<div class="table-wrapper"><table class="data-table"><thead><tr>
+        ${columns.map(f => `<th>${escapeHtml(_resultColumnLabel(f))}</th>`).join('')}
+    </tr></thead><tbody>`;
+
+    pageData.forEach(e => {
+        // escapeHtml определена в engines.js (грузится раньше) и
+        // используется здесь же — та же защита от XSS, что и
+        // в основной таблице каталога.
+        const cells = columns.map(f => {
+            const value = _resultColumnValue(e, f);
+            if (f === 'id') return `<td><span class="badge-id">${e.id}</span></td>`;
+            if (f === 'location') return `<td><strong>${escapeHtml(value) || '—'}</strong></td>`;
+            return `<td>${escapeHtml(value) || '—'}</td>`;
+        }).join('');
+        html += `<tr class="clickable-row" onclick="showDetail(${e.id})">${cells}</tr>`;
+    });
+
+    html += `</tbody></table></div>
+             <div class="search-result-count">
+                Найдено: ${searchResultsData.length} записей
+             </div>`;
+
+    container.innerHTML = html;
+
+    if (pagination) {
+        pagination.classList.remove('hidden');
+        // Диапазон 1-based, конец — от pageData.length (реально
+        // отрисованных строк), а не от SEARCH_PAGE_SIZE — та же логика,
+        // что и в catalog.js::renderTable, чтобы на последней неполной
+        // странице не показать "21-40 из 27".
+        const rangeStart = start + 1;
+        const rangeEnd = start + pageData.length;
+        document.getElementById('searchPageInfo').textContent = `${rangeStart}-${rangeEnd} из ${searchResultsData.length}`;
+        document.getElementById('searchPageNumber').textContent = searchCurrentPage;
+    }
+}
+
+function prevSearchPage() {
+    if (searchCurrentPage > 1) {
+        searchCurrentPage--;
+        renderSearchResultsPage();
+    }
+}
+
+function nextSearchPage() {
+    if (searchCurrentPage * SEARCH_PAGE_SIZE < searchResultsData.length) {
+        searchCurrentPage++;
+        renderSearchResultsPage();
+    }
 }
 
 // ===== ВЫПОЛНЕНИЕ ПОИСКА =====
@@ -264,7 +351,7 @@ function executeSearch() {
         return;
     }
     
-    // Формируем JSON и отправляем POST запросом
+        // Формируем JSON и отправляем POST запросом
     apiFetch('/api/engines/search', {
         method: 'POST',
         headers: {
@@ -277,65 +364,40 @@ function executeSearch() {
             const container = document.getElementById('searchResults');
             if (data.error) {
                 container.innerHTML = `<div class="no-data">${data.error}</div>`;
+                document.getElementById('searchPagination')?.classList.add('hidden');
                 return;
             }
-            if (!data || data.length === 0) {
-                container.innerHTML = '<div class="no-data">Ничего не найдено</div>';
-                return;
-            }
-            
-            // Перезаписываем allEngines результатами поиска, чтобы
-            // пагинация, showDetail() и навигация по карточкам (кнопки
-            // ◀/▶ в детальной карточке) работали именно с найденными
-            // двигателями, а не с полным списком из 97 записей.
-            // Исходный список сохраняем в originalAllEngines для
-            // восстановления при очистке поиска.
+
+            // Перезаписываем allEngines результатами поиска, чтобы пагинация,
+            // showDetail() и навигация по карточкам (◀/▶ в детальной карточке)
+            // работали именно с найденными двигателями.
             if (originalAllEngines === null) {
                 originalAllEngines = allEngines;
             }
             allEngines = data;
             currentPage = 1;
 
-            // Рендерим результаты в контейнере #searchResults (на вкладке
-            // "Поиск"), не переключая пользователя на вкладку "catalog".
-            // Колонки таблицы результатов: сначала поля, по которым реально
-            // искали (в порядке добавления условий, без повторов — если
-            // искали и по 'location', и по 'power', то Location и Мощность
-            // идут первыми), затем — остальные базовые поля из
-            // DEFAULT_RESULT_FIELDS, которых ещё нет среди уже добавленных.
+            // Колонки: сначала поля, по которым реально искали, затем остальные
+            // базовые поля (та же логика, что и раньше).
             const searchedFields = [];
             conditions.forEach(c => {
                 if (!searchedFields.includes(c.field)) searchedFields.push(c.field);
             });
             const restFields = DEFAULT_RESULT_FIELDS.filter(f => !searchedFields.includes(f));
-            const columns = searchedFields.concat(restFields);
+            searchResultColumns = searchedFields.concat(restFields);
 
-            let html = `<div class="table-wrapper"><table class="data-table"><thead><tr>
-                ${columns.map(f => `<th>${escapeHtml(_resultColumnLabel(f))}</th>`).join('')}
-            </tr></thead><tbody>`;
+            searchResultsData = data;
+            searchCurrentPage = 1;
+            renderSearchResultsPage();
 
-            data.forEach(e => {
-                // escapeHtml определена в engines.js (грузится раньше) и
-                // используется здесь же — та же защита от XSS, что и
-                // в основной таблице каталога.
-                const cells = columns.map(f => {
-                    const value = _resultColumnValue(e, f);
-                    if (f === 'id') return `<td><span class="badge-id">${e.id}</span></td>`;
-                    if (f === 'location') return `<td><strong>${escapeHtml(value) || '—'}</strong></td>`;
-                    return `<td>${escapeHtml(value) || '—'}</td>`;
-                }).join('');
-                html += `<tr class="clickable-row" onclick="showDetail(${e.id})">${cells}</tr>`;
-            });
-
-            html += `</tbody></table></div>
-                     <div class="search-result-count">
-                        Найдено: ${data.length} записей
-                     </div>`;
-
-            container.innerHTML = html;
-            showToast(`Найдено ${data.length} записей`, 'success', 'icon-check-circle');
+            if (data.length === 0) {
+                showToast('Ничего не найдено', 'info');
+            } else {
+                showToast(`🔍 Найдено ${data.length} записей`, 'success');
+            }
         })
         .catch(e => {
             document.getElementById('searchResults').innerHTML = `<div class="no-data">Ошибка: ${e.message}</div>`;
+            document.getElementById('searchPagination')?.classList.add('hidden');
         });
 }
