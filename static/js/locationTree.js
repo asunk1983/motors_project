@@ -66,9 +66,26 @@ function renderLocationTree(tree) {
         return;
     }
 
-    body.innerHTML = workshops.map(workshop => {
+    // Общий счётчик по всем цехам — для корневого пункта "Все объекты"
+    // (см. .tree-root в style.css). Считаем один раз до рендера дерева.
+    const totalCount = workshops.reduce((sum, w) => {
+        const locations = tree[w];
+        return sum + Object.values(locations).reduce((s, c) => s + c, 0);
+    }, 0);
+    const isRootActive = activeWorkshop === null && activeLocation === null;
+    const rootHtml = `
+        <div class="tree-root ${isRootActive ? 'active' : ''}" onclick="resetLocationFilter()">
+            <span class="tree-workshop-label">Все объекты</span>
+            <span class="tree-count-chip">${totalCount}</span>
+        </div>`;
+
+    const workshopsHtml = workshops.map(workshop => {
         const locations = tree[workshop];
         const locKeys = Object.keys(locations).sort((a, b) => a.localeCompare(b, 'ru'));
+        // Счётчик цеха — сумма количеств по всем его местам установки.
+        // Раньше показывался только у мест внутри развёрнутого цеха —
+        // теперь виден всегда, даже когда цех свёрнут (по референсу).
+        const workshopCount = locKeys.reduce((s, loc) => s + locations[loc], 0);
         const isOpen = workshop === activeWorkshop;
         const workshopLabel = workshop || 'Без цеха';
 
@@ -83,7 +100,7 @@ function renderLocationTree(tree) {
                      onclick="selectTreeLocation('${escapeAttr(workshop)}', '${escapeAttr(loc)}')">
                     <span class="tree-workshop-label">${escapeHtml(locLabel)}</span>
                     <span class="tree-location-right">
-                        <span class="tree-location-count">${count}</span>
+                        <span class="tree-count-chip">${count}</span>
                         <button type="button" class="tree-add-btn write-action" title="Добавить двигатель в это место"
                                 onclick="event.stopPropagation(); createAndOpenEngine('${escapeAttr(workshop)}', '${escapeAttr(loc)}')">+</button>
                     </span>
@@ -95,12 +112,15 @@ function renderLocationTree(tree) {
                 <div class="tree-workshop ${isOpen ? 'active' : ''}" onclick="toggleTreeWorkshop('${escapeAttr(workshop)}')">
                     <span class="tree-chevron">${isOpen ? '▼' : '▶'}</span>
                     <span class="tree-workshop-label">${escapeHtml(workshopLabel)}</span>
+                    <span class="tree-count-chip">${workshopCount}</span>
                     <button type="button" class="tree-add-btn write-action" title="Добавить двигатель в этот цех"
                             onclick="event.stopPropagation(); createAndOpenEngine('${escapeAttr(workshop)}', null)">+</button>
                 </div>
                 <div class="tree-locations ${isOpen ? '' : 'hidden'}">${locHtml}</div>
             </div>`;
     }).join('');
+
+    body.innerHTML = rootHtml + workshopsHtml;
 }
 
 function toggleTreeWorkshop(workshop) {

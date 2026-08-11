@@ -1,18 +1,28 @@
 """Маршрут статуса приложения: счётчики двигателей, размер БД, файлы в папке.
-
 Вынесено из app.py.
 """
 import os
+import sys
 import glob
+import sqlite3
+import flask
 from flask import Blueprint, jsonify
 
 from modules.db import db_connection, DB_PATH, MOTORS_FOLDER
 
 status_bp = Blueprint('status', __name__, url_prefix='/api')
 
+APP_VERSION = '2.0'
+
 
 @status_bp.route('/status', methods=['GET'])
 def get_status():
+    version_info = {
+        'app_version': APP_VERSION,
+        'python_version': sys.version.split()[0],
+        'flask_version': flask.__version__,
+        'sqlite_version': sqlite3.sqlite_version,
+    }
     try:
         with db_connection() as conn:
             cursor = conn.cursor()
@@ -45,7 +55,9 @@ def get_status():
             'photos_count': photos_count,
             'files_in_folder': len(motor_files),
             'db_size_bytes': db_size_bytes,
-            'db_size_label': db_size_label
+            'db_size_label': db_size_label,
+            **version_info,
         })
     except Exception as e:
-        return jsonify({'has_data': False, 'error': str(e)})
+        return jsonify({'has_data': False, 'error': str(e), **version_info})
+

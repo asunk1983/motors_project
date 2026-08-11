@@ -4,7 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Управление паспортами двигателей</title>
-    <link rel="stylesheet" href="/static/css/style.css?v=20260808">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260811">
+    <script>
+        // Применяем сохранённую тему ДО отрисовки страницы — иначе при
+        // перезагрузке с включённой тёмной темой будет короткая вспышка
+        // светлого фона (FOUC), пока не отработает скрипт в конце body.
+        (function() {
+            try {
+                var saved = localStorage.getItem('motors_theme');
+                if (saved === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+            } catch (e) {}
+        })();
+    </script>
 </head>
 <body>
     <div id="appLoadingOverlay">
@@ -53,6 +67,10 @@
                         <span class="stat-value" id="totalPhotos">0</span>
                     </span>
                 </div>
+
+                <button type="button" class="theme-toggle-btn" id="themeToggleBtn" title="Переключить тему">
+                    <span id="themeToggleIcon" aria-hidden="true">🌙</span>
+                </button>
 
                 <div class="topbar-user">
                     <span class="user-name" id="userName"></span>
@@ -239,11 +257,7 @@
                         </div>
                     </div>
 
-                    <div class="settings-group">
-                        <h3>Система</h3>
-                        <div class="settings-item"><span class="settings-label">Версия</span><span class="settings-value">2.0</span></div>
-                        <div class="settings-item"><span class="settings-label">Лог-файл</span><span class="settings-value">import_log.txt</span></div>
-                    </div>
+                    
                 </div>
             </div>
 
@@ -277,9 +291,10 @@
             <div class="tab-content" id="tab-info">
                 <h2><span class="icon icon-info"></span> Инфо</h2>
 
-                <div class="info-subtabs">
+                                <div class="info-subtabs">
                     <button class="btn btn-sm btn-primary" id="infoSubtabChangelogBtn" onclick="switchInfoSubtab('changelog')"><span class="icon icon-list-alt"></span> Лог изменений</button>
                     <button class="btn btn-sm btn-secondary" id="infoSubtabWishlistBtn" onclick="switchInfoSubtab('wishlist')"><span class="icon icon-lightbulb"></span> Пожелания</button>
+                    <button class="btn btn-sm btn-secondary" id="infoSubtabSystemBtn" onclick="switchInfoSubtab('system')"><span class="icon icon-settings"></span> Система</button>
                 </div>
 
                 <div class="info-subtab-content active" id="infoSubtab-changelog">
@@ -297,6 +312,36 @@
                         <button type="button" class="btn btn-success btn-sm" onclick="addWishlistItem()"><span class="icon icon-add"></span> Добавить</button>
                     </div>
                     <div id="wishlistList"><div class="no-data">Загрузка...</div></div>
+                </div>
+
+                <div class="info-subtab-content" id="infoSubtab-system">
+                    <div class="settings-group">
+                        <h3><span class="icon icon-settings"></span> О системе</h3>
+                        <div class="settings-item"><span class="settings-label">Версия приложения</span><span class="settings-value" id="sysAppVersion">—</span></div>
+                        <div class="settings-item"><span class="settings-label">Лог-файл импорта</span><span class="settings-value">import_log.txt</span></div>
+                        <div class="settings-item"><span class="settings-label">Хранение фото</span><span class="settings-value">photos/</span></div>
+                        <div class="settings-item"><span class="settings-label">Папка импорта</span><span class="settings-value">motors/</span></div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3><span class="icon icon-build"></span> Бэкенд</h3>
+                        <div class="settings-item"><span class="settings-label">Python</span><span class="settings-value" id="sysPythonVersion">—</span></div>
+                        <div class="settings-item"><span class="settings-label">Flask</span><span class="settings-value" id="sysFlaskVersion">—</span></div>
+                        <div class="settings-item"><span class="settings-label">SQLite</span><span class="settings-value" id="sysSqliteVersion">—</span></div>
+                        <div class="settings-item"><span class="settings-label">Архитектура</span><span class="settings-value">routes / repositories / services / schemas</span></div>
+                        <div class="settings-item"><span class="settings-label">Импорт данных</span><span class="settings-value">Excel-файлы (модуль engine_parser)</span></div>
+                        <div class="settings-item"><span class="settings-label">Авторизация</span><span class="settings-value">Opaque-токены (Bearer), файловые и БД-пользователи</span></div>
+                        <div class="settings-item"><span class="settings-label">Резервные копии</span><span class="settings-value">ZIP-архивы, только вручную</span></div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3><span class="icon icon-list-alt"></span> Фронтенд</h3>
+                        <div class="settings-item"><span class="settings-label">Язык</span><span class="settings-value">Vanilla JavaScript (ES6+)</span></div>
+                        <div class="settings-item"><span class="settings-label">Фреймворк</span><span class="settings-value">Без фреймворка — прямая работа с DOM</span></div>
+                        <div class="settings-item"><span class="settings-label">Стили</span><span class="settings-value">Собственная CSS design-система (custom properties)</span></div>
+                        <div class="settings-item"><span class="settings-label">Сборка</span><span class="settings-value">Без сборщика — статические .js/.css файлы</span></div>
+                        <div class="settings-item"><span class="settings-label">Иконки</span><span class="settings-value">SVG через CSS mask-image</span></div>
+                    </div>
                 </div>
             </div>
         </main>
@@ -382,8 +427,8 @@
 
     <script src="/static/js/common.js"></script>
     <script src="/static/js/engines.js"></script>
-    <script src="/static/js/catalog.js"></script>
-    <script src="/static/js/locationTree.js"></script>
+    <script src="/static/js/catalog.js?v=20260811"></script>
+    <script src="/static/js/locationTree.js?v=20260811"></script>
     <script src="/static/js/engineCard.js"></script>
     <script src="/static/js/importer.js"></script>
     <script src="/static/js/exportManager.js"></script>
@@ -391,6 +436,34 @@
     <script src="/static/js/search.js"></script>
     <script src="/static/js/auth.js?v=20260721"></script>
     <script>
+        // ===== Переключатель темы =====
+        // Тема уже могла быть выставлена инлайн-скриптом в <head> (до
+        // отрисовки, чтобы избежать вспышки светлого фона) — здесь только
+        // синхронизируем иконку кнопки с текущим состоянием и вешаем клик.
+        (function() {
+            const btn = document.getElementById('themeToggleBtn');
+            const icon = document.getElementById('themeToggleIcon');
+            if (!btn || !icon) return;
+
+            function syncIcon() {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                icon.textContent = isDark ? '☀️' : '🌙';
+                btn.title = isDark ? 'Светлая тема' : 'Тёмная тема';
+            }
+            syncIcon();
+
+            btn.addEventListener('click', function() {
+                const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                if (isDark) {
+                    document.documentElement.removeAttribute('data-theme');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+                try { localStorage.setItem('motors_theme', isDark ? 'light' : 'dark'); } catch (e) {}
+                syncIcon();
+            });
+        })();
+
         // Инициализация авторизации после загрузки DOM и скриптов.
         document.addEventListener('DOMContentLoaded', function() {
             authInit();

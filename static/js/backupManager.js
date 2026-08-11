@@ -194,12 +194,16 @@ let wishlistItems = [];
 function switchInfoSubtab(name) {
     const changelogBtn = document.getElementById('infoSubtabChangelogBtn');
     const wishlistBtn = document.getElementById('infoSubtabWishlistBtn');
+    const systemBtn = document.getElementById('infoSubtabSystemBtn');
     if (changelogBtn) changelogBtn.className = 'btn btn-sm ' + (name === 'changelog' ? 'btn-primary' : 'btn-secondary');
     if (wishlistBtn) wishlistBtn.className = 'btn btn-sm ' + (name === 'wishlist' ? 'btn-primary' : 'btn-secondary');
+    if (systemBtn) systemBtn.className = 'btn btn-sm ' + (name === 'system' ? 'btn-primary' : 'btn-secondary');
     const changelogPane = document.getElementById('infoSubtab-changelog');
     const wishlistPane = document.getElementById('infoSubtab-wishlist');
+    const systemPane = document.getElementById('infoSubtab-system');
     if (changelogPane) changelogPane.classList.toggle('active', name === 'changelog');
     if (wishlistPane) wishlistPane.classList.toggle('active', name === 'wishlist');
+    if (systemPane) systemPane.classList.toggle('active', name === 'system');
 }
 
 function loadInfoTab() {
@@ -209,6 +213,23 @@ function loadInfoTab() {
     }
     loadChangelog();
     loadWishlist();
+    loadSystemInfo();
+}
+
+function loadSystemInfo() {
+    apiFetch('/api/status')
+        .then(r => r.json())
+        .then(data => {
+            const set = (id, val) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = (val === undefined || val === null || val === '') ? '—' : val;
+            };
+            set('sysAppVersion', data.app_version);
+            set('sysPythonVersion', data.python_version);
+            set('sysFlaskVersion', data.flask_version);
+            set('sysSqliteVersion', data.sqlite_version);
+        })
+        .catch(() => {});
 }
 
 // ---- Лог изменений ----

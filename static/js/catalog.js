@@ -205,8 +205,8 @@ function renderTable() {
             <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedEngineIds.has(e.id) ? 'checked' : ''} onchange="toggleEngineSelection(${e.id}, this.checked)"></td>
             <td><span class="badge-id">${e.id}</span></td>
             <td>${highlightMatch(e.location, currentSearchQuery) || '—'}</td>
-            <td>${highlightMatch(e.engine_type, currentSearchQuery) || '—'}</td>
-            <td>${highlightMatch(e.serial_number, currentSearchQuery) || '—'}</td>
+            <td class="mono">${highlightMatch(e.engine_type, currentSearchQuery) || '—'}</td>
+            <td class="mono mono-muted">${highlightMatch(e.serial_number, currentSearchQuery) || '—'}</td>
             <td>${highlightMatch(e.manufacturer, currentSearchQuery) || '—'}</td>
             <td>${highlightMatch(e.purpose, currentSearchQuery) || '—'}</td>
             <td>${formatRuDateTime(e.updated_at)}</td>
