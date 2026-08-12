@@ -57,6 +57,16 @@ _SEARCH_MODE_COL_MAP = {c: f'm.{c}' for c in MODE_COLUMNS}
 # Операторы, требующие числовое приведение значения
 _NUMERIC_OPS = {'gt', 'lt', 'between'}
 
+# Поля, в которых пользователь иногда пишет диапазон вместо одного числа
+# (например "220-240" в напряжении вместо "230"). Новое поле ввода под это
+# заводить не стали — значение остаётся обычным текстом в той же колонке,
+# а числовые операторы поиска (>, <, между) сами распознают дефис как
+# разделитель диапазона и сравнивают по его границам. Список ограничен
+# только техническими параметрами режима/характеристик, где диапазон
+# физически осмыслен — отрицательных значений у них не бывает, поэтому
+# "-" однозначно читается как разделитель, а не как знак минуса.
+_RANGE_CAPABLE_FIELDS = {'power', 'voltage', 'frequency', 'rpm', 'current', 'shaft_diameter'}
+
 
 def _coerce_numeric(val):
     """
@@ -67,6 +77,27 @@ def _coerce_numeric(val):
         return float(str(val).replace(',', '.')), None
     except (ValueError, TypeError):
         return None, f'Значение "{val}" должно быть числом'
+
+
+def _range_bounds_sql(col):
+    """
+    Возвращает пару SQL-выражений (min_expr, max_expr) для колонки col.
+
+    Если значение в колонке содержит дефис (например '220-240') — это
+    диапазон, min/max берутся из его частей. Если дефиса нет (обычное
+    '230') — min и max совпадают и равны самому числу, т.е. поведение
+    для "обычных" значений не меняется по сравнению с прежним
+    CAST(col AS REAL). REPLACE(...,',','.') — та же терпимость к
+    десятичной запятой, что и в _coerce_numeric() для введённого значения.
+    CAST нечисловой/пустой строки в SQLite тихо даёт 0.0 — так же, как
+    вело себя старое поведение, отдельно не обрабатываем.
+    """
+    single = f"CAST(REPLACE({col}, ',', '.') AS REAL)"
+    left = f"CAST(REPLACE(SUBSTR({col}, 1, INSTR({col}, '-') - 1), ',', '.') AS REAL)"
+    right = f"CAST(REPLACE(SUBSTR({col}, INSTR({col}, '-') + 1), ',', '.') AS REAL)"
+    min_expr = f"(CASE WHEN INSTR({col}, '-') > 0 THEN {left} ELSE {single} END)"
+    max_expr = f"(CASE WHEN INSTR({col}, '-') > 0 THEN {right} ELSE {single} END)"
+    return min_expr, max_expr
 
 
 @search_bp.route('/engines/search', methods=['POST'])
@@ -114,17 +145,30 @@ def search_engines_advanced():
                 num_val, err = _coerce_numeric(value)
                 if err:
                     return jsonify({'error': f'{err} для оператора \'{op}\' по полю \'{field}\''}), 400
+
+                if field in _RANGE_CAPABLE_FIELDS:
+                    min_expr, max_expr = _range_bounds_sql(col)
+                else:
+                    min_expr = max_expr = f'CAST({col} AS REAL)'
+
                 if op == 'gt':
-                    target.append(f'{col} > ?'); tparams.append(num_val)
+                    # "Больше X" — диапазон подходит, если его верхняя граница выше X
+                    target.append(f'{max_expr} > ?'); tparams.append(num_val)
                 elif op == 'lt':
-                    target.append(f'{col} < ?'); tparams.append(num_val)
+                    # "Меньше X" — диапазон подходит, если его нижняя граница ниже X
+                    target.append(f'{min_expr} < ?'); tparams.append(num_val)
                 elif op == 'between' and value2:
                     num_val2, err2 = _coerce_numeric(value2)
                     if err2:
                         return jsonify({'error': f'{err2} для второго значения оператора \'{op}\' по полю \'{field}\''}), 400
                     if num_val > num_val2:
                         return jsonify({'error': f'Для оператора \'between\' по полю \'{field}\' первое значение ({num_val}) должно быть <= второму ({num_val2})'}), 400
-                    target.append(f'{col} BETWEEN ? AND ?'); tparams.extend([num_val, num_val2])
+                    # Пересечение искомого диапазона [num_val, num_val2] с диапазоном
+                    # значения в БД [min_expr, max_expr] — а не строгое вхождение:
+                    # если ищут "между 225 и 235", запись "220-240" тоже должна найтись
+                    # (её диапазон захватывает часть искомого), не только записи
+                    # с одиночным числом внутри интервала.
+                    target.append(f'{min_expr} <= ? AND {max_expr} >= ?'); tparams.extend([num_val2, num_val])
 
         all_where = engine_where + mode_where
         if not all_where:
