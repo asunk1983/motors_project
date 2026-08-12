@@ -409,15 +409,11 @@ body {
     overflow-y: auto;
 }
 /* Ключевая часть: результаты занимают всё оставшееся место (как
-   .table-wrapper в каталоге). overflow-y: hidden, а не auto — количество
-   строк уже подгоняется под высоту в JS (см. search.js::
-   recalcSearchPageSize), а hidden гарантирует отсутствие скролла даже
-   при погрешности в доли пикселя (auto показал бы полосу прокрутки на
-   1-2px переполнения, hidden просто молча обрежет их без скролла). */
+   .table-wrapper в каталоге) и скроллятся сами. */
 #tab-search.active .search-results {
     flex: 1;
     min-height: 0;
-    overflow-y: hidden;
+    overflow-y: auto;
 }
 #tab-search.active #searchPagination {
     flex-shrink: 0;

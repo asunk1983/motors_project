@@ -89,16 +89,16 @@ let searchFieldIndex = 0;
 // ===== ПАГИНАЦИЯ РЕЗУЛЬТАТОВ ПОИСКА =====
 // Раньше вся выдача рендерилась одной большой таблицей без пагинации —
 // при большом количестве найденных записей блок #searchResults вытягивался
-// далеко вниз экрана, и переключаться между "страницами" было нечем (в
-// отличии от вкладки "Каталог", где есть pageInfo/pageNumber + ◀/▶, см.
-// catalog.js::renderTable). Ниже — тот же паттерн, но для #searchResults:
-// searchResultsData хранит ПОЛНУЮ выдачу с сервера, на экран рендерится
-// только текущая страница (SEARCH_PAGE_SIZE записей), пагинация обновляет
-// #searchPagination (см. index.html).
+// далеко вниз экрана. Затем размер страницы был жёстко зашит (20), из-за
+// чего при нехватке места появлялся внутренний скролл. Теперь количество
+// строк на странице подстраивается под реальную высоту #searchResults —
+// та же схема, что и в catalog.js::recalcPageSize/applyDynamicPageSize —
+// поэтому страница всегда влезает целиком, без скролла.
 let searchResultsData = [];
 let searchResultColumns = [];
 let searchCurrentPage = 1;
-const SEARCH_PAGE_SIZE = 20;
+let searchPageSize = 20; // стартовое значение — пересчитывается под реальную высоту сразу после первого рендера
+
 
 // Резервная копия исходного списка allEngines (из engines.js), чтобы
 // восстанавливать её при очистке поиска. allEngines — глобальная переменная
@@ -269,8 +269,8 @@ function renderSearchResultsPage() {
         return;
     }
 
-    const start = (searchCurrentPage - 1) * SEARCH_PAGE_SIZE;
-    const end = start + SEARCH_PAGE_SIZE;
+    const start = (searchCurrentPage - 1) * searchPageSize;
+    const end = start + searchPageSize;
     const pageData = searchResultsData.slice(start, end);
     const columns = searchResultColumns;
 
@@ -301,7 +301,7 @@ function renderSearchResultsPage() {
     if (pagination) {
         pagination.classList.remove('hidden');
         // Диапазон 1-based, конец — от pageData.length (реально
-        // отрисованных строк), а не от SEARCH_PAGE_SIZE — та же логика,
+        // отрисованных строк), а не от searchPageSize — та же логика,
         // что и в catalog.js::renderTable, чтобы на последней неполной
         // странице не показать "21-40 из 27".
         const rangeStart = start + 1;
@@ -319,10 +319,74 @@ function prevSearchPage() {
 }
 
 function nextSearchPage() {
-    if (searchCurrentPage * SEARCH_PAGE_SIZE < searchResultsData.length) {
+    if (searchCurrentPage * searchPageSize < searchResultsData.length) {
         searchCurrentPage++;
         renderSearchResultsPage();
     }
+}
+
+// ===== ДИНАМИЧЕСКИЙ РАЗМЕР СТРАНИЦЫ (чтобы не было скролла) =====
+// #searchResults ограничен по высоте через CSS (flex:1 внутри
+// #tab-search.active, см. style.css) — если строк на странице больше,
+// чем реально помещается, появляется внутренний скролл. Вместо
+// фиксированного количества строк подстраиваем searchPageSize под
+// фактическую высоту контейнера — та же логика, что и в catalog.js::
+// recalcPageSize/applyDynamicPageSize для #tableBody.
+function recalcSearchPageSize() {
+    const container = document.getElementById('searchResults');
+    if (!container) return searchPageSize;
+
+    const headerRow = container.querySelector('thead tr');
+    const bodyRow = container.querySelector('tbody tr');
+    const countEl = container.querySelector('.search-result-count');
+
+    // Пока в DOM нет ни одной реально отрисованной строки (самый первый
+    // расчёт, до первого поиска) — используем ту же консервативную оценку,
+    // что и в catalog.js::recalcPageSize (паддинги .data-table td ×2 +
+    // текст + border-bottom ≈ 43px), а не отдельную строку-заглушку.
+    const headerHeight = headerRow ? headerRow.getBoundingClientRect().height : 44;
+    const rowHeight = bodyRow ? bodyRow.getBoundingClientRect().height : 43;
+    // "Найдено: N записей" под таблицей тоже занимает часть высоты
+    // контейнера — учитываем её, иначе последняя строка результатов
+    // будет упираться в этот текст и всё равно потребует скролла.
+    const countHeight = countEl ? countEl.getBoundingClientRect().height + 8 : 28;
+    // Запас на border у .table-wrapper (1px сверху и снизу) и на
+    // погрешность округления getBoundingClientRect/Math.floor — без него
+    // расчёт получался впритык, и любое расхождение в доли пикселя
+    // приводило к появлению вертикального скролла.
+    const safetyBuffer = 12;
+
+    const available = container.clientHeight - headerHeight - countHeight - safetyBuffer;
+    const fit = Math.floor(available / rowHeight);
+    // Не меньше 5 — та же нижняя граница, что и в каталоге, чтобы при
+    // сильно уменьшенном окне пагинация не выродилась в "по 1 записи".
+    return Math.max(fit, 5);
+}
+
+function applyDynamicSearchPageSize() {
+    if (!searchResultsData.length) return;
+    const next = recalcSearchPageSize();
+    if (next === searchPageSize) return;
+    // Сохраняем ту же первую видимую запись при пересчёте, а не всегда
+    // прыгаем на страницу 1 — иначе список "убегал" бы в начало при
+    // каждом ресайзе окна (тот же приём, что и в catalog.js).
+    const firstVisibleIndex = (searchCurrentPage - 1) * searchPageSize;
+    searchPageSize = next;
+    searchCurrentPage = Math.max(1, Math.floor(firstVisibleIndex / searchPageSize) + 1);
+    renderSearchResultsPage();
+}
+
+const debouncedApplySearchPageSize = debounce(applyDynamicSearchPageSize, 150);
+
+// ResizeObserver на #searchResults — реагирует на реальное изменение
+// размера контейнера (ресайз окна, переключение вкладок и т.п.), а не на
+// гадание "когда уже всё готово" (см. аналогичное обоснование в
+// catalog.js рядом с recalcPageSize).
+const searchResultsContainerEl = document.getElementById('searchResults');
+if (searchResultsContainerEl && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(debouncedApplySearchPageSize).observe(searchResultsContainerEl);
+} else {
+    window.addEventListener('resize', debouncedApplySearchPageSize);
 }
 
 // ===== ВЫПОЛНЕНИЕ ПОИСКА =====
@@ -389,6 +453,12 @@ function executeSearch() {
             searchResultsData = data;
             searchCurrentPage = 1;
             renderSearchResultsPage();
+            // Первый рендер мог использовать ещё не откалиброванный
+            // searchPageSize (до него #searchResults не содержал ни одной
+            // реальной строки, чтобы измерить её высоту) — пересчитываем
+            // и, если нужно, перерисовываем уже с точным количеством строк
+            // на экран (та же схема, что и loadEngines() в catalog.js).
+            applyDynamicSearchPageSize();
 
             if (data.length === 0) {
                 showToast('Ничего не найдено', 'info');

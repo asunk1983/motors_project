@@ -40,6 +40,7 @@ def _require_admin():
 # истёкшим/невалидным токеном (сам роут и раньше не проверял валидность
 # токена, просто отзывал его "если он вообще был" — не меняем это поведение).
 _AUTH_EXEMPT_WRITE_PATHS = ('/api/auth/logout',)
+_READER_ALLOWED_WRITE_PATHS = ('/api/engines/search',)
 
 
 @auth_bp.before_app_request
@@ -59,7 +60,7 @@ def load_current_user():
             user = request.current_user
             if not user:
                 return jsonify({'error': 'Требуется авторизация'}), 401
-            if user.get('role') == 'reader':
+            if user.get('role') == 'reader' and request.path not in _READER_ALLOWED_WRITE_PATHS:
                 return jsonify({'error': 'Недостаточно прав: доступен только просмотр'}), 403
 
 
