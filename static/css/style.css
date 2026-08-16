@@ -463,7 +463,6 @@ input, select, textarea {
 #tab-catalog.active > h2 {
     margin-bottom: var(--space-4);
 }
-<<<<<<< HEAD
 /* Вкладка "Поиск" — таблица результатов теперь не переносит текст
    (см. .search-results .data-table td выше) и может стать шире
    стандартного max-width:1280px у .tab-content. Снимаем ограничение,
@@ -471,65 +470,6 @@ input, select, textarea {
    включался бы раньше, чем реально нужно. */
 #tab-search {
     max-width: none;
-=======
-
-/* Вкладка "Поиск" — та же схема, что и у каталога выше
-   (#tab-catalog.active): .main-content задаёт overflow:hidden (см.
-   выше), поэтому если вкладка не ограничена по высоте явно, то всё,
-   что не поместилось, не прокручивается, а просто ОБРЕЗАЕТСЯ — это и
-   была причина "результаты уезжают за экран". Растягиваем вкладку на
-   100% доступной высоты, а #searchResults делаем прокручиваемым
-   отдельно (как .table-wrapper у каталога) — форма условий и
-   пагинация остаются на месте, видимыми, скроллится только список. */
-#tab-search.active {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    padding-top: 0;
-    padding-bottom: 0;
-}
-#tab-search.active .search-container {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-}
-#tab-search.active .search-container > h2 {
-    flex-shrink: 0;
-    margin-top: var(--space-5);
-    margin-bottom: var(--space-4);
-}
-#tab-search.active .search-actions {
-    flex-shrink: 0;
-}
-/* Список условий поиска — сам прокручивается, если условий много,
-   вместо того чтобы бесконечно раздвигать вкладку по высоте. */
-#tab-search.active .search-filters {
-    flex-shrink: 0;
-    max-height: 220px;
-    overflow-y: auto;
-}
-/* Ключевая часть: результаты занимают всё оставшееся место (как
-   .table-wrapper в каталоге). overflow-y: hidden, а не auto — количество
-   строк уже подгоняется под высоту в JS (см. search.js::
-   recalcSearchPageSize), а hidden гарантирует отсутствие скролла даже
-   при погрешности в доли пикселя (auto показал бы полосу прокрутки на
-   1-2px переполнения, hidden просто молча обрежет их без скролла). */
-#tab-search.active .search-results {
-    flex: 1;
-    min-height: 0;
-    overflow-y: hidden;
-} .search-input, .sort-select, .search-field-select {
-     padding: var(--space-2) var(--space-3);
-     border: 1px solid var(--color-border);
-     border-radius: var(--radius-sm);
-     font-family: var(--font-sans);
-     font-size: var(--text-sm);
-     background: var(--color-bg-card);
-#tab-search.active #searchPagination {
-    flex-shrink: 0;
->>>>>>> ce9de6ab20892d15622f8706a8368b2c8269de43
 }
 
 /* =====================================================================
