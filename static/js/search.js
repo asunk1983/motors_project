@@ -1,7 +1,5 @@
 // static/js/search.js — РАСШИРЕННЫЙ ПОИСК С ДИНАМИЧЕСКИМИ ПОЛЯМИ
 
-
-
 // ===== ДОСТУПНЫЕ ПОЛЯ ДЛЯ ПОИСКА =====
 const SEARCH_FIELDS = [
     { value: 'id', label: 'ID', type: 'number' },
@@ -27,7 +25,16 @@ const SEARCH_FIELDS = [
     // Если задать несколько таких условий сразу, backend проверяет их
     // в рамках ОДНОГО режима работы, а не вразнобой по всем режимам двигателя.
     { value: 'power', label: 'Режим: мощность (кВт)', type: 'number' },
-    { value: 'voltage', label: 'Режим: напряжение (В)', type: 'number' },
+    // voltage хранится как строка и может быть диапазоном ("220-240") —
+    // отсюда type: 'text' (поле ввода значения обычное текстовое, чтобы
+    // разрешить дефис). Но, в отличие от текстовых полей вроде
+    // connection_type, значение по смыслу остаётся числовым, и search.py
+    // на backend'е умеет разбирать диапазон через CASE WHEN INSTR именно
+    // для voltage — поэтому операторы "больше/меньше/между" здесь
+    // ОСМЫСЛЕННЫ и разрешены явным operatorType: 'number' (см.
+    // _searchFieldOperatorType/rebuildOperators ниже). Это единственное
+    // поле, где type и operatorType расходятся.
+    { value: 'voltage', label: 'Режим: напряжение (В)', type: 'text', operatorType: 'number' },
     { value: 'frequency', label: 'Режим: частота (Гц)', type: 'number' },
     { value: 'rpm', label: 'Режим: обороты (об/мин)', type: 'number' },
     { value: 'current', label: 'Режим: ток (А)', type: 'number' },
@@ -39,7 +46,9 @@ const SEARCH_FIELDS = [
 // дают осмысленного результата: backend делает CAST(col AS REAL) — для
 // нечислового значения (например, connection_type) это тихо даёт 0/NULL
 // и пустую выдачу без единого объяснения пользователю, что оператор был
-// несовместим с полем. Поэтому список операторов зависит от f.type.
+// несовместим с полем. Поэтому список операторов зависит от
+// f.operatorType (а не всегда от f.type — см. voltage выше, у него они
+// расходятся: text-инпут, но number-операторы).
 const OPERATORS_TEXT = [
     { value: 'contains', label: 'содержит' },
     { value: 'equals', label: 'равно' },
@@ -55,6 +64,15 @@ const OPERATORS_NUMBER = OPERATORS_TEXT.concat([
 function _searchFieldType(fieldValue) {
     const f = SEARCH_FIELDS.find(f => f.value === fieldValue);
     return f ? f.type : 'text';
+}
+
+// Тип для набора ОПЕРАТОРОВ — по умолчанию совпадает с f.type (инпутом),
+// но может быть переопределён отдельно (см. voltage: type:'text' +
+// operatorType:'number').
+function _searchFieldOperatorType(fieldValue) {
+    const f = SEARCH_FIELDS.find(f => f.value === fieldValue);
+    if (!f) return 'text';
+    return f.operatorType || f.type;
 }
 
 // ===== КОЛОНКИ ТАБЛИЦЫ РЕЗУЛЬТАТОВ =====
@@ -83,22 +101,99 @@ function _resultColumnValue(row, field) {
     return MODE_FIELD_NAMES.includes(field) ? row['mode_' + field] : row[field];
 }
 
+// ===== РЕНДЕР ТАБЛИЦЫ РЕЗУЛЬТАТОВ =====
+// Общая для executeSearch() (первый рендер) и sortSearchResults()
+// (пересортировка без нового запроса) — раньше разметка собиралась
+// прямо внутри executeSearch(), пришлось вынести, чтобы не дублировать
+// её ещё раз в сортировке. Читает данные из allEngines (а не из
+// отдельного параметра) — после executeSearch() allEngines уже содержит
+// результаты поиска (см. комментарий у originalAllEngines выше), и
+// sortSearchResults() сортирует именно этот массив "на месте", так что
+// один и тот же источник корректен в обоих случаях.
+function _renderSearchResultsTable(columns) {
+    lastSearchColumns = columns;
+    const container = document.getElementById('searchResults');
+
+    // class="sortable" + onclick — тот же паттерн, что и у заголовков
+    // таблицы каталога (см. index.html/catalog.js::sortTable), включая
+    // статичную стрелку "↕" без индикации текущего направления. CSS для
+    // .data-table th.sortable уже объявлен глобально (не завязан на
+    // конкретную таблицу), поэтому курсор/hover подхватываются сами.
+    const headerHtml = columns.map(f =>
+        `<th class="sortable" onclick="sortSearchResults('${f}')">${escapeHtml(_resultColumnLabel(f))} ↕</th>`
+    ).join('');
+
+    let html = `<div class="table-wrapper"><table class="data-table"><thead><tr>${headerHtml}</tr></thead><tbody>`;
+
+    allEngines.forEach(e => {
+        // escapeHtml определена в engines.js (грузится раньше) и
+        // используется здесь же — та же защита от XSS, что и
+        // в основной таблице каталога.
+        const cells = columns.map(f => {
+            const value = _resultColumnValue(e, f);
+            if (f === 'id') return `<td><span class="badge-id">${e.id}</span></td>`;
+            if (f === 'location') return `<td><strong>${escapeHtml(value) || '—'}</strong></td>`;
+            return `<td>${escapeHtml(value) || '—'}</td>`;
+        }).join('');
+        html += `<tr class="clickable-row" onclick="showDetail(${e.id})">${cells}</tr>`;
+    });
+
+    html += `</tbody></table></div>
+             <div class="search-result-count">
+                Найдено: ${allEngines.length} записей
+             </div>`;
+
+    container.innerHTML = html;
+}
+
+// Клиентская сортировка — все результаты уже загружены целиком (см.
+// executeSearch), повторный поход на backend не нужен. Toggle ASC/DESC
+// при повторном клике на ту же колонку — тот же принцип, что и в
+// catalog.js::sortTable(), только сортирует allEngines "на месте" и
+// перерисовывает уже имеющиеся данные, а не запрашивает их заново.
+function sortSearchResults(field) {
+    if (searchSort.field === field) {
+        searchSort.order = searchSort.order === 'ASC' ? 'DESC' : 'ASC';
+    } else {
+        searchSort.field = field;
+        searchSort.order = 'ASC';
+    }
+
+    const dir = searchSort.order === 'ASC' ? 1 : -1;
+    // "Числовое ли поле" определяем через _searchFieldOperatorType — тот
+    // же признак, что уже используется для выбора набора операторов в
+    // конструкторе условий (см. выше): для voltage это тоже 'number',
+    // хотя само значение хранится строкой и может быть диапазоном.
+    const isNumeric = _searchFieldOperatorType(field) === 'number';
+
+    allEngines.sort((a, b) => {
+        const va = _resultColumnValue(a, field);
+        const vb = _resultColumnValue(b, field);
+        const aEmpty = va === null || va === undefined || va === '';
+        const bEmpty = vb === null || vb === undefined || vb === '';
+        // Пустые значения — всегда в конец списка независимо от
+        // направления сортировки (обычное поведение таблиц: пропуски не
+        // должны "скакать" наверх при переключении на DESC).
+        if (aEmpty && bEmpty) return 0;
+        if (aEmpty) return 1;
+        if (bEmpty) return -1;
+
+        if (isNumeric) {
+            // parseFloat на диапазон вида "220-240" (voltage) даёт 220 —
+            // сравнение идёт по нижней границе. Для сортировки этого
+            // достаточно; разбор диапазона целиком нужен только для
+            // операторов больше/меньше/между на backend (search.py).
+            return (parseFloat(va) - parseFloat(vb)) * dir;
+        }
+        return String(va).localeCompare(String(vb), 'ru') * dir;
+    });
+
+    currentPage = 1;
+    _renderSearchResultsTable(lastSearchColumns);
+}
+
 // ===== СОСТОЯНИЕ =====
 let searchFieldIndex = 0;
-
-// ===== ПАГИНАЦИЯ РЕЗУЛЬТАТОВ ПОИСКА =====
-// Раньше вся выдача рендерилась одной большой таблицей без пагинации —
-// при большом количестве найденных записей блок #searchResults вытягивался
-// далеко вниз экрана. Затем размер страницы был жёстко зашит (20), из-за
-// чего при нехватке места появлялся внутренний скролл. Теперь количество
-// строк на странице подстраивается под реальную высоту #searchResults —
-// та же схема, что и в catalog.js::recalcPageSize/applyDynamicPageSize —
-// поэтому страница всегда влезает целиком, без скролла.
-let searchResultsData = [];
-let searchResultColumns = [];
-let searchCurrentPage = 1;
-let searchPageSize = 20; // стартовое значение — пересчитывается под реальную высоту сразу после первого рендера
-
 
 // Резервная копия исходного списка allEngines (из engines.js), чтобы
 // восстанавливать её при очистке поиска. allEngines — глобальная переменная
@@ -106,6 +201,17 @@ let searchPageSize = 20; // стартовое значение — пересч
 // Расширенный поиск должен перенаправлять эти механизмы на найденные
 // результаты, а не на полный список из 97 двигателей.
 let originalAllEngines = null;
+
+// ===== СОРТИРОВКА ТАБЛИЦЫ РЕЗУЛЬТАТОВ ПОИСКА =====
+// Отдельно от currentSort каталога (catalog.js) — набор колонок результатов
+// поиска заранее не известен (зависит от того, по каким полям искали, см.
+// executeSearch), поэтому сортировка своя и полностью клиентская: все
+// результаты уже загружены целиком одним запросом, повторный поход на
+// backend не нужен — сортируем allEngines "на месте" и перерисовываем.
+let searchSort = { field: null, order: 'ASC' };
+// Колонки последнего рендера результатов — нужны sortSearchResults(),
+// чтобы перерисовать ТЕ ЖЕ колонки без повторного выполнения запроса.
+let lastSearchColumns = [];
 
 // ===== ИНИЦИАЛИЗАЦИЯ =====
 document.addEventListener('DOMContentLoaded', function() {
@@ -144,13 +250,15 @@ function addSearchRow() {
         fieldSelect.appendChild(option);
     });
     
-    // Оператор сравнения — список пересобирается под тип текущего поля
-    // (см. _searchFieldType/OPERATORS_TEXT/OPERATORS_NUMBER выше).
+    // Оператор сравнения — список пересобирается под ОПЕРАТОРНЫЙ тип
+    // текущего поля (см. _searchFieldOperatorType/OPERATORS_TEXT/
+    // OPERATORS_NUMBER выше) — НЕ путать с типом самого инпута значения:
+    // для voltage они расходятся (инпут текстовый, операторы числовые).
     const operatorSelect = document.createElement('select');
     operatorSelect.className = 'search-operator-select';
 
-    function rebuildOperators(fieldType, preserveValue) {
-        const list = fieldType === 'number' ? OPERATORS_NUMBER : OPERATORS_TEXT;
+    function rebuildOperators(operatorType, preserveValue) {
+        const list = operatorType === 'number' ? OPERATORS_NUMBER : OPERATORS_TEXT;
         const prev = preserveValue !== undefined ? preserveValue : operatorSelect.value;
         operatorSelect.innerHTML = '';
         list.forEach(op => {
@@ -168,9 +276,10 @@ function addSearchRow() {
         valueInput2.classList.toggle('active', operatorSelect.value === 'between');
     }
 
-    // Поле ввода значения — type тоже зависит от типа поля (раньше
-    // f.type в SEARCH_FIELDS объявлялся, но нигде не читался, и оба поля
-    // всегда были обычным <input type="text">, даже для мощности/оборотов).
+    // Поле ввода значения — type зависит от f.type (ИНПУТНОГО типа поля,
+    // не операторного). Для voltage это 'text' — иначе браузер не дал бы
+    // ввести диапазон вида "220-240" в <input type="number">, при этом
+    // операторы всё равно числовые (см. rebuildOperators выше).
     const valueInput = document.createElement('input');
     valueInput.className = 'search-value-input';
     valueInput.placeholder = 'Введите значение...';
@@ -182,6 +291,7 @@ function addSearchRow() {
 
     function applyFieldType() {
         const fieldType = _searchFieldType(fieldSelect.value);
+        const operatorType = _searchFieldOperatorType(fieldSelect.value);
         valueInput.type = fieldType === 'number' ? 'number' : 'text';
         valueInput2.type = fieldType === 'number' ? 'number' : 'text';
         if (fieldType === 'number') {
@@ -191,7 +301,14 @@ function addSearchRow() {
             valueInput.removeAttribute('step');
             valueInput2.removeAttribute('step');
         }
-        rebuildOperators(fieldType);
+        // Плейсхолдер-подсказка про допустимость диапазона — только там,
+        // где инпут текстовый, а операторы всё же числовые (сейчас это
+        // только voltage). Для остальных text-полей (connection_type и
+        // т.п.) диапазон не поддерживается, подсказка была бы неверной.
+        valueInput.placeholder = (fieldType !== 'number' && operatorType === 'number')
+            ? 'напр. 220 или 220-240'
+            : 'Введите значение...';
+        rebuildOperators(operatorType);
     }
 
     fieldSelect.addEventListener('change', applyFieldType);
@@ -242,151 +359,16 @@ function clearAllSearch() {
     searchFieldIndex = 0;
     addSearchRow();
     document.getElementById('searchResults').innerHTML = '<div class="no-data">Введите параметры поиска</div>';
-
-    // Сброс пагинации результатов поиска — иначе следующий поиск мог бы
-    // на мгновение отрисоваться со старым searchCurrentPage (например,
-    // страница 3), если бы renderSearchResultsPage() вызвался раньше,
-    // чем executeSearch() успеал его перезаписать.
-    searchResultsData = [];
-    searchResultColumns = [];
-    searchCurrentPage = 1;
-    document.getElementById('searchPagination')?.classList.add('hidden');
     
+    // Восстанавливаем исходный список allEngines, если поиск уже
+    // перезаписал его результатами. Без этого после очистки пагинация
+    // и навигация по карточкам продолжали бы работать с последними
+    // результатами поиска вместо полного каталога.
     if (originalAllEngines !== null) {
         allEngines = originalAllEngines;
         originalAllEngines = null;
     }
     currentPage = 1;
-}
-
-function renderSearchResultsPage() {
-    const container = document.getElementById('searchResults');
-    const pagination = document.getElementById('searchPagination');
-
-    if (!searchResultsData.length) {
-        container.innerHTML = '<div class="no-data">Ничего не найдено</div>';
-        if (pagination) pagination.classList.add('hidden');
-        return;
-    }
-
-    const start = (searchCurrentPage - 1) * searchPageSize;
-    const end = start + searchPageSize;
-    const pageData = searchResultsData.slice(start, end);
-    const columns = searchResultColumns;
-
-    let html = `<div class="table-wrapper"><table class="data-table"><thead><tr>
-        ${columns.map(f => `<th>${escapeHtml(_resultColumnLabel(f))}</th>`).join('')}
-    </tr></thead><tbody>`;
-
-    pageData.forEach(e => {
-        // escapeHtml определена в engines.js (грузится раньше) и
-        // используется здесь же — та же защита от XSS, что и
-        // в основной таблице каталога.
-        const cells = columns.map(f => {
-            const value = _resultColumnValue(e, f);
-            if (f === 'id') return `<td><span class="badge-id">${e.id}</span></td>`;
-            if (f === 'location') return `<td><strong>${escapeHtml(value) || '—'}</strong></td>`;
-            return `<td>${escapeHtml(value) || '—'}</td>`;
-        }).join('');
-        html += `<tr class="clickable-row" onclick="showDetail(${e.id})">${cells}</tr>`;
-    });
-
-    html += `</tbody></table></div>
-             <div class="search-result-count">
-                Найдено: ${searchResultsData.length} записей
-             </div>`;
-
-    container.innerHTML = html;
-
-    if (pagination) {
-        pagination.classList.remove('hidden');
-        // Диапазон 1-based, конец — от pageData.length (реально
-        // отрисованных строк), а не от searchPageSize — та же логика,
-        // что и в catalog.js::renderTable, чтобы на последней неполной
-        // странице не показать "21-40 из 27".
-        const rangeStart = start + 1;
-        const rangeEnd = start + pageData.length;
-        document.getElementById('searchPageInfo').textContent = `${rangeStart}-${rangeEnd} из ${searchResultsData.length}`;
-        document.getElementById('searchPageNumber').textContent = searchCurrentPage;
-    }
-}
-
-function prevSearchPage() {
-    if (searchCurrentPage > 1) {
-        searchCurrentPage--;
-        renderSearchResultsPage();
-    }
-}
-
-function nextSearchPage() {
-    if (searchCurrentPage * searchPageSize < searchResultsData.length) {
-        searchCurrentPage++;
-        renderSearchResultsPage();
-    }
-}
-
-// ===== ДИНАМИЧЕСКИЙ РАЗМЕР СТРАНИЦЫ (чтобы не было скролла) =====
-// #searchResults ограничен по высоте через CSS (flex:1 внутри
-// #tab-search.active, см. style.css) — если строк на странице больше,
-// чем реально помещается, появляется внутренний скролл. Вместо
-// фиксированного количества строк подстраиваем searchPageSize под
-// фактическую высоту контейнера — та же логика, что и в catalog.js::
-// recalcPageSize/applyDynamicPageSize для #tableBody.
-function recalcSearchPageSize() {
-    const container = document.getElementById('searchResults');
-    if (!container) return searchPageSize;
-
-    const headerRow = container.querySelector('thead tr');
-    const bodyRow = container.querySelector('tbody tr');
-    const countEl = container.querySelector('.search-result-count');
-
-    // Пока в DOM нет ни одной реально отрисованной строки (самый первый
-    // расчёт, до первого поиска) — используем ту же консервативную оценку,
-    // что и в catalog.js::recalcPageSize (паддинги .data-table td ×2 +
-    // текст + border-bottom ≈ 43px), а не отдельную строку-заглушку.
-    const headerHeight = headerRow ? headerRow.getBoundingClientRect().height : 44;
-    const rowHeight = bodyRow ? bodyRow.getBoundingClientRect().height : 43;
-    // "Найдено: N записей" под таблицей тоже занимает часть высоты
-    // контейнера — учитываем её, иначе последняя строка результатов
-    // будет упираться в этот текст и всё равно потребует скролла.
-    const countHeight = countEl ? countEl.getBoundingClientRect().height + 8 : 28;
-    // Запас на border у .table-wrapper (1px сверху и снизу) и на
-    // погрешность округления getBoundingClientRect/Math.floor — без него
-    // расчёт получался впритык, и любое расхождение в доли пикселя
-    // приводило к появлению вертикального скролла.
-    const safetyBuffer = 12;
-
-    const available = container.clientHeight - headerHeight - countHeight - safetyBuffer;
-    const fit = Math.floor(available / rowHeight);
-    // Не меньше 5 — та же нижняя граница, что и в каталоге, чтобы при
-    // сильно уменьшенном окне пагинация не выродилась в "по 1 записи".
-    return Math.max(fit, 5);
-}
-
-function applyDynamicSearchPageSize() {
-    if (!searchResultsData.length) return;
-    const next = recalcSearchPageSize();
-    if (next === searchPageSize) return;
-    // Сохраняем ту же первую видимую запись при пересчёте, а не всегда
-    // прыгаем на страницу 1 — иначе список "убегал" бы в начало при
-    // каждом ресайзе окна (тот же приём, что и в catalog.js).
-    const firstVisibleIndex = (searchCurrentPage - 1) * searchPageSize;
-    searchPageSize = next;
-    searchCurrentPage = Math.max(1, Math.floor(firstVisibleIndex / searchPageSize) + 1);
-    renderSearchResultsPage();
-}
-
-const debouncedApplySearchPageSize = debounce(applyDynamicSearchPageSize, 150);
-
-// ResizeObserver на #searchResults — реагирует на реальное изменение
-// размера контейнера (ресайз окна, переключение вкладок и т.п.), а не на
-// гадание "когда уже всё готово" (см. аналогичное обоснование в
-// catalog.js рядом с recalcPageSize).
-const searchResultsContainerEl = document.getElementById('searchResults');
-if (searchResultsContainerEl && typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(debouncedApplySearchPageSize).observe(searchResultsContainerEl);
-} else {
-    window.addEventListener('resize', debouncedApplySearchPageSize);
 }
 
 // ===== ВЫПОЛНЕНИЕ ПОИСКА =====
@@ -415,7 +397,7 @@ function executeSearch() {
         return;
     }
     
-        // Формируем JSON и отправляем POST запросом
+    // Формируем JSON и отправляем POST запросом
     apiFetch('/api/engines/search', {
         method: 'POST',
         headers: {
@@ -428,46 +410,46 @@ function executeSearch() {
             const container = document.getElementById('searchResults');
             if (data.error) {
                 container.innerHTML = `<div class="no-data">${data.error}</div>`;
-                document.getElementById('searchPagination')?.classList.add('hidden');
                 return;
             }
-
-            // Перезаписываем allEngines результатами поиска, чтобы пагинация,
-            // showDetail() и навигация по карточкам (◀/▶ в детальной карточке)
-            // работали именно с найденными двигателями.
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="no-data">Ничего не найдено</div>';
+                return;
+            }
+            
+            // Перезаписываем allEngines результатами поиска, чтобы
+            // пагинация, showDetail() и навигация по карточкам (кнопки
+            // ◀/▶ в детальной карточке) работали именно с найденными
+            // двигателями, а не с полным списком из 97 записей.
+            // Исходный список сохраняем в originalAllEngines для
+            // восстановления при очистке поиска.
             if (originalAllEngines === null) {
                 originalAllEngines = allEngines;
             }
             allEngines = data;
             currentPage = 1;
+            // Новый набор результатов — сортировка предыдущего поиска к
+            // нему не относится, сбрасываем на "по умолчанию".
+            searchSort = { field: null, order: 'ASC' };
 
-            // Колонки: сначала поля, по которым реально искали, затем остальные
-            // базовые поля (та же логика, что и раньше).
+            // Рендерим результаты в контейнере #searchResults (на вкладке
+            // "Поиск"), не переключая пользователя на вкладку "catalog".
+            // Колонки таблицы результатов: сначала поля, по которым реально
+            // искали (в порядке добавления условий, без повторов — если
+            // искали и по 'location', и по 'power', то Location и Мощность
+            // идут первыми), затем — остальные базовые поля из
+            // DEFAULT_RESULT_FIELDS, которых ещё нет среди уже добавленных.
             const searchedFields = [];
             conditions.forEach(c => {
                 if (!searchedFields.includes(c.field)) searchedFields.push(c.field);
             });
             const restFields = DEFAULT_RESULT_FIELDS.filter(f => !searchedFields.includes(f));
-            searchResultColumns = searchedFields.concat(restFields);
+            const columns = searchedFields.concat(restFields);
 
-            searchResultsData = data;
-            searchCurrentPage = 1;
-            renderSearchResultsPage();
-            // Первый рендер мог использовать ещё не откалиброванный
-            // searchPageSize (до него #searchResults не содержал ни одной
-            // реальной строки, чтобы измерить её высоту) — пересчитываем
-            // и, если нужно, перерисовываем уже с точным количеством строк
-            // на экран (та же схема, что и loadEngines() в catalog.js).
-            applyDynamicSearchPageSize();
-
-            if (data.length === 0) {
-                showToast('Ничего не найдено', 'info');
-            } else {
-                showToast(`🔍 Найдено ${data.length} записей`, 'success');
-            }
+            _renderSearchResultsTable(columns);
+            showToast(`Найдено ${data.length} записей`, 'success', 'icon-check-circle');
         })
         .catch(e => {
             document.getElementById('searchResults').innerHTML = `<div class="no-data">Ошибка: ${e.message}</div>`;
-            document.getElementById('searchPagination')?.classList.add('hidden');
         });
 }

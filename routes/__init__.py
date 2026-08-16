@@ -14,6 +14,9 @@ def create_blueprints():
     """
     from routes.auth import auth_bp
     from routes.engines import engines_bp
+    from routes.knowledge_routes import knowledge_bp
+    from routes.equipment_routes import equipment_bp
+    from routes.ticket_routes import ticket_bp
     from routes.photos import photos_bp
     from routes.import_routes import import_bp
     from routes.export_routes import export_bp
@@ -26,6 +29,9 @@ def create_blueprints():
     return [
         auth_bp,
         engines_bp,
+        knowledge_bp,
+        equipment_bp,
+        ticket_bp,
         photos_bp,
         import_bp,
         export_bp,

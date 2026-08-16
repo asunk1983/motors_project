@@ -21,22 +21,63 @@ def validate_numeric_value(value, label: str):
     return None
 
 
+def validate_numeric_or_range_value(value, label: str):
+    """Проверяет, что value — либо число, либо диапазон вида "220-240".
+
+    Используется ТОЛЬКО для voltage (единственное поле, где диапазон
+    имеет смысл и реально вводится в UI — см. engineCard.js: <input
+    type="text"> вместо type="number" именно и только для voltage).
+    Без этой отдельной ветки validate_numeric_value() отклонял бы
+    диапазон с ошибкой "должно быть числом" ещё до записи в БД.
+
+    Формат: "<число>-<число>", с необязательными пробелами вокруг
+    дефиса. Отрицательные значения намеренно не поддерживаются (для
+    напряжения отрицательных величин не бывает), поэтому дефис
+    однозначно читается как разделитель диапазона, а не как знак минуса.
+
+    Возвращает строку-ошибку или None (если ОК).
+    Пустая строка / None — допустимы (поле необязательно).
+    """
+    if value is None or value == '':
+        return None
+    text = str(value).strip()
+    if '-' in text:
+        parts = [p.strip() for p in text.split('-', 1)]
+        if len(parts) == 2 and all(parts):
+            try:
+                low, high = float(parts[0]), float(parts[1])
+            except (ValueError, TypeError):
+                return f'Поле "{label}" должно быть числом или диапазоном вида "220-240", получено: {value}'
+            if low > high:
+                return f'Поле "{label}": начало диапазона больше конца ({value})'
+            return None
+        return f'Поле "{label}" должно быть числом или диапазоном вида "220-240", получено: {value}'
+    return validate_numeric_value(value, label)
+
+
 def validate_mode_numeric_fields(mode: dict):
     """Проверяет числовые поля режима работы (frequency, power, voltage, current, rpm).
 
+    Диапазон ("220-240") допускается ТОЛЬКО для voltage — см.
+    validate_numeric_or_range_value. Остальные поля (frequency, power,
+    current, rpm) — строго число, как и раньше.
+
     Возвращает строку-ошибку или None.
     """
-    numeric_fields = {
+    strict_numeric_fields = {
         'frequency': 'Частота',
         'power': 'Мощность',
-        'voltage': 'Напряжение',
         'current': 'Ток',
         'rpm': 'Обороты',
     }
-    for key, label in numeric_fields.items():
+    for key, label in strict_numeric_fields.items():
         err = validate_numeric_value(mode.get(key), label)
         if err:
             return err
+
+    err = validate_numeric_or_range_value(mode.get('voltage'), 'Напряжение')
+    if err:
+        return err
     return None
 
 

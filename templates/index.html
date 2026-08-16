@@ -7,11 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css?v=20260811">
+    <link rel="stylesheet" href="/static/css/style.css?v=20260813">
     <script>
-        // Применяем сохранённую тему ДО отрисовки страницы — иначе при
-        // перезагрузке с включённой тёмной темой будет короткая вспышка
-        // светлого фона (FOUC), пока не отработает скрипт в конце body.
         (function() {
             try {
                 var saved = localStorage.getItem('motors_theme');
@@ -39,6 +36,12 @@
                 <button class="tab-btn active" data-tab="catalog">
                     <span class="icon icon-list-alt"></span> Каталог
                 </button>
+                <button class="tab-btn" data-tab="equipment">
+                    <span class="icon icon-package-2"></span> Оборудование
+                </button>
+                <button class="tab-btn" data-tab="tickets">
+                    <span class="icon icon-warning"></span> Заявки
+                </button>
                 <button class="tab-btn" data-tab="import" style="display:none">
                     <span class="icon icon-folder-open"></span> Импорт
                 </button>
@@ -53,6 +56,9 @@
                 </button>
                 <button class="tab-btn" data-tab="admin" style="display:none">
                     <span class="icon icon-shield"></span> Админ
+                </button>
+                <button class="tab-btn" data-tab="knowledge" style="display:none">
+                    <span class="icon icon-lightbulb"></span> База знаний
                 </button>
             </nav>
 
@@ -161,6 +167,129 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Вкладка: Оборудование (номенклатура + конструктор типов).
+                 Список открыт всем; подвкладка "Конструктор" скрывается для
+                 не-admin через applyRoleUI() в auth.js — сам бэкенд тоже
+                 защищён (_require_admin в equipment_routes.py), это лишь
+                 отражение той же проверки на клиенте. -->
+            <div class="tab-content" id="tab-equipment">
+                <h2><span class="icon icon-package-2"></span> Номенклатура оборудования</h2>
+
+                <div class="info-subtabs">
+                    <button class="btn btn-sm btn-primary" id="equipmentSubtabListBtn" onclick="switchEquipmentSubtab('list')"><span class="icon icon-list-alt"></span> Номенклатура</button>
+                    <button class="btn btn-sm btn-secondary" id="equipmentSubtabConstructorBtn" onclick="switchEquipmentSubtab('constructor')" style="display:none"><span class="icon icon-build"></span> Конструктор типов</button>
+                </div>
+
+                <div class="info-subtab-content active" id="equipmentSubtab-list">
+                    <div class="toolbar">
+                        <div class="toolbar-left">
+                            <select id="equipmentTypeFilter" class="sort-select" style="width:220px" onchange="loadEquipmentList()">
+                                <option value="">Все типы</option>
+                            </select>
+                            <input type="text" id="equipmentSearchInput" placeholder="Поиск по наименованию, артикулу, S/N..." class="search-input">
+                        </div>
+                        <div class="toolbar-right">
+                            <button class="btn btn-success btn-sm" onclick="openEquipmentModal()"><span class="icon icon-add"></span> Добавить оборудование</button>
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Наименование</th>
+                                <th>Тип</th>
+                                <th>Артикул</th>
+                                <th>Расположение</th>
+                                <th>Критичность</th>
+                                <th class="col-actions">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="equipmentListBody"><tr><td colspan="6" class="no-data">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+
+                <div class="info-subtab-content" id="equipmentSubtab-constructor">
+                    <div class="knowledge-dictionaries-grid">
+                        <div class="settings-group">
+                            <h3><span class="icon icon-package-2"></span> Типы оборудования</h3>
+                            <div class="admin-add-form">
+                                <input type="text" id="newEquipmentTypeCode" placeholder="КОД_UPPER_SNAKE" style="width:130px">
+                                <input type="text" id="newEquipmentTypeName" placeholder="Название">
+                                <select id="newEquipmentTypeParent" style="width:160px">
+                                    <option value="">— без родителя —</option>
+                                </select>
+                                <button class="btn btn-success btn-sm" onclick="createEquipmentType()"><span class="icon icon-add"></span></button>
+                            </div>
+                            <div id="equipmentTypesList"><div class="no-data">Загрузка...</div></div>
+                        </div>
+
+                        <div class="settings-group">
+                            <h3><span class="icon icon-bolt"></span> Пул атрибутов</h3>
+                            <div class="admin-add-form" style="flex-wrap:wrap">
+                                <input type="text" id="newAttrKey" placeholder="ключ_в_json" style="width:120px">
+                                <input type="text" id="newAttrLabel" placeholder="Подпись">
+                                <input type="text" id="newAttrGroup" placeholder="Группа (напр. Электрика)" style="width:150px">
+                                <select id="newAttrType" style="width:110px">
+                                    <option value="text">текст</option>
+                                    <option value="number">число</option>
+                                    <option value="select">список</option>
+                                    <option value="boolean">флажок</option>
+                                    <option value="textarea">многострочный</option>
+                                </select>
+                                <input type="text" id="newAttrUnit" placeholder="ед.изм" style="width:70px">
+                                <input type="text" id="newAttrOptions" placeholder="варианты через запятую (для списка)" style="width:220px">
+                                <button class="btn btn-success btn-sm" onclick="createAttributeDefinition()"><span class="icon icon-add"></span></button>
+                            </div>
+                            <div id="attributeDefinitionsList"><div class="no-data">Загрузка...</div></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" id="typeAttributesAssignmentBlock" style="display:none">
+                        <h3><span class="icon icon-list-alt"></span> Атрибуты типа: <span id="assignmentTypeName"></span></h3>
+                        <div id="typeAttributesChecklist"></div>
+                        <button class="btn btn-success btn-sm" style="margin-top:10px" onclick="saveTypeAttributes()"><span class="icon icon-save"></span> Сохранить назначения</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Вкладка: Заявки. Открыта всем ролям (как двигатели/оборудование) —
+                 это основной рабочий функционал. ticket != failure: заявка
+                 может не подтвердиться как отказ — см. ticket.js. -->
+            <div class="tab-content" id="tab-tickets">
+                <h2><span class="icon icon-warning"></span> Заявки</h2>
+
+                <div class="toolbar">
+                    <div class="toolbar-left">
+                        <select id="ticketStatusFilter" class="sort-select" style="width:180px" onchange="loadTicketsList()">
+                            <option value="">Все статусы</option>
+                            <option value="new">Новые</option>
+                            <option value="in_progress">В работе</option>
+                            <option value="waiting">Ожидание</option>
+                            <option value="resolved">Решены</option>
+                            <option value="closed">Закрыты</option>
+                            <option value="rejected">Отклонены</option>
+                        </select>
+                    </div>
+                    <div class="toolbar-right">
+                        <button class="btn btn-success btn-sm" onclick="openNewTicketModal()"><span class="icon icon-add"></span> Новая заявка</button>
+                    </div>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>Тема</th>
+                            <th>Оборудование</th>
+                            <th>Приоритет</th>
+                            <th>Статус</th>
+                            <th>Создана</th>
+                            <th class="col-actions">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketsListBody"><tr><td colspan="7" class="no-data">Загрузка...</td></tr></tbody>
+                </table>
             </div>
 
             <!-- Вкладка: Импорт -->
@@ -293,6 +422,69 @@
                         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('addUserForm').style.display='none'">Отмена</button>
                     </div>
                     <div id="adminUsersList" class="admin-users-list"><div class="no-data">Загрузка...</div></div>
+                </div>
+            </div>
+
+            <!-- Вкладка: База знаний (только для role='superadmin' — см.
+                 _require_superadmin в routes/auth.py и applyRoleUI() в auth.js.
+                 Пока не привязана к двигателям — самостоятельный справочный
+                 инструмент, см. modules/db.py, раздел "База знаний"). -->
+            <div class="tab-content" id="tab-knowledge">
+                <h2><span class="icon icon-lightbulb"></span> База знаний по отказам</h2>
+
+                <div class="info-subtabs">
+                    <button class="btn btn-sm btn-primary" id="knowledgeSubtabArticlesBtn" onclick="switchKnowledgeSubtab('articles')"><span class="icon icon-list-alt"></span> Статьи</button>
+                    <button class="btn btn-sm btn-secondary" id="knowledgeSubtabDictionariesBtn" onclick="switchKnowledgeSubtab('dictionaries')"><span class="icon icon-build"></span> Справочники</button>
+                </div>
+
+                <div class="info-subtab-content active" id="knowledgeSubtab-articles">
+                    <div class="toolbar">
+                        <div class="toolbar-left">
+                            <select id="knowledgeEquipmentTypeFilter" class="sort-select" style="width:200px" onchange="loadKnowledgeArticles()">
+                                <option value="">Все типы оборудования</option>
+                            </select>
+                            <input type="text" id="knowledgeSearchInput" placeholder="Поиск по симптому или заголовку..." class="search-input">
+                        </div>
+                        <div class="toolbar-right">
+                            <button class="btn btn-success btn-sm" onclick="openKnowledgeArticleModal()"><span class="icon icon-add"></span> Добавить статью</button>
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Заголовок</th>
+                                <th>Симптом</th>
+                                <th>Тип оборудования</th>
+                                <th>Устранение</th>
+                                <th>Обновлено</th>
+                                <th class="col-actions">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="knowledgeArticlesBody"><tr><td colspan="6" class="no-data">Загрузка...</td></tr></tbody>
+                    </table>
+                </div>
+
+                <div class="info-subtab-content" id="knowledgeSubtab-dictionaries">
+                    <div class="knowledge-dictionaries-grid">
+                        <div class="settings-group">
+                            <h3><span class="icon icon-warning"></span> Режимы отказа</h3>
+                            <div class="admin-add-form">
+                                <input type="text" id="newFailureModeCode" placeholder="КОД_UPPER_SNAKE" style="width:170px">
+                                <input type="text" id="newFailureModeName" placeholder="Название">
+                                <button class="btn btn-success btn-sm" onclick="createFailureMode()"><span class="icon icon-add"></span></button>
+                            </div>
+                            <div id="failureModesList"><div class="no-data">Загрузка...</div></div>
+                        </div>
+                        <div class="settings-group">
+                            <h3><span class="icon icon-bolt"></span> Причины отказа</h3>
+                            <div class="admin-add-form">
+                                <input type="text" id="newFailureCauseCode" placeholder="КОД_UPPER_SNAKE" style="width:170px">
+                                <input type="text" id="newFailureCauseName" placeholder="Название">
+                                <button class="btn btn-success btn-sm" onclick="createFailureCause()"><span class="icon icon-add"></span></button>
+                            </div>
+                            <div id="failureCausesList"><div class="no-data">Загрузка...</div></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -432,23 +624,202 @@
             </div>
             <div id="photoCounter" class="photo-counter">1 / 1</div>
         </div>
+
+        <!-- Модальное окно статьи базы знаний (создание/редактирование) -->
+        <div class="modal" id="knowledgeArticleModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="knowledgeArticleModalTitle"><span class="icon icon-lightbulb"></span> Новая статья</h2>
+                    <button class="modal-close" onclick="closeKnowledgeArticleModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="knowledgeArticleId">
+                    <div class="form-group">
+                        <label>Заголовок</label>
+                        <input type="text" id="knowledgeArticleTitle" placeholder="Короткое название ситуации">
+                    </div>
+                    <div class="form-group">
+                        <label>Симптом</label>
+                        <textarea id="knowledgeArticleSymptom" placeholder="Что наблюдается"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Режим отказа</label>
+                        <select id="knowledgeArticleFailureMode">
+                            <option value="">— не выбран —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Тип оборудования</label>
+                        <select id="knowledgeArticleEquipmentType">
+                            <option value="">— общая статья, без привязки —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Способ устранения</label>
+                        <select id="knowledgeArticleResolutionType">
+                            <option value="HARDWARE">Аппаратно (ремонт/замена)</option>
+                            <option value="FIRMWARE">Прошивка</option>
+                            <option value="CONFIGURATION">Конфигурация/параметры</option>
+                            <option value="MIXED">Смешанно</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Вероятные причины</label>
+                        <div id="knowledgeArticleCauses" class="knowledge-causes-list">
+                            <div class="no-data">Загрузка...</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Диагностика (что проверить)</label>
+                        <textarea id="knowledgeArticleDiagnostics" placeholder="Мегомметр, внешний осмотр..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Рекомендуемое действие</label>
+                        <textarea id="knowledgeArticleAction"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Справочная информация</label>
+                        <textarea id="knowledgeArticleReference" placeholder="ГОСТ, паспортный порог, ссылка..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeKnowledgeArticleModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="submitKnowledgeArticle()"><span class="icon icon-save"></span> Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно оборудования (создание/редактирование, с
+             динамическими полями по выбранному типу — см. equipment.js) -->
+        <div class="modal" id="equipmentModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="equipmentModalTitle"><span class="icon icon-package-2"></span> Новое оборудование</h2>
+                    <button class="modal-close" onclick="closeEquipmentModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="equipmentId">
+                    <div class="form-group">
+                        <label>Тип оборудования</label>
+                        <select id="equipmentTypeSelect" onchange="onEquipmentTypeChange()">
+                            <option value="">— выбрать тип —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Наименование</label>
+                        <input type="text" id="equipmentName" placeholder="Например: Датчик давления PT-14">
+                    </div>
+                    <div class="form-group">
+                        <label>Артикул</label>
+                        <input type="text" id="equipmentArticle">
+                    </div>
+                    <div class="form-group">
+                        <label>Производитель</label>
+                        <input type="text" id="equipmentManufacturer">
+                    </div>
+                    <div class="form-group">
+                        <label>Серийный номер</label>
+                        <input type="text" id="equipmentSerialNumber">
+                    </div>
+                    <div class="form-group">
+                        <label>Цех</label>
+                        <input type="text" id="equipmentWorkshop">
+                    </div>
+                    <div class="form-group">
+                        <label>Место установки</label>
+                        <input type="text" id="equipmentLocation">
+                    </div>
+                    <div class="form-group">
+                        <label>Версия прошивки</label>
+                        <input type="text" id="equipmentFirmware" placeholder="если применимо">
+                    </div>
+                    <div class="form-group">
+                        <label>Критичность (1–5)</label>
+                        <input type="number" id="equipmentCriticality" min="1" max="5">
+                    </div>
+
+                    <!-- Сюда рендерятся поля по specs текущего типа —
+                         см. renderDynamicSpecsFields() в equipment.js -->
+                    <div id="equipmentSpecsFields"></div>
+
+                    <div class="form-group">
+                        <label>Примечание</label>
+                        <textarea id="equipmentNote"></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeEquipmentModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="submitEquipment()"><span class="icon icon-save"></span> Сохранить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно новой заявки -->
+        <div class="modal" id="newTicketModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><span class="icon icon-warning"></span> Новая заявка</h2>
+                    <button class="modal-close" onclick="closeNewTicketModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Оборудование</label>
+                        <select id="ticketEquipmentSelect">
+                            <option value="">— не указано —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Приоритет</label>
+                        <select id="ticketPrioritySelect">
+                            <option value="high">Высокий</option>
+                            <option value="normal" selected>Обычный</option>
+                            <option value="low">Низкий</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Тема</label>
+                        <input type="text" id="ticketTitle" placeholder="Кратко опишите проблему">
+                    </div>
+                    <div class="form-group">
+                        <label>Описание</label>
+                        <textarea id="ticketDescription" placeholder="Что наблюдается, когда началось..."></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeNewTicketModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="submitNewTicket()"><span class="icon icon-save"></span> Создать заявку</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно детальной карточки заявки — содержимое
+             рендерится динамически в ticket.js (renderTicketDetail),
+             т.к. форма зависит от статуса заявки и наличия отказа. -->
+        <div class="modal" id="ticketDetailModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="ticketDetailTitle"><span class="icon icon-warning"></span> Заявка</h2>
+                    <button class="modal-close" onclick="closeTicketDetailModal()">&times;</button>
+                </div>
+                <div class="modal-body" id="ticketDetailBody"></div>
+            </div>
+        </div>
     </div>
 
     <script src="/static/js/common.js"></script>
     <script src="/static/js/engines.js"></script>
-    <script src="/static/js/catalog.js?v=20260811"></script>
-    <script src="/static/js/locationTree.js?v=20260811"></script>
+    <script src="/static/js/catalog.js?v=20260813"></script>
+    <script src="/static/js/locationTree.js?v=20260813"></script>
     <script src="/static/js/engineCard.js"></script>
     <script src="/static/js/importer.js"></script>
     <script src="/static/js/exportManager.js"></script>
     <script src="/static/js/backupManager.js"></script>
-    <script src="/static/js/search.js?v=20260811"></script>
+    <script src="/static/js/search.js?v=20260813"></script>
     <script src="/static/js/auth.js?v=20260721"></script>
+    <script src="/static/js/knowledge.js?v=20260813"></script>
+    <script src="/static/js/equipment.js?v=20260815"></script>
+    <script src="/static/js/ticket.js?v=20260816"></script>
     <script>
-        // ===== Переключатель темы =====
-        // Тема уже могла быть выставлена инлайн-скриптом в <head> (до
-        // отрисовки, чтобы избежать вспышки светлого фона) — здесь только
-        // синхронизируем иконку кнопки с текущим состоянием и вешаем клик.
         (function() {
             const btn = document.getElementById('themeToggleBtn');
             const icon = document.getElementById('themeToggleIcon');
@@ -473,13 +844,8 @@
             });
         })();
 
-        // Инициализация авторизации после загрузки DOM и скриптов.
         document.addEventListener('DOMContentLoaded', function() {
             authInit();
-            // Предохранитель на случай сбоя сети: если authInit() не
-            // определился с состоянием (токен не проверился, /api/auth/me
-            // повис или вернул ошибку) — гасим оверлей принудительно,
-            // чтобы пользователь не смотрел на крутящийся спиннер вечно.
             setTimeout(hideAppLoadingOverlay, 8000);
         });
     </script>

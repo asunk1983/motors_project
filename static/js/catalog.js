@@ -74,6 +74,9 @@ function switchTab(tabId) {
         if (tabId === 'import') updateStats();
         if (tabId === 'settings') loadSettings();
         if (tabId === 'info') loadInfoTab();
+        if (tabId === 'knowledge' && typeof loadKnowledgeTab === 'function') loadKnowledgeTab();
+        if (tabId === 'equipment' && typeof loadEquipmentTab === 'function') loadEquipmentTab();
+        if (tabId === 'tickets' && typeof loadTicketsTab === 'function') loadTicketsTab();
     }
 }
 function recalcPageSize() {

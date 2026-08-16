@@ -183,6 +183,18 @@ function applyRoleUI() {
 
     const adminTab = document.querySelector('.tab-btn[data-tab="admin"]');
     if (adminTab) adminTab.style.display = isAdmin ? '' : 'none';
+    // База знаний — намеренно строже, чем isAdmin: доступна ТОЛЬКО
+    // superadmin (не admin), см. _require_superadmin в routes/auth.py —
+    // это зеркало той же серверной проверки на клиенте, чтобы кнопка не
+    // была видна тем, кому сервер всё равно ответит 403.
+    const knowledgeTab = document.querySelector('.tab-btn[data-tab="knowledge"]');
+    if (knowledgeTab) knowledgeTab.style.display = (user.role === 'superadmin') ? '' : 'none';
+    // Конструктор типов/атрибутов оборудования — как и admin-вкладка,
+    // видим только admin/superadmin (сам бэкенд защищён _require_admin
+    // в equipment_routes.py, это лишь отражение той же проверки в UI).
+    // Сама вкладка "Оборудование" остаётся видна всем ролям.
+    const equipmentConstructorBtn = document.getElementById('equipmentSubtabConstructorBtn');
+    if (equipmentConstructorBtn) equipmentConstructorBtn.style.display = isAdmin ? '' : 'none';
     // Вкладка "Импорт" — только для администрататора (обычные пользователи
     // не должны массово заливать/очищать БД).
     const importTab = document.querySelector('.tab-btn[data-tab="import"]');

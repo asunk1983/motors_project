@@ -149,7 +149,7 @@ function addModeRow(freq = '', power = '', voltage = '', conn = '', current = ''
     tr.innerHTML = `
         <td><input type="number" step="any" value="${escapeHtml(freq)}"></td>
         <td><input type="number" step="any" value="${escapeHtml(power)}"></td>
-        <td><input type="number" step="any" value="${escapeHtml(voltage)}"></td>
+        <td><input type="text" inputmode="decimal" placeholder="напр. 220 или 220-240" value="${escapeHtml(voltage)}"></td>
         <td><input type="text" value="${escapeHtml(conn)}"></td>
         <td><input type="number" step="any" value="${escapeHtml(current)}"></td>
         <td><input type="number" step="any" value="${escapeHtml(rpm)}"></td>

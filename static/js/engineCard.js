@@ -222,7 +222,7 @@ function renderDetailContent() {
                 html += `<tr>
                     <td><input type="number" step="any" class="mode-edit-input" data-field="frequency" value="${escapeHtml(m.frequency) || ''}"></td>
                     <td><input type="number" step="any" class="mode-edit-input" data-field="power" value="${escapeHtml(m.power) || ''}"></td>
-                    <td><input type="number" step="any" class="mode-edit-input" data-field="voltage" value="${escapeHtml(m.voltage) || ''}"></td>
+                    <td><input type="text" inputmode="decimal" class="mode-edit-input" data-field="voltage" placeholder="напр. 220 или 220-240" value="${escapeHtml(m.voltage) || ''}"></td>
                     <td><input type="text" class="mode-edit-input" data-field="connection_type" value="${escapeHtml(m.connection_type) || ''}"></td>
                     <td><input type="number" step="any" class="mode-edit-input" data-field="current" value="${escapeHtml(m.current) || ''}"></td>
                     <td><input type="number" step="any" class="mode-edit-input" data-field="rpm" value="${escapeHtml(m.rpm) || ''}"></td>
@@ -371,7 +371,7 @@ function addWorkRowInline() {
         }
     }, 100);
 
-    showToast('<span class="icon icon-add"></span> Добавлена строка. Заполните поля и нажмите "Сохранить" или Enter.', 'success');
+    showToast('Добавлена строка. Заполните поля и нажмите "Сохранить" или Enter.', 'success', 'icon-add');
 }
 
 
@@ -393,7 +393,7 @@ function removeWorkRowInline(idx) {
     if (!confirm(`Удалить запись №${idx + 1} (${work.date || 'без даты'})?`)) return;
     currentEngineData.works.splice(idx, 1);
     renderDetailContent();
-    showToast('<span class="icon icon-delete"></span> Запись удалена из списка — не забудьте нажать "Сохранить"', 'info');
+    showToast('Запись удалена из списка — не забудьте нажать "Сохранить"', 'info', 'icon-delete');
 }
 
 
@@ -473,7 +473,7 @@ function saveDetailEdit() {
     .then(r => r.json())
     .then(result => {
         if (result.error) {
-            showToast('<span class="icon icon-cancel"></span> ' + result.error, 'error');
+            showToast(result.error, 'error', 'icon-cancel');
             return;
         }
         const wasPendingNew = currentEngineId === pendingNewEngineId;
@@ -481,12 +481,12 @@ function saveDetailEdit() {
         loadEngines();
         loadLocationTree();
         updateStats();
-        showToast(wasPendingNew ? '<span class="icon icon-check-circle"></span> Двигатель добавлен' : '<span class="icon icon-check-circle"></span> Изменения сохранены', 'success');
+        showToast(wasPendingNew ? 'Двигатель добавлен' : 'Изменения сохранены', 'success', 'icon-check-circle');
         // Перечитываем карточку с сервера — актуальные updated_at/created_at,
         // и переключаемся в режим просмотра только что сохранённых данных.
         showDetail(currentEngineId, false);
     })
-    .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
+    .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 
@@ -507,7 +507,7 @@ function printEngineCard() {
 // ===== УДАЛЕНИЕ КАРТОЧКИ =====
 function deleteCurrentEngine() {
     if (!currentEngineId) {
-        showToast('<span class="icon icon-warning"></span> Нет открытой карточки', 'warning');
+        showToast('Нет открытой карточки', 'warning', 'icon-warning');
         return;
     }
     if (!confirm(`Удалить двигатель ID=${currentEngineId}?`)) return;
@@ -516,15 +516,15 @@ function deleteCurrentEngine() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('<span class="icon icon-cancel"></span> ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
                 return;
             }
-            showToast('<span class="icon icon-check-circle"></span> ' + data.message, 'success');
+            showToast(data.message, 'success', 'icon-check-circle');
             closeDetail();
             loadEngines();
             updateStats();
         })
-        .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 
@@ -615,7 +615,7 @@ function removeDetailPendingPhoto(idx) {
 function submitDetailPhotoAdd() {
     if (!currentEngineId) return;
     if (detailPhotoFiles.length === 0) {
-        showToast('<span class="icon icon-warning"></span> Выберите хотя бы одно фото', 'warning');
+        showToast('Выберите хотя бы одно фото', 'warning', 'icon-warning');
         return;
     }
     const formData = new FormData();
@@ -624,10 +624,10 @@ function submitDetailPhotoAdd() {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('<span class="icon icon-cancel"></span> ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
                 return null;
             }
-            showToast(`<span class="icon icon-check-circle"></span> Загружено фото: ${data.uploaded}`, 'success');
+            showToast(`Загружено фото: ${data.uploaded}`, 'success', 'icon-check-circle');
             closePhotoAddModal();
             return apiFetch(`/api/engine/${currentEngineId}/photos`).then(r => r.json());
         })
@@ -639,7 +639,7 @@ function submitDetailPhotoAdd() {
             loadEngines();
             updateStats();
         })
-        .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 function removeDetailPhoto(filename) {
@@ -649,7 +649,7 @@ function removeDetailPhoto(filename) {
         .then(r => r.json())
         .then(data => {
             if (data.error) {
-                showToast('<span class="icon icon-cancel"></span> ' + data.error, 'error');
+                showToast(data.error, 'error', 'icon-cancel');
                 return;
             }
             currentPhotos = currentPhotos.filter(p => p.filename !== filename);
@@ -657,9 +657,9 @@ function removeDetailPhoto(filename) {
             renderDetailContent();
             loadEngines();
             updateStats();
-            showToast('<span class="icon icon-delete"></span> Фото удалено', 'success');
+            showToast('Фото удалено', 'success', 'icon-delete');
         })
-        .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
+        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 
@@ -745,7 +745,7 @@ function openCropModal(list, a, b) {
 
         const img = new Image();
         img.onload = function() { _openCropStage(img); };
-        img.onerror = function() { showToast('<span class="icon icon-cancel"></span> Не удалось загрузить фото для обрезки', 'error'); };
+        img.onerror = function() { showToast('Не удалось загрузить фото для обрезки', 'error', 'icon-cancel'); };
         // Тот же путь, что и в галерее (без cache-bust параметра) — грузим
         // актуальную версию с сервера, same-origin, canvas не будет "грязным".
         // authPhotoUrl добавляет токен в query (?token=), иначе <img>
@@ -901,7 +901,7 @@ function _applyCropFile() {
 
     out.toBlob(function(blob) {
         if (!blob) {
-            showToast('<span class="icon icon-cancel"></span> Не удалось обрезать фото', 'error');
+            showToast('Не удалось обрезать фото', 'error', 'icon-cancel');
             return;
         }
         const croppedFile = new File([blob], file.name, { type: mimeType });
@@ -913,7 +913,7 @@ function _applyCropFile() {
         } else {
             renderPhotosPreview();
         }
-        showToast('<span class="icon icon-check-circle"></span> Фото обрезано', 'success');
+        showToast('Фото обрезано', 'success', 'icon-check-circle');
     }, mimeType, 0.92);
 }
 
@@ -947,7 +947,7 @@ function _applyCropExisting() {
 
     out.toBlob(function(blob) {
         if (!blob) {
-            showToast('<span class="icon icon-cancel"></span> Не удалось обрезать фото', 'error');
+            showToast('Не удалось обрезать фото', 'error', 'icon-cancel');
             return;
         }
         const formData = new FormData();
@@ -956,7 +956,7 @@ function _applyCropExisting() {
             .then(r => r.json())
             .then(result => {
                 if (result.error) {
-                    showToast('<span class="icon icon-cancel"></span> ' + result.error, 'error');
+                    showToast(result.error, 'error', 'icon-cancel');
                     return;
                 }
                 closeCropModal();
@@ -967,9 +967,9 @@ function _applyCropExisting() {
                 if (!photos) return;
                 currentPhotos = photos;
                 renderDetailContent();
-                showToast('<span class="icon icon-check-circle"></span> Фото обрезано', 'success');
+                showToast('Фото обрезано', 'success', 'icon-check-circle');
             })
-            .catch(e => showToast('<span class="icon icon-cancel"></span> Ошибка: ' + e.message, 'error'));
+            .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
     }, mimeType, 0.92);
 }
 
@@ -1085,7 +1085,7 @@ function navigatePhotoModal(direction) {
     if (!currentPhotos || currentPhotos.length === 0) return;
     const newIndex = currentPhotoIndex + direction;
     if (newIndex < 0 || newIndex >= currentPhotos.length) {
-        showToast('<span class="icon icon-warning"></span> Фото больше нет', 'warning');
+        showToast('Фото больше нет', 'warning', 'icon-warning');
         return;
     }
     currentPhotoIndex = newIndex;

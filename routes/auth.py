@@ -35,6 +35,16 @@ def _require_admin():
     return None
 
 
+def _require_superadmin():
+    """Строже, чем _require_admin — пропускает только role == 'superadmin'.
+    Используется там, где даже обычный admin не должен иметь доступ
+    (сейчас: база знаний, см. routes/knowledge_routes.py)."""
+    user = getattr(request, 'current_user', None)
+    if not user or user.get('role') != 'superadmin':
+        return jsonify({'error': 'Доступ запрещён (нужна роль superadmin)'}), 403
+    return None
+
+
 # Пути, для которых пишущий (не-GET) запрос не требует ни авторизации, ни
 # проверки роли. Пока только logout — он должен быть доступен даже с
 # истёкшим/невалидным токеном (сам роут и раньше не проверял валидность
