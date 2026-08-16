@@ -39,7 +39,6 @@
 """
 import io
 import logging
-import math
 
 from repositories.engine_repo import get_with_details
 
@@ -75,14 +74,16 @@ ROW_H_EMPTY_NOTE = 18
 DEFAULT_ROW_HEIGHT = 15  # запасной вариант для расчёта бюджета, если высота строки нигде не выставлена явно
 
 # ---- Фото ----
-# Ширина фото зависит от того, сколько их в ряду (см. _photos_per_row) —
-# это ФИКСИРОВАННЫЙ параметр, задающий реальный слот на листе (иначе фото
-# в одном ряду наедут друг на друга). Ключ — число фото в ряду.
-PHOTO_SLOT_COLUMNS = {
-    1: ['A'],       # один слот на всю ширину A:F
-    2: ['A', 'D'],  # два слота по 3 колонки
-    3: ['A', 'C', 'E'],  # три слота по 2 колонки (как раньше)
-}
+# ИСПРАВЛЕНО (см. чат): раньше фото раскладывались по фиксированным
+# "слотам"-колонкам — при разных пропорциях снимков (узкие книжные
+# шильдики vs широкое фото самого двигателя) это давало то большие
+# пробелы между фото, то тесноту, визуально "вразнобой". Теперь фото
+# упаковываются как строки текста: кладём слева направо вплотную (с
+# небольшим зазором), и как только следующее фото не помещается по
+# ширине — переносим его на новую строку. Все фото в пределах одной
+# карточки получают одну общую высоту (см. _place_photos), поэтому ряды
+# выглядят как ровная фотополоса, а не хаотичная сетка.
+PHOTO_GAP_PX = 10  # зазор между соседними фото по горизонтали и вертикали
 # Высота фото — ДИНАМИЧЕСКАЯ, под остаток свободного места на странице
 # (см. _place_photos), но всегда в этих границах: не мельче, чтобы фото
 # оставалось разборчивым, и не крупнее, чтобы один снимок не занимал
@@ -90,11 +91,15 @@ PHOTO_SLOT_COLUMNS = {
 PHOTO_MIN_HEIGHT_PX = 90
 PHOTO_MAX_HEIGHT_PX = 340
 PHOTO_ROW_EXTRA_PT = 8  # запас по высоте строки сверх самого фото, пункты
+# Сколько раз пробовать уменьшить высоту фото, подбирая её так, чтобы все
+# ряды (после упаковки) уместились в остаток страницы — см. _place_photos.
+PHOTO_FIT_MAX_ITERATIONS = 14
 
 # 1px = 0.75pt при 96 dpi — стандартное допущение, которым пользуется и
 # сам Excel при пересчёте.
 PX_TO_PT = 0.75
 PT_TO_PX = 1 / PX_TO_PT
+EMU_PER_PIXEL = 9525
 
 # Высота строки под перенесённый (wrap_text) текст — Excel/LibreOffice НЕ
 # пересчитывают её автоматически при программной записи файла (это делает
@@ -399,101 +404,107 @@ def _sum_row_heights(ws, start_row: int, end_row: int) -> float:
     return total
 
 
-def _photos_per_row(count: int) -> int:
-    """Сколько фото ставить в один ряд.
-
-    При 1-3 фото — все в один ряд (крупнее и без пустого места справа,
-    ровно то, что было упущено в прошлой версии: 2 фото на всю ширину
-    листа оставляли треть страницы пустой). При 4+ — обычная сетка по 3.
-    """
-    return count if count <= 3 else 3
-
-
 def _place_photos(ws, xl_image_cls, pil_image_cls, photo_paths, row, remaining_height_pt):
-    """Вставляет фото, подгоняя их размер под оставшееся место на странице.
+    """Вставляет фото упаковкой слева направо с переносом на новую строку,
+    когда следующее фото не помещается по ширине (как перенос слов в
+    тексте) — вместо фиксированных колонок-слотов, которые давали
+    неровные пробелы между фото разной пропорции (см. чат: узкие
+    книжные шильдики и широкое фото двигателя в одном ряду).
 
-    Ширина каждого фото ограничена реальной шириной его слота на листе
-    (иначе соседние фото в одном ряду наедут друг на друга при печати).
-    Высота — под остаток высоты страницы, поровну между рядами фото, с
-    разумными нижней/верхней границами (PHOTO_MIN/MAX_HEIGHT_PX). Пропорции
-    исходного фото всегда сохраняются — уменьшается либо ширина, либо
-    высота, в зависимости от того, что более узкое ограничение.
+    Все фото карточки получают одну общую высоту, которая подбирается
+    так, чтобы все получившиеся ряды уместились в remaining_height_pt —
+    отсюда PHOTO_FIT_MAX_ITERATIONS: пробуем высоту, считаем, сколько
+    рядов получится при упаковке, и если не помещается — уменьшаем
+    высоту и пробуем снова.
 
     Возвращает номер следующей свободной строки после всех фото.
     """
-    per_row = _photos_per_row(len(photo_paths))
-    slot_cols = PHOTO_SLOT_COLUMNS[per_row]
-    # Ширина слота — по САМОМУ УЗКОМУ из слотов этого ряда (колонки листа
-    # не одинаковой ширины: A шире остальных под подписи характеристик).
-    # Раньше здесь бралась ширина только первых cols_per_slot колонок и
-    # считалась одинаковой для всех слотов — для несимметричных колонок
-    # это давало слишком большую ширину узким слотам (C+D, E+F), и фото
-    # там наезжали на соседние. Берём минимум по всем слотам ряда —
-    # одинаковый безопасный размер для каждого фото в ряду.
-    slot_width_px = min(_slot_width_px(cols) for cols in _slot_column_groups(per_row))
+    from openpyxl.drawing.spreadsheet_drawing import OneCellAnchor, AnchorMarker
+    from openpyxl.drawing.xdr import XDRPositiveSize2D
 
-    num_rows = math.ceil(len(photo_paths) / per_row)
-    # Бюджет высоты на один ряд фото: остаток страницы делим поровну между
-    # рядами, за вычетом чуть-чуть на верт. паддинг каждой строки.
-    height_budget_pt = max(
-        PHOTO_MIN_HEIGHT_PX * PX_TO_PT + PHOTO_ROW_EXTRA_PT,
-        remaining_height_pt / max(1, num_rows),
-    )
-    max_height_px = (height_budget_pt - PHOTO_ROW_EXTRA_PT) * PT_TO_PX
-    max_height_px = max(PHOTO_MIN_HEIGHT_PX, min(PHOTO_MAX_HEIGHT_PX, max_height_px))
-
-    photo_row = row
-    max_height_px_in_row = 0
-
-    for i, p in enumerate(photo_paths):
-        slot = i % per_row
-        if i > 0 and slot == 0:
-            # Закрываем предыдущий ряд — фиксируем его высоту под самое
-            # высокое фото, которое в нём оказалось.
-            if max_height_px_in_row:
-                ws.row_dimensions[photo_row].height = max_height_px_in_row * PX_TO_PT + PHOTO_ROW_EXTRA_PT
-            photo_row += 1
-            max_height_px_in_row = 0
-
+    # Натуральные размеры — читаем один раз, дальше только пересчитываем
+    # масштаб под разные пробные высоты без повторного открытия файлов.
+    sizes = []
+    for p in photo_paths:
         try:
             with pil_image_cls.open(p) as pil_img:
-                natural_w, natural_h = pil_img.size
-            scale = min(slot_width_px / natural_w, max_height_px / natural_h, 1)
-            display_w = max(1, round(natural_w * scale))
-            display_h = max(1, round(natural_h * scale))
-
-            img = xl_image_cls(p)
-            img.width = display_w
-            img.height = display_h
-            ws.add_image(img, f'{slot_cols[slot]}{photo_row}')
-            max_height_px_in_row = max(max_height_px_in_row, display_h)
+                sizes.append((p, pil_img.size[0], pil_img.size[1]))
         except Exception:
-            logger.exception("Не удалось вставить фото %s в экспорт", p)
+            logger.exception("Не удалось прочитать фото %s для экспорта", p)
+    if not sizes:
+        return row
 
-    if max_height_px_in_row:
-        ws.row_dimensions[photo_row].height = max_height_px_in_row * PX_TO_PT + PHOTO_ROW_EXTRA_PT
+    total_width_px = sum(round(w * 7 + 5) for w in COLUMN_CHARS.values())
 
-    return photo_row + 1
+    def pack(height_px):
+        """Раскладывает фото по рядам при заданной общей высоте фото.
+
+        Возвращает список рядов, где каждый ряд — список
+        (path, display_w, display_h, x_px).
+        """
+        rows_out = []
+        current = []
+        x = 0
+        for p, nat_w, nat_h in sizes:
+            disp_w = max(1, round(nat_w * (height_px / nat_h)))
+            if current and x + disp_w > total_width_px:
+                rows_out.append(current)
+                current = []
+                x = 0
+            current.append((p, disp_w, height_px, x))
+            x += disp_w + PHOTO_GAP_PX
+        if current:
+            rows_out.append(current)
+        return rows_out
+
+    # Подбираем высоту побольше, но так, чтобы все ряды уместились в
+    # остаток страницы — начинаем с максимума и уменьшаем, пока не влезет
+    # (или пока не упрёмся в минимально читаемый размер).
+    height_px = PHOTO_MAX_HEIGHT_PX
+    packed = pack(height_px)
+    for _ in range(PHOTO_FIT_MAX_ITERATIONS):
+        needed_pt = len(packed) * (height_px * PX_TO_PT + PHOTO_ROW_EXTRA_PT)
+        if needed_pt <= remaining_height_pt or height_px <= PHOTO_MIN_HEIGHT_PX:
+            break
+        # Уменьшаем пропорционально нехватке места, но не мельче минимума.
+        shrink = max(0.7, remaining_height_pt / needed_pt)
+        height_px = max(PHOTO_MIN_HEIGHT_PX, round(height_px * shrink))
+        packed = pack(height_px)
+
+    photo_row = row
+    for row_photos in packed:
+        row_height_px = max(h for _, _, h, _ in row_photos)
+        for p, disp_w, disp_h, x_px in row_photos:
+            try:
+                img = xl_image_cls(p)
+                img.width = disp_w
+                img.height = disp_h
+                col_idx, col_off_emu = _pixel_x_to_anchor(x_px)
+                marker = AnchorMarker(col=col_idx, colOff=col_off_emu, row=photo_row - 1, rowOff=0)
+                size = XDRPositiveSize2D(cx=disp_w * EMU_PER_PIXEL, cy=disp_h * EMU_PER_PIXEL)
+                img.anchor = OneCellAnchor(_from=marker, ext=size)
+                ws.add_image(img)
+            except Exception:
+                logger.exception("Не удалось вставить фото %s в экспорт", p)
+        ws.row_dimensions[photo_row].height = row_height_px * PX_TO_PT + PHOTO_ROW_EXTRA_PT
+        photo_row += 1
+
+    return photo_row
 
 
-def _slot_column_groups(per_row: int) -> list:
-    """Возвращает список групп букв колонок — по одной группе на каждый
-    слот в ряду из per_row фото. Например при per_row=3: [['A','B'],
-    ['C','D'], ['E','F']] — слот i занимает колонки [i*n : i*n+n], где
-    n = 6 // per_row.
+def _pixel_x_to_anchor(x_px: int):
+    """Переводит абсолютную позицию x (в пикселях от левого края колонки A)
+    в (индекс_колонки, смещение_в_EMU_внутри_неё) — нужно для точного
+    позиционирования фото "внахлёст", а не только по границам колонок.
     """
     letters = ['A', 'B', 'C', 'D', 'E', 'F']
-    cols_per_slot = 6 // per_row
-    return [letters[i * cols_per_slot:(i + 1) * cols_per_slot] for i in range(per_row)]
-
-
-def _slot_width_px(letters: list) -> int:
-    """Реальная ширина слота (в пикселях) для заданного набора букв колонок."""
-    total_chars = sum(COLUMN_CHARS[letter] for letter in letters)
-    px = round(total_chars * 7 + 5)
-    # Небольшой отступ, чтобы фото не касалось впритык границы следующего
-    # слота/колонки (визуальный зазор между фото в одном ряду).
-    return max(40, px - 10)
+    remaining = x_px
+    for idx, letter in enumerate(letters):
+        col_px = round(COLUMN_CHARS[letter] * 7 + 5)
+        if remaining < col_px or idx == len(letters) - 1:
+            return idx, round(remaining * EMU_PER_PIXEL)
+        remaining -= col_px
+    return len(letters) - 1, round(remaining * EMU_PER_PIXEL)  # pragma: no cover — недостижимо при непустом letters
 
 
 def _get_photo_paths(engine_id: int) -> list[str]:
