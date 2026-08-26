@@ -6,7 +6,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from config.settings import DB_PATH, MOTORS_FOLDER, PHOTOS_FOLDER, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER, ALLOWED_PHOTO_EXT
+from config.settings import DB_PATH, MOTORS_FOLDER, PHOTOS_FOLDER, INCIDENT_PHOTOS_FOLDER, EQUIPMENT_PHOTOS_FOLDER, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER, ALLOWED_PHOTO_EXT
 
 ENGINE_COLUMNS_ORDERED = [
     'id', 'filename', 'purpose', 'workshop', 'location', 'engine_type',
@@ -347,6 +347,96 @@ def init_db(conn=None):
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_failure_equipment ON failure(equipment_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_work_failure ON equipment_work(failure_id)')
 
+        # --- Дерево мест (location_node) -------------------------------
+        # Общий ресурс уровня всего проекта (ТЗ "Инциденты + Оборудование",
+        # раздел 1) — НЕ принадлежит ни одному конкретному модулю,
+        # применяется первым из всех новых шагов. 'warehouse' включён в
+        # CHECK сразу, с первой версии таблицы (понадобится для будущего
+        # раздела "Учёт ЗИП"), чтобы не пересобирать таблицу под CHECK
+        # второй раз — SQLite не умеет менять CHECK через обычный ALTER TABLE.
+        # UNIQUE(parent_id, name) не защищает корневые узлы от дублей
+        # (NULL != NULL для UNIQUE в SQLite) — риск известен и принят.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS location_node (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                parent_id INTEGER REFERENCES location_node(id),
+                name TEXT NOT NULL,
+                node_type TEXT CHECK (node_type IN
+                    ('workshop','installation','unit','zone','warehouse','other')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE(parent_id, name)
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_location_parent ON location_node(parent_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_location_name ON location_node(name)')
+
+        # --- Модуль "Инциденты" -----------------------------------------
+        # Личный журнал диагностики отказов (замена Excel) — отдельно от
+        # ticket/failure выше (тот сценарий — формализованный протокол
+        # ремонта типизированной единицы оборудования с измерениями;
+        # этот — свободная запись "что/где/кто/как решили"). Модули НЕ
+        # смешиваются ни в БД, ни в UI (см. ТЗ "Инциденты", раздел 0).
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS crew (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                full_name TEXT NOT NULL,
+                position TEXT,
+                workshop TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_crew_name ON crew(full_name)')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incident_ticket (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                location_node_id INTEGER NOT NULL REFERENCES location_node(id),
+                problem TEXT NOT NULL,
+                solution TEXT,
+                priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
+                status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','resolved','rejected')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                closed_at TEXT,
+                created_by_user_id INTEGER NOT NULL REFERENCES users(id)
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_status ON incident_ticket(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_location ON incident_ticket(location_node_id)')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incident_ticket_initiator (
+                ticket_id INTEGER NOT NULL REFERENCES incident_ticket(id) ON DELETE CASCADE,
+                crew_id INTEGER NOT NULL REFERENCES crew(id),
+                PRIMARY KEY (ticket_id, crew_id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incident_ticket_executor (
+                ticket_id INTEGER NOT NULL REFERENCES incident_ticket(id) ON DELETE CASCADE,
+                crew_id INTEGER NOT NULL REFERENCES crew(id),
+                PRIMARY KEY (ticket_id, crew_id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incident_ticket_equipment (
+                ticket_id INTEGER NOT NULL REFERENCES incident_ticket(id) ON DELETE CASCADE,
+                equipment_id INTEGER NOT NULL REFERENCES equipment(id),
+                PRIMARY KEY (ticket_id, equipment_id)
+            )
+        ''')
+
+        # Только ссылки — фото идут файловым паттерном PhotoI/, не через БД.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS incident_ticket_link (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL REFERENCES incident_ticket(id) ON DELETE CASCADE,
+                url TEXT NOT NULL,
+                caption TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_link_ticket ON incident_ticket_link(ticket_id)')
+
         # Auto-migration: добавляем новые колонки, если БД была создана ранее
         _ensure_column(cursor, 'users', 'last_login', 'TEXT')
         _ensure_column(cursor, 'users', 'last_edit', 'TEXT')
@@ -365,6 +455,27 @@ def init_db(conn=None):
         _ensure_column(cursor, 'knowledge_article', 'equipment_type_id', 'INTEGER REFERENCES equipment_type(id)')
         _ensure_column(cursor, 'knowledge_article', 'resolution_type', "TEXT NOT NULL DEFAULT 'HARDWARE'")
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_ka_equipment_type ON knowledge_article(equipment_type_id)')
+
+        # equipment -> location_node (ТЗ "Инциденты + Оборудование", раздел
+        # 3.1). workshop/location (TEXT) остаются на переходный период —
+        # старые записи мигрируются одноразовым скриптом
+        # (services/equipment_location_migration.py::migrate_equipment_locations),
+        # НЕ здесь в init_db() — миграция данных требует явного запуска
+        # (не должна молча срабатывать при каждом старте приложения).
+        _ensure_column(cursor, 'equipment', 'location_node_id', 'INTEGER REFERENCES location_node(id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_location_node ON equipment(location_node_id)')
+
+        # equipment_type_attribute.show_in_list — ТЗ раздел 3.2: 2-3
+        # "главных" атрибута на тип становятся динамическими колонками
+        # таблицы номенклатуры (когда выбран конкретный тип, не "Все типы").
+        _ensure_column(cursor, 'equipment_type_attribute', 'show_in_list', 'INTEGER NOT NULL DEFAULT 0')
+
+        # equipment_type.min_stock_qty — ТЗ раздел 3.7 (учёт ЗИП): норма
+        # пополнения запаса, свойство ТИПА (политика), не физической
+        # единицы и не места. NULL = норма не задана (не путать с 0 =
+        # "норма ноль, докупать не нужно") — поэтому INTEGER без
+        # NOT NULL/DEFAULT.
+        _ensure_column(cursor, 'equipment_type', 'min_stock_qty', 'INTEGER')
 
         # Backfill для записей, созданных до появления этих колонок —
         # реальная историческая дата создания неизвестна, поэтому проставляем

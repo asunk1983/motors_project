@@ -15,6 +15,16 @@ function updateStats() {
             document.getElementById('settingsRecords').textContent = data.engine_count || 0;
             document.getElementById('settingsPhotos').textContent = data.photos_count || 0;
             document.getElementById('settingsDbSize').textContent = data.db_size_label || '0 KB';
+
+            // Дашборд-счётчики Инцидентов/Оборудования (ТЗ раздел 4) —
+            // элементы могут отсутствовать в DOM на страницах, где эта
+            // группа настроек не выведена, поэтому каждый через optional
+            // chaining, а не через жёсткий getElementById(...).textContent.
+            document.getElementById('settingsEquipmentCount') && (document.getElementById('settingsEquipmentCount').textContent = data.equipment_count ?? 0);
+            document.getElementById('settingsEquipmentPhotosCount') && (document.getElementById('settingsEquipmentPhotosCount').textContent = data.equipment_photos_count ?? 0);
+            document.getElementById('settingsIncidentCount') && (document.getElementById('settingsIncidentCount').textContent = data.incident_count ?? 0);
+            document.getElementById('settingsIncidentOpenCount') && (document.getElementById('settingsIncidentOpenCount').textContent = data.incident_open_count ?? 0);
+            document.getElementById('settingsIncidentPhotosCount') && (document.getElementById('settingsIncidentPhotosCount').textContent = data.incident_photos_count ?? 0);
         })
         .catch(() => {});
 }
@@ -77,6 +87,7 @@ function switchTab(tabId) {
         if (tabId === 'knowledge' && typeof loadKnowledgeTab === 'function') loadKnowledgeTab();
         if (tabId === 'equipment' && typeof loadEquipmentTab === 'function') loadEquipmentTab();
         if (tabId === 'tickets' && typeof loadTicketsTab === 'function') loadTicketsTab();
+        if (tabId === 'incidents' && typeof loadIncidentsTab === 'function') loadIncidentsTab();
     }
 }
 function recalcPageSize() {

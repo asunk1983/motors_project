@@ -75,13 +75,15 @@ def validate_equipment_payload(data: dict):
 
 def sanitize_equipment_data(data: dict) -> dict:
     fields = ('equipment_type_id', 'name', 'article', 'manufacturer', 'serial_number',
-              'workshop', 'location', 'firmware_version', 'criticality', 'installed_at',
+              'workshop', 'location', 'location_node_id', 'firmware_version', 'criticality', 'installed_at',
               'specs', 'note')
     clean = {k: data[k] for k in fields if k in data}
     if 'name' in clean:
         clean['name'] = clean['name'].strip()
     if clean.get('criticality') == '':
         clean['criticality'] = None
+    if clean.get('location_node_id') == '':
+        clean['location_node_id'] = None
     if 'specs' in clean and not isinstance(clean['specs'], dict):
         clean['specs'] = {}
     return clean

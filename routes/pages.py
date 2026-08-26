@@ -23,6 +23,24 @@ def print_engine_page(engine_id):
     return send_from_directory('templates', 'print.html')
 
 
+@pages_bp.route('/print/incident/<int:ticket_id>')
+def print_incident_page(ticket_id):
+    # Тот же принцип, что и print_engine_page выше: ticket_id в URL не
+    # используется здесь — страница статическая, id парсится в
+    # incidentPrint.js из window.location.pathname и подставляется в
+    # fetch('/api/incident-tickets/:id') на клиенте. Несуществующая
+    # заявка → страница сама покажет ошибку (см. incidentPrint.js), не 404.
+    return send_from_directory('templates', 'print_incident.html')
+
+
+@pages_bp.route('/print/equipment/<int:equipment_id>')
+def print_equipment_page(equipment_id):
+    # Тот же принцип, что print_engine_page/print_incident_page выше —
+    # equipment_id в URL не используется здесь, id парсится в
+    # equipmentPrint.js на клиенте.
+    return send_from_directory('templates', 'print_equipment.html')
+
+
 @pages_bp.route('/static/<path:path>')
 def serve_static(path):
     return send_from_directory('static', path)

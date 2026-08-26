@@ -579,3 +579,292 @@ def _set_wrapped_row_height(ws, row: int, col_chars: dict, min_height: float = R
         min_height,
         max_lines * LINE_HEIGHT_PT + ROW_WRAP_PADDING_PT,
     )
+
+
+# =========================================================================
+# Экспорт заявок модуля "Инциденты" — ТЗ раздел 2.6.
+#
+# Отличается от export_to_xlsx() принципиально по макету: там страница на
+# объект (с фото), здесь плоская ТАБЛИЦА — одна заявка = одна строка (их
+# обычно больше и они короче по содержанию, фото в табличный экспорт не
+# идут — для них печать одной заявки, /print/incident/<id>).
+# Переиспользует только низкоуровневые хелперы (_col_letter,
+# _wrap_line_count/_set_wrapped_row_height, FONT_NAME) — специфичные для
+# постраничной вёрстки константы/функции (_place_photos,
+# _pixel_x_to_anchor, PHOTO_*, COLUMN_CHARS и т.п.) сюда не подходят по
+# смыслу и не используются.
+# =========================================================================
+
+INCIDENT_EXPORT_COLUMNS = [
+    ('ID', 6),
+    ('Место', 30),
+    ('Проблема', 40),
+    ('Решение', 40),
+    ('Приоритет', 12),
+    ('Статус', 14),
+    ('Инициаторы', 24),
+    ('Исполнители', 24),
+    ('Создана', 16),
+    ('Закрыта', 16),
+]
+
+INCIDENT_PRIORITY_LABEL = {'low': 'Низкий', 'medium': 'Средний', 'high': 'Высокий'}
+INCIDENT_STATUS_LABEL = {'in_progress': 'В работе', 'resolved': 'Решено', 'rejected': 'Отклонено'}
+
+
+def _get_equipment_photo_paths(equipment_id: int) -> list[str]:
+    """Пути к фото оборудования на диске — тот же принцип, что
+    _get_photo_paths() для двигателей: единственный источник истины —
+    канонический photo_manager, не собственная копия схемы имён."""
+    from modules.photo_manager.equipment_manager import equipment_photo_disk_paths
+
+    return equipment_photo_disk_paths(equipment_id)
+
+
+def export_equipment_to_xlsx(conn, equipment_ids: list[int]) -> bytes:
+    """Экспортировать оборудование в Excel — ТЗ раздел 3.6: тот же макет
+    постраничной карточки, что и export_to_xlsx() для двигателей (одна
+    А4-страница на единицу, фото упаковкой под остаток места),
+    переиспользует те же низкоуровневые хелперы (_place_photos,
+    _sum_row_heights, PAGE_*, COLUMN_CHARS, FONT_*). НЕ плоская таблица,
+    как у export_incidents_to_xlsx() — там другой макет по прямому
+    решению ТЗ (см. комментарий там), не путать паттерны.
+
+    Базовые поля (тип/артикул/производитель/...) показываются ВСЕГДА,
+    пустые — как "—" (тот же принцип, что у двигателей). А вот
+    ДИНАМИЧЕСКИЕ атрибуты типа — по ТЗ ТОЛЬКО заполненные (компактнее;
+    карточки одного типа могут отличаться по числу строк — принятый
+    компромисс, не баг).
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+    from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.worksheet.page import PageMargins
+    from openpyxl.worksheet.pagebreak import Break
+    from PIL import Image as PILImage
+
+    from repositories.equipment_repo import get_equipment_by_id, get_effective_attributes
+    from repositories import location_repo
+
+    items = []
+    for eid in equipment_ids:
+        item = get_equipment_by_id(conn, eid)
+        if item:
+            items.append(item)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Оборудование'
+
+    BORDER = Border(
+        left=Side(style='thin', color='D0D5DD'),
+        right=Side(style='thin', color='D0D5DD'),
+        top=Side(style='thin', color='D0D5DD'),
+        bottom=Side(style='thin', color='D0D5DD'),
+    )
+    FILL_PRIMARY = PatternFill(start_color='1B365D', end_color='1B365D', fill_type='solid')
+
+    for col_letter, width in COLUMN_CHARS.items():
+        ws.column_dimensions[col_letter].width = width
+
+    row = 1
+    item_start_row = 1
+
+    for item_index, item in enumerate(items):
+        item_start_row = row
+
+        # --- Шапка ---
+        ws.cell(row=row, column=1, value=f"Паспорт оборудования — {item.get('name') or ''}")
+        ws.cell(row=row, column=1).font = Font(name=FONT_NAME, size=FONT_SIZE_TITLE, bold=True, color='FFFFFF')
+        ws.cell(row=row, column=1).fill = FILL_PRIMARY
+        ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+        ws.row_dimensions[row].height = ROW_H_TITLE
+        row += 1
+
+        # --- Характеристики (заголовок таблицы) ---
+        ws.cell(row=row, column=1, value='Характеристика')
+        ws.cell(row=row, column=1).font = Font(name=FONT_NAME, size=FONT_SIZE_TABLE_HEAD, bold=True)
+        ws.cell(row=row, column=2, value='Значение')
+        ws.cell(row=row, column=2).font = Font(name=FONT_NAME, size=FONT_SIZE_TABLE_HEAD, bold=True)
+        ws.row_dimensions[row].height = ROW_H_CHAR_HEADER
+        row += 1
+
+        location_text = None
+        if item.get('location_node_id'):
+            location_text = location_repo.get_breadcrumb_text(conn, item['location_node_id'], sep=' / ')
+        elif item.get('workshop') or item.get('location'):
+            location_text = ' / '.join(v for v in (item.get('workshop'), item.get('location')) if v)
+
+        criticality_text = None
+        if item.get('criticality'):
+            n = item['criticality']
+            criticality_text = '●' * n + '○' * (5 - n)
+
+        # Базовые поля — ВСЕГДА показываются (пустые как "—"), тот же
+        # принцип, что и у двигателей. Порядок соответствует детальной
+        # карточке (equipment.js::renderEquipmentDetailView).
+        char_fields = [
+            ('Тип оборудования', item.get('equipment_type_name')),
+            ('Артикул', item.get('article')),
+            ('Производитель', item.get('manufacturer')),
+            ('Серийный номер', item.get('serial_number')),
+            ('Место', location_text),
+            ('Версия прошивки', item.get('firmware_version')),
+            ('Критичность', criticality_text),
+            ('Примечание', item.get('note')),
+        ]
+        for label, value in char_fields:
+            ws.cell(row=row, column=1, value=label)
+            ws.cell(row=row, column=1).font = Font(name=FONT_NAME, size=FONT_SIZE_DATA)
+            ws.cell(row=row, column=1).border = BORDER
+            ws.cell(row=row, column=2, value=value or '—')
+            ws.cell(row=row, column=2).font = Font(name=FONT_NAME, size=FONT_SIZE_DATA)
+            ws.cell(row=row, column=2).border = BORDER
+            ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=6)
+            ws.row_dimensions[row].height = ROW_H_CHAR_DATA
+            row += 1
+
+        # Динамические атрибуты типа — ТОЛЬКО заполненные (ТЗ раздел 3.6).
+        specs = item.get('specs') or {}
+        effective_attrs = get_effective_attributes(conn, item['equipment_type_id'])
+        for attr in effective_attrs:
+            val = specs.get(attr['key'])
+            if val is None or val == '' or val is False:
+                continue
+            label = attr['label'] + (f" ({attr['unit']})" if attr.get('unit') else '')
+            ws.cell(row=row, column=1, value=label)
+            ws.cell(row=row, column=1).font = Font(name=FONT_NAME, size=FONT_SIZE_DATA)
+            ws.cell(row=row, column=1).border = BORDER
+            ws.cell(row=row, column=2, value=str(val))
+            ws.cell(row=row, column=2).font = Font(name=FONT_NAME, size=FONT_SIZE_DATA)
+            ws.cell(row=row, column=2).border = BORDER
+            ws.merge_cells(start_row=row, start_column=2, end_row=row, end_column=6)
+            ws.row_dimensions[row].height = ROW_H_CHAR_DATA
+            row += 1
+
+        row += 1  # отступ перед фото
+
+        # --- Фото — та же упаковка, что у двигателей ---
+        photo_paths = _get_equipment_photo_paths(item['id'])
+        if photo_paths:
+            ws.cell(row=row, column=1, value=f'📸 Фото ({len(photo_paths)})')
+            ws.cell(row=row, column=1).font = Font(name=FONT_NAME, size=FONT_SIZE_SECTION, bold=True, color='1B365D')
+            ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+            ws.row_dimensions[row].height = ROW_H_PHOTO_HEADER
+            row += 1
+
+            used_height_pt = _sum_row_heights(ws, item_start_row, row - 1)
+            usable_height_pt = (
+                PAGE_HEIGHT_PT
+                - (PAGE_MARGIN_TB * 2) * 72
+                - PAGE_SAFETY_BUFFER_PT
+            )
+            remaining_height_pt = max(0.0, usable_height_pt - used_height_pt)
+
+            row = _place_photos(ws, XLImage, PILImage, photo_paths, row, remaining_height_pt)
+
+        row += 2  # отступ между карточками
+
+        # --- Разрыв страницы между карточками (тот же принцип, что у двигателей) ---
+        if item_index < len(items) - 1:
+            last_content_row = row - 3
+            ws.row_breaks.append(Break(id=last_content_row))
+
+    last_row = max(row - 1, item_start_row) if items else 1
+    ws.print_area = f'A1:F{last_row}'
+    ws.page_setup.orientation = 'portrait'
+    ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.page_margins = PageMargins(
+        left=PAGE_MARGIN_LR, right=PAGE_MARGIN_LR,
+        top=PAGE_MARGIN_TB, bottom=PAGE_MARGIN_TB,
+        header=PAGE_MARGIN_HF, footer=PAGE_MARGIN_HF,
+    )
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def export_incidents_to_xlsx(conn, ticket_ids: list[int]) -> bytes:
+    """Экспортировать заявки Инцидентов в Excel — плоская таблица, одна
+    заявка = одна строка. Возвращает bytes xlsx-файла.
+
+    ticket_ids — вызывающий (routes) обязан сам ограничить длину списка
+    (лимит 100, ТЗ раздел 2.6) до вызова этой функции; здесь ограничение
+    не дублируется, т.к. это забота HTTP-слоя (валидация payload), а не
+    построения самого файла.
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+    from repositories import incident_ticket_repo, location_repo
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Заявки (Инциденты)'
+
+    BORDER = Border(
+        left=Side(style='thin', color='D0D5DD'),
+        right=Side(style='thin', color='D0D5DD'),
+        top=Side(style='thin', color='D0D5DD'),
+        bottom=Side(style='thin', color='D0D5DD'),
+    )
+    FILL_HEADER = PatternFill(start_color='1B365D', end_color='1B365D', fill_type='solid')
+
+    for idx, (label, width) in enumerate(INCIDENT_EXPORT_COLUMNS, start=1):
+        col_letter = _col_letter(idx)
+        ws.column_dimensions[col_letter].width = width
+        cell = ws.cell(row=1, column=idx, value=label)
+        cell.font = Font(name=FONT_NAME, size=FONT_SIZE_TABLE_HEAD, bold=True, color='FFFFFF')
+        cell.fill = FILL_HEADER
+        cell.border = BORDER
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    ws.row_dimensions[1].height = ROW_H_MODE_TABLE_HEADER
+    ws.freeze_panes = 'A2'
+
+    col_chars = {idx: width for idx, (_, width) in enumerate(INCIDENT_EXPORT_COLUMNS, start=1)}
+
+    row = 2
+    for ticket_id in ticket_ids:
+        ticket = incident_ticket_repo.get_by_id(conn, ticket_id)
+        if not ticket:
+            continue
+
+        location_text = location_repo.get_breadcrumb_text(conn, ticket['location_node_id'], sep=' / ')
+        initiators = ', '.join(i['full_name'] for i in ticket.get('initiators', []))
+        executors = ', '.join(e['full_name'] for e in ticket.get('executors', []))
+
+        values = [
+            ticket['id'],
+            location_text,
+            ticket.get('problem') or '—',
+            ticket.get('solution') or '—',
+            INCIDENT_PRIORITY_LABEL.get(ticket.get('priority'), ticket.get('priority')),
+            INCIDENT_STATUS_LABEL.get(ticket.get('status'), ticket.get('status')),
+            initiators or '—',
+            executors or '—',
+            (ticket.get('created_at') or '')[:16],
+            (ticket.get('closed_at') or '')[:16] or '—',
+        ]
+        for col, value in enumerate(values, start=1):
+            cell = ws.cell(row=row, column=col, value=value)
+            cell.font = Font(name=FONT_NAME, size=FONT_SIZE_DATA)
+            cell.border = BORDER
+            cell.alignment = Alignment(vertical='center', wrap_text=(col in (2, 3, 4, 7, 8)))
+        _set_wrapped_row_height(ws, row, col_chars)
+        row += 1
+
+    last_row = row - 1
+    last_col_letter = _col_letter(len(INCIDENT_EXPORT_COLUMNS))
+    ws.print_area = f'A1:{last_col_letter}{last_row}'
+    ws.page_setup.orientation = 'landscape'
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

@@ -16,7 +16,12 @@ def create_blueprints():
     from routes.engines import engines_bp
     from routes.knowledge_routes import knowledge_bp
     from routes.equipment_routes import equipment_bp
+    from routes.equipment_photo_routes import equipment_photo_bp
     from routes.ticket_routes import ticket_bp
+    from routes.location_routes import location_bp
+    from routes.crew_routes import crew_bp
+    from routes.incident_ticket_routes import incident_ticket_bp
+    from routes.incident_photo_routes import incident_photo_bp
     from routes.photos import photos_bp
     from routes.import_routes import import_bp
     from routes.export_routes import export_bp
@@ -31,7 +36,12 @@ def create_blueprints():
         engines_bp,
         knowledge_bp,
         equipment_bp,
+        equipment_photo_bp,
         ticket_bp,
+        location_bp,
+        crew_bp,
+        incident_ticket_bp,
+        incident_photo_bp,
         photos_bp,
         import_bp,
         export_bp,

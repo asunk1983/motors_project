@@ -7,6 +7,8 @@ equipment_type_attribute, equipment).
 import json
 from datetime import datetime
 
+from repositories import location_repo
+
 
 def _row_to_dict(row):
     if row is None:
@@ -121,7 +123,7 @@ def get_assigned_attributes(conn, type_id: int):
     для экрана-конструктора, где видно, что настроено конкретно тут."""
     cur = conn.cursor()
     cur.execute('''
-        SELECT ad.*, eta.is_required, eta.weight_override
+        SELECT ad.*, eta.is_required, eta.weight_override, eta.show_in_list
         FROM equipment_type_attribute eta
         JOIN attribute_definition ad ON ad.id = eta.attribute_definition_id
         WHERE eta.equipment_type_id = ?
@@ -164,22 +166,34 @@ def get_effective_attributes(conn, type_id: int):
     return result
 
 
+def get_show_in_list_attributes(conn, type_id: int):
+    """Атрибуты типа (С УЧЁТОМ наследования), отмеченные show_in_list —
+    ТЗ раздел 3.2: становятся динамическими колонками таблицы
+    номенклатуры, когда фильтр "Тип" сужен до конкретного типа."""
+    return [
+        {'key': a['key'], 'label': a['label'], 'unit': a.get('unit')}
+        for a in get_effective_attributes(conn, type_id)
+        if a.get('show_in_list')
+    ]
+
+
 def set_type_attributes(conn, type_id: int, assignments: list) -> None:
     """Полная замена набора атрибутов типа — DELETE+INSERT, тот же
     паттерн, что replace_all в mode_repo/work_repo и
     _replace_article_causes в knowledge_repo.
     assignments: [{'attribute_definition_id': int, 'is_required': bool,
-                    'weight_override': int|None}, ...]
+                    'weight_override': int|None, 'show_in_list': bool}, ...]
     """
     cur = conn.cursor()
     cur.execute('DELETE FROM equipment_type_attribute WHERE equipment_type_id = ?', (type_id,))
     if assignments:
         cur.executemany('''
             INSERT INTO equipment_type_attribute
-                (equipment_type_id, attribute_definition_id, is_required, weight_override)
-            VALUES (?, ?, ?, ?)
+                (equipment_type_id, attribute_definition_id, is_required, weight_override, show_in_list)
+            VALUES (?, ?, ?, ?, ?)
         ''', [
-            (type_id, a['attribute_definition_id'], int(bool(a.get('is_required'))), a.get('weight_override'))
+            (type_id, a['attribute_definition_id'], int(bool(a.get('is_required'))), a.get('weight_override'),
+             int(bool(a.get('show_in_list'))))
             for a in assignments
         ])
     conn.commit()
@@ -192,9 +206,11 @@ def set_type_attributes(conn, type_id: int, assignments: list) -> None:
 def get_equipment_by_id(conn, equipment_id: int):
     cur = conn.cursor()
     cur.execute('''
-        SELECT e.*, et.name AS equipment_type_name, et.code AS equipment_type_code
+        SELECT e.*, et.name AS equipment_type_name, et.code AS equipment_type_code,
+               ln.name AS location_name
         FROM equipment e
         JOIN equipment_type et ON et.id = e.equipment_type_id
+        LEFT JOIN location_node ln ON ln.id = e.location_node_id
         WHERE e.id = ?
     ''', (equipment_id,))
     row = _row_to_dict(cur.fetchone())
@@ -204,7 +220,42 @@ def get_equipment_by_id(conn, equipment_id: int):
     return row
 
 
-def list_equipment(conn, equipment_type_id=None, search: str = ''):
+EQUIPMENT_SORT_COLUMNS = {
+    'name': 'e.name',
+    'equipment_type_name': 'et.name',
+    'article': 'e.article',
+    'criticality': 'e.criticality',
+}
+
+
+def list_equipment(conn, equipment_type_id=None, search: str = '', location_node_id=None,
+                    sort: str = None, order: str = 'desc', attr_filters: dict = None):
+    """location_node_id — фильтр "этот узел дерева мест и всё, что ниже"
+    (ТЗ раздел 3.1): разворачиваем в список id через
+    location_repo.get_subtree_ids() и фильтруем WHERE ... IN (...), а не
+    точным совпадением — клик по цеху должен находить оборудование во
+    ВСЕХ вложенных узлах (установках/секциях/зонах), не только
+    привязанное буквально к самому цеху.
+
+    sort/order — ТЗ раздел 3.2: whitelist колонок (EQUIPMENT_SORT_COLUMNS)
+    во избежание SQL-инъекции через имя колонки (нельзя параметризовать
+    идентификатор колонки через placeholder, только через явную сверку
+    со списком разрешённых). Намеренно НЕТ сортировки по месту
+    (workshop/location_node.name) — см. комментарий в ТЗ: workshop
+    переходное поле, не гарантированно заполнено у новых записей, а
+    навигация по месту уже полностью закрыта деревом слева (3.1).
+
+    attr_filters — ТЗ раздел 3.4: {attribute_key: value}, ключи должны
+    быть УЖЕ провалидированы ВЫЗЫВАЮЩИМ (routes-слой, сверка против
+    get_effective_attributes(type_id)) до передачи сюда — этот
+    репозиторий сам ничего не валидирует (по конвенции проекта —
+    репозитории только SQL). json_extract() второй аргумент (путь)
+    строится через конкатенацию `'$.' || ?` — это ОБЫЧНОЕ выражение
+    SQLite, значение пути передаётся как параметризованный bind (не
+    склеено вручную в SQL-строку), инъекция через сам ключ невозможна
+    даже без валидации на уровне routes; валидация нужна для другого —
+    не пускать в фильтр атрибуты, которые вообще не принадлежат этому
+    типу (семантическая, а не security-защита)."""
     cur = conn.cursor()
     conditions = []
     params = []
@@ -214,13 +265,31 @@ def list_equipment(conn, equipment_type_id=None, search: str = ''):
     if search:
         conditions.append('(e.name LIKE ? OR e.article LIKE ? OR e.serial_number LIKE ?)')
         params += [f'%{search}%'] * 3
+    if location_node_id:
+        subtree_ids = location_repo.get_subtree_ids(conn, location_node_id)
+        if not subtree_ids:
+            return []
+        placeholders = ','.join('?' * len(subtree_ids))
+        conditions.append(f'e.location_node_id IN ({placeholders})')
+        params += subtree_ids
+    for key, value in (attr_filters or {}).items():
+        conditions.append("json_extract(e.specs_json, '$.' || ?) = ?")
+        params += [key, value]
     where_clause = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
+
+    if sort in EQUIPMENT_SORT_COLUMNS:
+        order_sql = 'ASC' if str(order).lower() == 'asc' else 'DESC'
+        order_clause = f'ORDER BY {EQUIPMENT_SORT_COLUMNS[sort]} {order_sql}'
+    else:
+        order_clause = 'ORDER BY e.updated_at DESC'
+
     cur.execute(f'''
-        SELECT e.*, et.name AS equipment_type_name
+        SELECT e.*, et.name AS equipment_type_name, ln.name AS location_name
         FROM equipment e
         JOIN equipment_type et ON et.id = e.equipment_type_id
+        LEFT JOIN location_node ln ON ln.id = e.location_node_id
         {where_clause}
-        ORDER BY e.updated_at DESC
+        {order_clause}
     ''', params)
     result = []
     for row in cur.fetchall():
@@ -230,18 +299,34 @@ def list_equipment(conn, equipment_type_id=None, search: str = ''):
     return result
 
 
+def get_equipment_location_counts(conn) -> dict:
+    """{location_node_id: count} — только СОБСТВЕННЫЕ счётчики узлов
+    (сколько оборудования привязано ИМЕННО к этому узлу), без
+    суммирования по поддереву — суммирование вверх по дереву делает
+    фронтенд (equipmentLocationTree.js::_equipmentSubtreeCount), т.к.
+    дерево уже загружено там целиком и пересчитывать на каждый клик
+    дешевле в памяти браузера, чем гонять рекурсивный SQL на каждый
+    рендер дерева."""
+    cur = conn.cursor()
+    cur.execute(
+        'SELECT location_node_id, COUNT(*) as cnt FROM equipment '
+        'WHERE location_node_id IS NOT NULL GROUP BY location_node_id'
+    )
+    return {row['location_node_id']: row['cnt'] for row in cur.fetchall()}
+
+
 def create_equipment(conn, data: dict) -> int:
     now = datetime.now().isoformat()
     cur = conn.cursor()
     cur.execute('''
         INSERT INTO equipment
             (equipment_type_id, name, article, manufacturer, serial_number,
-             workshop, location, firmware_version, criticality, installed_at,
+             workshop, location, location_node_id, firmware_version, criticality, installed_at,
              specs_json, note, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
-        data.get('serial_number'), data.get('workshop'), data.get('location'),
+        data.get('serial_number'), data.get('workshop'), data.get('location'), data.get('location_node_id'),
         data.get('firmware_version'), data.get('criticality'), data.get('installed_at'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, now,
     ))
@@ -255,12 +340,12 @@ def update_equipment(conn, equipment_id: int, data: dict) -> bool:
     cur.execute('''
         UPDATE equipment SET
             equipment_type_id = ?, name = ?, article = ?, manufacturer = ?, serial_number = ?,
-            workshop = ?, location = ?, firmware_version = ?, criticality = ?, installed_at = ?,
+            workshop = ?, location = ?, location_node_id = ?, firmware_version = ?, criticality = ?, installed_at = ?,
             specs_json = ?, note = ?, updated_at = ?
         WHERE id = ?
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
-        data.get('serial_number'), data.get('workshop'), data.get('location'),
+        data.get('serial_number'), data.get('workshop'), data.get('location'), data.get('location_node_id'),
         data.get('firmware_version'), data.get('criticality'), data.get('installed_at'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, equipment_id,
     ))
@@ -268,8 +353,107 @@ def update_equipment(conn, equipment_id: int, data: dict) -> bool:
     return cur.rowcount > 0
 
 
+def equipment_referenced_by_incidents(conn, equipment_id: int) -> bool:
+    """Guard для удаления: оборудование привязано хотя бы к одной заявке
+    Инцидента (incident_ticket_equipment). Найдено при финальной
+    совместной приёмке модулей: incident_ticket_equipment.equipment_id
+    объявлен REFERENCES equipment(id) БЕЗ ON DELETE CASCADE/SET NULL, а
+    PRAGMA foreign_keys=ON включён — без этой проверки прямое удаление
+    оборудования, на которое ссылается живая заявка, падало сырым
+    `sqlite3.IntegrityError: FOREIGN KEY constraint failed` (500), а не
+    понятным сообщением пользователю."""
+    cur = conn.execute(
+        'SELECT 1 FROM incident_ticket_equipment WHERE equipment_id = ? LIMIT 1', (equipment_id,)
+    )
+    return cur.fetchone() is not None
+
+
 def delete_equipment(conn, equipment_id: int) -> bool:
     cur = conn.cursor()
     cur.execute('DELETE FROM equipment WHERE id = ?', (equipment_id,))
     conn.commit()
     return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------
+# Учёт ЗИП (ТЗ раздел 3.7) — ЗИП это тоже equipment, просто с особым
+# местом (node_type='warehouse'). Отдельной таблицы склада нет.
+# ---------------------------------------------------------------------
+
+def get_stock_summary(conn):
+    """Сводка по типам оборудования: сколько всего/в эксплуатации/в
+    ЗИП/не размещено + дефицит против нормы.
+
+    Начинаем с equipment_type (не с equipment) — иначе типы с заданной
+    min_stock_qty, но без единиц в базе, выпали бы из сводки. Ровно один
+    склад — соглашение, не enforced constraint (см. ТЗ): если случайно
+    помечено НЕСКОЛЬКО узлов node_type='warehouse', суммируем поддеревья
+    всех, не падаем и не выбираем "первый попавшийся"."""
+    warehouse_rows = conn.execute(
+        "SELECT id FROM location_node WHERE node_type = 'warehouse'"
+    ).fetchall()
+    warehouse_subtree_ids = set()
+    for row in warehouse_rows:
+        warehouse_subtree_ids.update(location_repo.get_subtree_ids(conn, row['id']))
+
+    types = conn.execute(
+        'SELECT id, code, name, min_stock_qty FROM equipment_type ORDER BY name'
+    ).fetchall()
+
+    result = []
+    for t in types:
+        total = conn.execute(
+            'SELECT COUNT(*) AS c FROM equipment WHERE equipment_type_id = ?', (t['id'],)
+        ).fetchone()['c']
+        unlocated = conn.execute(
+            'SELECT COUNT(*) AS c FROM equipment WHERE equipment_type_id = ? AND location_node_id IS NULL',
+            (t['id'],)
+        ).fetchone()['c']
+
+        if warehouse_subtree_ids:
+            placeholders = ','.join('?' * len(warehouse_subtree_ids))
+            in_stock = conn.execute(
+                f'SELECT COUNT(*) AS c FROM equipment WHERE equipment_type_id = ? '
+                f'AND location_node_id IN ({placeholders})',
+                [t['id']] + list(warehouse_subtree_ids)
+            ).fetchone()['c']
+        else:
+            in_stock = 0
+
+        # in_use — остаток, а не отдельный COUNT: unlocated (место не
+        # указано) НЕ должно молча попадать в "в эксплуатации" — иначе
+        # искажается картина "всё занято" для старых немигрированных
+        # записей (см. ТЗ, пояснение к этому разделу).
+        in_use = total - in_stock - unlocated
+
+        deficit = None
+        if t['min_stock_qty'] is not None:
+            deficit = max(0, t['min_stock_qty'] - in_stock)
+
+        result.append({
+            'equipment_type_id': t['id'],
+            'code': t['code'],
+            'name': t['name'],
+            'total': total,
+            'in_use': in_use,
+            'in_stock': in_stock,
+            'unlocated': unlocated,
+            'min_stock_qty': t['min_stock_qty'],
+            'deficit': deficit,
+        })
+    return result
+
+
+def update_equipment_type_min_stock_qty(conn, type_id: int, min_stock_qty) -> bool:
+    """min_stock_qty может быть None (норма не задана — отличается от 0
+    = "норма ноль, докупать не нужно")."""
+    cur = conn.cursor()
+    cur.execute('UPDATE equipment_type SET min_stock_qty = ? WHERE id = ?', (min_stock_qty, type_id))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def count_all(conn) -> int:
+    """Общее количество записей оборудования — ТЗ раздел 4 (дашборд-
+    счётчики). Тот же принцип, что count_all в incident_ticket_repo."""
+    return conn.execute('SELECT COUNT(*) AS c FROM equipment').fetchone()['c']

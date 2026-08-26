@@ -1962,3 +1962,157 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 }
 .work-entry .w-title { font-weight: 600; margin-bottom: 2px; }
 .work-entry .w-meta { color: var(--color-text-muted); font-size: 11.5px; }
+/* =====================================================================
+   МОДУЛЬ "ИНЦИДЕНТЫ" — namespaced классы incident-*, НЕ переиспользуют
+   .priority-*/.status-* из ticket.js (тот модуль про формализованный
+   ремонт двигателя, этот — свободный журнал диагностики; см. CLAUDE.md
+   "модули не смешиваются"). Добавить в конец style.css.
+   ===================================================================== */
+
+/* ---- Бейджи в таблице журнала ---- */
+.incident-priority-badge, .incident-status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.incident-priority-low { background: var(--color-bg-subtle); color: var(--color-text-muted); }
+.incident-priority-medium { background: var(--color-warning-bg); color: var(--color-warning); }
+.incident-priority-high { background: var(--color-danger-bg); color: var(--color-danger); }
+.incident-status-in_progress { background: var(--color-accent-bg-subtle); color: var(--color-accent); }
+.incident-status-resolved { background: var(--color-secondary-bg-subtle); color: var(--color-secondary); }
+.incident-status-rejected { background: var(--color-danger-bg); color: var(--color-danger); }
+
+/* ---- Приоритет: 3 кружка (форма заявки) ---- */
+.incident-priority-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    border: 2px solid var(--color-border);
+    cursor: pointer;
+    background: var(--color-bg-card);
+    transition: transform 0.1s, box-shadow 0.15s;
+}
+.incident-priority-dot:hover { transform: scale(1.08); }
+.incident-priority-dot.incident-priority-low { background: var(--color-text-muted); border-color: var(--color-text-muted); }
+.incident-priority-dot.incident-priority-medium { background: var(--color-warning); border-color: var(--color-warning); }
+.incident-priority-dot.incident-priority-high { background: var(--color-danger); border-color: var(--color-danger); }
+.incident-priority-dot.selected { box-shadow: 0 0 0 3px rgba(67,56,202,0.25); }
+
+/* ---- Статус: 3 пилюли (форма заявки) ---- */
+.incident-status-pill {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--color-border);
+    background: var(--color-bg-card);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    cursor: pointer;
+}
+.incident-status-pill.selected.incident-status-in_progress { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+.incident-status-pill.selected.incident-status-resolved { background: var(--color-secondary); border-color: var(--color-secondary); color: #fff; }
+.incident-status-pill.selected.incident-status-rejected { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
+
+.incident-picker-row { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
+
+/* ---- Тег-инпут (Инициаторы/Исполнители/Оборудование) ----
+   Общий класс crew-tag-input используется и для Crew, и (через те же
+   чипы) для списка привязанного оборудования в incidents.js — то же
+   визуальное поведение, разный источник данных. */
+.crew-tag-input {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-card);
+}
+.crew-tag-input input {
+    flex: 1;
+    min-width: 140px;
+    border: none;
+    outline: none;
+    font-size: var(--text-sm);
+    background: transparent;
+    color: var(--color-text-dark);
+}
+.crew-tag-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.crew-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--color-accent-bg-subtle);
+    color: var(--color-accent);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-full);
+    font-size: var(--text-sm);
+}
+.crew-tag-remove {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    font-size: var(--text-md);
+    line-height: 1;
+    padding: 0;
+}
+.crew-tag-remove:hover { color: var(--color-danger); }
+
+/* ---- Пункты автопоиска сущностей (attachEntitySuggest, common.js) ---- */
+.entity-suggest-item { display: flex; justify-content: space-between; gap: var(--space-3); }
+.entity-suggest-sublabel { color: var(--color-text-muted); font-size: var(--text-xs); }
+.entity-suggest-create { color: var(--color-accent); font-weight: 600; }
+
+/* =====================================================================
+   ДЕРЕВО МЕСТ НА ВКЛАДКЕ "ОБОРУДОВАНИЕ" (ТЗ раздел 3.1)
+   .catalog-layout/.tree-panel уже общие классы (см. основной style.css),
+   но их полноценное flex-растяжение на всю высоту вкладки завязано на
+   #tab-catalog.active { display:flex; height:100%; ... } — правило
+   специфично для ID каталога и не применяется к #tab-equipment. Здесь —
+   тот же паттерн, но заведённый через info-subtab-content (подвкладка
+   "Номенклатура" — единственная, которой это нужно; "Конструктор"
+   остаётся обычным блочным потоком, как раньше).
+   ===================================================================== */
+#equipmentSubtab-list.active {
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+}
+#equipmentSubtab-list.active .catalog-layout {
+    flex: 1;
+    min-height: 0;
+}
+#equipmentLocationTreePanel {
+    max-height: 600px;
+}
+
+/* =====================================================================
+   УЧЁТ ЗИП (вкладка Оборудование, подвкладка "Учёт ЗИП", ТЗ 3.7)
+   ===================================================================== */
+.stock-deficit-row {
+    background: var(--color-danger-bg);
+}
+.stock-deficit-value {
+    color: var(--color-danger);
+    font-weight: 600;
+}
+.stock-min-qty-input {
+    width: 70px;
+    padding: 4px 6px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-sans);
+    font-size: var(--text-sm);
+    background: var(--color-bg-card);
+    color: var(--color-text-dark);
+}
+.stock-min-qty-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px rgba(67,56,202,0.12);
+}
