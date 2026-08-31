@@ -713,6 +713,27 @@ body.role-reader .write-action {
     color: var(--color-accent);
     background: rgba(67,56,202,0.12);
 }
+/* ---- Тёмная тема: текст ВЫБРАННОГО пункта дерева — добавлено ----
+   В светлой теме активный пункт дерева (.tree-root.active/.tree-workshop.active/
+   .tree-location.active и их .tree-count-chip) красится в var(--color-accent)
+   (индиго #4338CA) — на белой подложке читается нормально. В тёмной теме
+   тот же индиго на тёмном фоне выглядит уже скорее синим и не даёт
+   привычного контраста активного состояния — переопределяем текст на
+   белый, оставляя ту же индиго-подложку (rgba(67,56,202,0.1/0.12)) —
+   она и так работает как индикатор выбора независимо от цвета текста.
+   var(--color-accent) как переменную не трогаем: она используется и вне
+   контекста "выбрано" (чипы, бейджи, кнопка "+" при hover и т.п.), где
+   белый текст был бы неуместен. */
+:root[data-theme="dark"] .tree-root.active,
+:root[data-theme="dark"] .tree-workshop.active,
+:root[data-theme="dark"] .tree-location.active {
+    color: #fff;
+}
+:root[data-theme="dark"] .tree-root.active .tree-count-chip,
+:root[data-theme="dark"] .tree-workshop.active .tree-count-chip,
+:root[data-theme="dark"] .tree-location.active .tree-count-chip {
+    color: #fff;
+}
 /* Обратная совместимость: старое имя класса (на случай, если где-то в
    кэшированной разметке/расширениях остался .tree-location-count) —
    тот же внешний вид, что и .tree-count-chip, просто алиас. */

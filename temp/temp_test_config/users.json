@@ -1,9 +1,0 @@
-[
-  {
-    "id": 1000000000,
-    "username": "test_admin_6eeaa87c",
-    "password_hash": "scrypt:32768:8:1$Idtu5wwso904lpDG$9c4297eb816316c51b15091dc9f9283ee08eb45e1aec76cc4a5d5bb39b964f8137ed2d21136136e5109efe172ad2892019b3cfc22a58eb923511e12fe0b8cde3",
-    "role": "admin",
-    "created_at": "2026-07-21T13:25:46.353538"
-  }
-]
