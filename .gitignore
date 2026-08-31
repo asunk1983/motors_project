@@ -1,33 +1,23 @@
-# --- Динамические данные (создаются на сервере) ---
-engine_data.db
-*.db
-*.sqlite3
-import_log.txt
-*.log
-photos/
-backups/
-backup_staging/
-motors/
-
-# --- Виртуальное окружение ---
 venv/
 .venv/
-env/
-
-# --- Python-кэш и компилированные файлы ---
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# --- IDE и системные файлы ---
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db
+*.db
+*.log
+backups/
+backup_staging/
+temp/
+motors/
+photos/
+PhotoE/
+*.rar
+*.zip
+config/tokens.json
+config/users.json
+version.txt
+import_log.txt
+.claude/
+.claudeignore
+CLAUDE.md
 
 docs/
-tests/
-get-pip.py
-config/
-
