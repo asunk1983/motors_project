@@ -16,3 +16,6 @@ config/tokens.json
 config/users.json
 version.txt
 import_log.txt
+.claude/
+.claudeignore
+CLAUDE.md
