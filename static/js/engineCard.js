@@ -228,7 +228,6 @@ function renderDetailContent() {
     // read-only строк) — это заодно убирает баг с задвоением номера
     // при добавлении нескольких строк подряд без сохранения.
     html += `<div class="detail-subsection-header"><h4><span class="icon icon-build"></span> Произведенные работы</h4>
-        ${isEdit ? '<button type="button" class="btn btn-success btn-sm" onclick="addWorkRowInline()"><span class="icon icon-add"></span> Добавить</button>' : ''}
     </div>`;
     if (isEdit) {
         html += '<div class="table-wrapper"><table class="data-table works-table"><thead><tr>';
@@ -256,6 +255,11 @@ function renderDetailContent() {
             html += '<tr><td colspan="8" class="no-data">Не было произведено работ</td></tr>';
         }
         html += '</tbody></table></div>';
+        // Кнопка "Добавить" — под таблицей, а не в заголовке секции: при
+        // большом списке работ заголовок уходит далеко вверх при скролле,
+        // и до кнопки было не дотянуться, не мотая наверх. Снизу она
+        // всегда рядом с последней строкой, куда и добавляется новая.
+        html += '<div class="detail-subsection-footer"><button type="button" class="btn btn-success btn-sm" onclick="addWorkRowInline()"><span class="icon icon-add"></span> Добавить</button></div>';
     } else if (data.works && data.works.length > 0) {
         html += '<div class="table-wrapper"><table class="data-table"><thead><tr>';
         html += '<th>№ п/п</th><th>Дата</th><th>Вид производимых работ</th><th>Сопротивление изоляции, ГОм</th><th>Внешний осмотр и проверка работы</th><th>ФИО исполнителя</th><th>Статус</th>';

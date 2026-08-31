@@ -1304,6 +1304,11 @@ mark.search-highlight {
 }
 .detail-subsection-header h4 { font-size: var(--text-lg); color: var(--color-text-dark); margin: 0; }
 .detail-edit-actions { display: flex; gap: var(--space-2); }
+
+/* Кнопка "Добавить" под таблицей (см. "Произведённые работы") — рядом
+   с последней строкой, а не в заголовке секции вверху, чтобы не мотать
+   скролл наверх при длинном списке. */
+.detail-subsection-footer { margin-top: var(--space-2); }
  
 .detail-grid {
     display: grid;
