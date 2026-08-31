@@ -56,6 +56,15 @@ body {
     background: #fff;
     padding: 32px 40px;
 }
+.print-doc-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-align: center;
+    color: #1B365D;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+}
 .print-header {
     display: flex;
     justify-content: space-between;
@@ -101,8 +110,9 @@ body {
 .print-field-value { font-weight: 500; word-break: break-word; }
 
 .print-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.print-table th, .print-table td { border: 1px solid #D0D5DD; padding: 4px 6px; text-align: left; }
+.print-table th, .print-table td { border: 1px solid #D0D5DD; padding: 4px 6px; text-align: left; color: #1F2937; }
 .print-table th { background: #F3F4F6; font-weight: 600; }
+.print-table td:first-child { font-weight: 600; color: #1F2937; }
 
 .print-photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .print-photo { width: 100%; height: 140px; object-fit: cover; border: 1px solid #D0D5DD; border-radius: 4px; }
@@ -110,12 +120,21 @@ body {
 /* ===== Печать ===== */
 @media print {
     .no-print { display: none !important; }
+    .print-toolbar { display: none !important; }
     body { background: #fff; }
     .print-page { max-width: none; padding: 0; margin: 0; }
-    .print-section { break-inside: avoid; }
+    /* Секции с таблицами (Режимы/Работы) НЕ держим целиком неразрывными —
+       иначе браузер, видя что вся секция не влезает на остаток страницы,
+       переносит её ЦЕЛИКОМ на следующую (а не разрывает таблицу), оставляя
+       большую пустую область внизу текущей страницы. Пусть таблица сама
+       начинается там, где есть место, и продолжается на следующей —
+       разрывы строк (.print-table tr) всё равно защищены отдельно ниже. */
+    .print-section { break-inside: auto; }
     .print-photos { break-inside: avoid; }
     .print-table { break-inside: auto; }
+    .print-table thead { display: table-header-group; }
     .print-table tr { break-inside: avoid; }
+    .print-section-title { break-after: avoid; }
     /* Фото светлее только при реальной печати/в PDF — экономия чернил на
        тёмных участках снимков. На экране (предпросмотр до печати) фото
        остаются как есть, фильтр применяется только внутри @media print. */

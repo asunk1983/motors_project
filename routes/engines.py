@@ -11,6 +11,7 @@ from repositories.engine_repo import (
     get_by_id, get_with_details, get_all, count_all, get_locations_tree,
     create as engine_create, update as engine_update,
     delete as engine_delete, update_photo_count,
+    update_status as engine_update_status, VALID_STATUSES,
 )
 from repositories.mode_repo import replace_all as replace_modes
 from repositories.work_repo import replace_all as replace_works
@@ -32,6 +33,10 @@ def list_engines():
         # (фильтр не активен), и '' если передан пустой (узел "Без цеха").
         workshop = request.args.get('workshop', None)
         location = request.args.get('location', None)
+        # Фильтр по эксплуатационному статусу — точный, не комбинируется с
+        # search по колонке 'status' (её и нет в списке текстового поиска),
+        # только с обычным фильтром по месту/тексту, как workshop/location.
+        status = request.args.get('status', None)
 
         # Собираем внутренний параметр сортировки из sort_by + sort_order
         # (front отправляет их отдельными параметрами, а repository
@@ -42,7 +47,7 @@ def list_engines():
         with db_connection() as conn:
             engines = get_all(conn, limit=10000, offset=0, sort=sort,
                               search_field=search_field, search_query=search,
-                              workshop=workshop, location=location)
+                              workshop=workshop, location=location, status=status)
 
         return jsonify(engines)
     except Exception as e:
@@ -146,6 +151,25 @@ def delete_engine(engine_id):
         return jsonify({'success': True, 'message': 'Двигатель удалён'})
     except Exception as e:
         logger.exception('delete_engine failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@engines_bp.route('/engine/<int:engine_id>/status', methods=['PATCH'])
+def set_engine_status(engine_id):
+    try:
+        data = request.json or {}
+        status = data.get('status')
+        if status not in VALID_STATUSES:
+            return jsonify({'error': f'Статус должен быть одним из: {", ".join(VALID_STATUSES)}'}), 400
+
+        with db_connection() as conn:
+            if not get_by_id(conn, engine_id):
+                return jsonify({'error': 'Двигатель не найден'}), 404
+            engine_update_status(conn, engine_id, status)
+
+        return jsonify({'success': True, 'status': status, 'message': 'Статус обновлён'})
+    except Exception as e:
+        logger.exception('set_engine_status failed')
         return jsonify({'error': str(e)}), 500
 
 

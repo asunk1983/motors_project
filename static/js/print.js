@@ -36,7 +36,7 @@ function renderModesTable(modes) {
         </tr>
     `).join('');
     return `<table class="print-table">
-        <thead><tr><th>#</th><th>Частота (Гц)</th><th>Мощность (кВт)</th><th>Напряжение (В)</th><th>Тип подключения</th><th>Ток (А)</th><th>Обороты (об/мин)</th></tr></thead>
+        <thead><tr><th>№</th><th>Частота (Гц)</th><th>Мощность (кВт)</th><th>Напряжение (В)</th><th>Тип подключения</th><th>Ток (А)</th><th>Обороты (об/мин)</th></tr></thead>
         <tbody>${rows}</tbody>
     </table>`;
 }
@@ -45,9 +45,8 @@ function renderWorksTable(works) {
     if (!works || works.length === 0) {
         return '<div class="no-data">Нет записей о работах</div>';
     }
-    const rows = works.map((w, i) => `
+    const rows = works.map((w) => `
         <tr>
-            <td>${i + 1}</td>
             <td>${escapeHtml(w.work_number) || '—'}</td>
             <td>${_formatRuDate(w.date) || '—'}</td>
             <td>${escapeHtml(w.work_description) || '—'}</td>
@@ -57,7 +56,7 @@ function renderWorksTable(works) {
         </tr>
     `).join('');
     return `<table class="print-table">
-        <thead><tr><th>#</th><th>№ работы</th><th>Дата</th><th>Вид работ</th><th>Сопр. изоляции</th><th>Осмотр</th><th>ФИО</th></tr></thead>
+        <thead><tr><th>№</th><th>Дата</th><th>Вид работ</th><th>Сопр. изоляции</th><th>Осмотр</th><th>ФИО</th></tr></thead>
         <tbody>${rows}</tbody>
     </table>`;
 }
@@ -80,6 +79,7 @@ function renderPage(engine, photos) {
 
     return `
 <div class="print-page">
+    <div class="print-doc-title">ПАСПОРТ ЭЛ.ДВИГАТЕЛЯ</div>
     <div class="print-header">
         <div>
             <div class="print-title">${escapeHtml(titleParts.join(' ')) || 'Двигатель'}</div>

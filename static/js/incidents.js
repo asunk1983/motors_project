@@ -10,6 +10,10 @@ const INCIDENT_STATUS_LABEL = { in_progress: 'В работе', resolved: 'Ре�
 
 let incidentsList = [];
 let currentIncidentId = null;
+// Данные открытой заявки (для тулбара: даты/счётчик/навигация) —
+// тот же принцип, что currentEngineData в engineCard.js/equipmentDetailData
+// в equipment.js. null, пока не загружена (или в режиме создания).
+let currentIncidentData = null;
 let incidentLocationPicker = null;
 let incidentInitiatorsTag = null;
 let incidentExecutorsTag = null;
@@ -25,6 +29,7 @@ let incidentSelectedExportIds = new Set();
 // ===== ВКЛАДКА / ПОДВКЛАДКИ =====
 
 function loadIncidentsTab() {
+    if (typeof loadIncidentLocationTree === 'function') loadIncidentLocationTree();
     loadIncidentsList();
 }
 
@@ -52,6 +57,13 @@ function loadIncidentsList() {
     const params = new URLSearchParams();
     if (status) params.set('status', status);
     if (priority) params.set('priority', priority);
+    // incidentActiveLocationId — выбранный узел в боковом дереве
+    // (incidentLocationTree.js). null означает "фильтр снят" (корень
+    // "Все заявки"), поэтому проверяем именно на null, а не на falsy —
+    // 0 тоже валидный id узла (хотя в SQLite автоинкремент начинается
+    // с 1, ноль как id теоретически невозможен, но проверка на null,
+    // а не truthy, тут просто корректнее по смыслу).
+    if (incidentActiveLocationId !== null) params.set('location_node_id', incidentActiveLocationId);
 
     const body = document.getElementById('incidentsListBody');
     if (body) body.innerHTML = '<tr><td colspan="7" class="no-data">Загрузка...</td></tr>';
@@ -167,20 +179,16 @@ function exportSelectedIncidents() {
 
 function openIncidentModal(id) {
     currentIncidentId = id || null;
+    currentIncidentData = null;
     resetIncidentForm();
 
     const titleEl = document.getElementById('incidentModalTitle');
-    const deleteBtn = document.getElementById('incidentDeleteBtn');
-    const printBtn = document.getElementById('incidentPrintBtn');
     const photosSection = document.getElementById('incidentPhotosEditSection');
     const photosCreateSection = document.getElementById('incidentPhotosCreateSection');
     const linksEditSection = document.getElementById('incidentLinksEditSection');
     const linksCreateSection = document.getElementById('incidentLinksCreateSection');
 
     const isEdit = !!currentIncidentId;
-    const currentUser = (typeof getAuthUser === 'function') ? getAuthUser() : {};
-    if (deleteBtn) deleteBtn.style.display = (isEdit && currentUser.role === 'superadmin') ? '' : 'none';
-    if (printBtn) printBtn.style.display = isEdit ? '' : 'none';
     if (photosSection) photosSection.style.display = isEdit ? '' : 'none';
     if (photosCreateSection) photosCreateSection.style.display = isEdit ? 'none' : '';
     if (linksEditSection) linksEditSection.style.display = isEdit ? '' : 'none';
@@ -188,12 +196,16 @@ function openIncidentModal(id) {
 
     if (!isEdit) {
         titleEl.innerHTML = '<span class="icon icon-warning"></span> Новая заявка';
+        // Ещё не сохранённая заявка — листать/печатать/датировать нечего
+        // (тот же принцип, что и у "🆕 Новый двигатель"/нового оборудования).
+        renderIncidentDetailToolbar();
         document.getElementById('incidentTicketModal').classList.add('active');
         document.body.classList.add('modal-open');
         return;
     }
 
     titleEl.innerHTML = `<span class="icon icon-warning"></span> Заявка №${id}`;
+    renderIncidentDetailToolbar();
     document.getElementById('incidentTicketModal').classList.add('active');
     document.body.classList.add('modal-open');
 
@@ -205,9 +217,73 @@ function openIncidentModal(id) {
                 closeIncidentModal();
                 return;
             }
+            currentIncidentData = data;
             fillIncidentForm(data);
+            renderIncidentDetailToolbar();
         })
         .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
+}
+
+// ===== ТУЛБАР КАРТОЧКИ (счётчик/даты/навигация) =====
+// По образцу renderDetailContent() в engineCard.js / renderEquipmentDetailToolbar()
+// в equipment.js. incidentsList — уже загруженный (текущим фильтром: статус/
+// приоритет/место) список заявок, тот же источник, что renderIncidentsList()
+// использует для таблицы журнала — навигация идёт по нему.
+function renderIncidentDetailToolbar() {
+    const toolbar = document.getElementById('incidentDetailToolbar');
+    if (!toolbar) return;
+    if (!currentIncidentId || !currentIncidentData) {
+        toolbar.innerHTML = '';
+        return;
+    }
+
+    const data = currentIncidentData;
+    const currentIndex = incidentsList.findIndex(t => t.id === data.id);
+    const total = incidentsList.length;
+    const currentUser = (typeof getAuthUser === 'function') ? getAuthUser() : {};
+    const canDelete = currentUser.role === 'superadmin';
+
+    const infoHtml = `
+        <span class="detail-toolbar-title"><span class="icon icon-warning"></span> Карточка заявки</span>
+        <span class="detail-toolbar-position">${currentIndex + 1} / ${total}</span>
+        <span class="detail-toolbar-dates">Изменено: ${formatRuDateTime(data.updated_at)} · Создано: ${formatRuDateTime(data.created_at)}</span>
+    `;
+
+    const navHtml = `
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigateIncident(-1)" ${currentIndex <= 0 ? 'disabled' : ''}>◀ Предыдущий</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigateIncident(1)" ${currentIndex === total - 1 ? 'disabled' : ''}>Следующий ▶</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); printIncident()"><span class="icon icon-print"></span> Печать</button>
+        ${canDelete ? '<button class="btn btn-danger btn-sm write-action" onclick="event.stopPropagation(); deleteCurrentIncident()"><span class="icon icon-delete"></span> Удалить</button>' : ''}
+    `;
+
+    toolbar.innerHTML = `<div class="detail-toolbar">
+        <div class="detail-toolbar-info">${infoHtml}</div>
+        <div class="detail-toolbar-nav">${navHtml}</div>
+    </div>`;
+}
+
+// Листание ◀ Предыдущий / Следующий ▶ по уже загруженному списку заявок
+// (incidentsList) — тот же принцип, что navigateEngine/navigateEquipment.
+function navigateIncident(direction) {
+    if (!currentIncidentData) return;
+    const currentIndex = incidentsList.findIndex(t => t.id === currentIncidentData.id);
+    if (currentIndex === -1) return;
+    const newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= incidentsList.length) return;
+    openIncidentModal(incidentsList[newIndex].id);
+}
+
+// Кнопка "+" у узла в боковом дереве мест (incidentLocationTree.js) —
+// тот же приём, что createEquipmentAtLocation в equipment.js: открыть
+// форму создания сразу с предзаполненным местом. openIncidentModal(null)
+// (ветка создания) синхронно возвращает управление после
+// resetIncidentForm() — attachLocationPicker уже готов к моменту вызова
+// setValue ниже (в отличие от openEquipmentModal, эта функция не async).
+function createIncidentAtLocation(nodeId, label) {
+    openIncidentModal(null);
+    if (incidentLocationPicker) {
+        incidentLocationPicker.setValue(nodeId, label);
+    }
 }
 
 function resetIncidentForm() {
@@ -228,6 +304,15 @@ function resetIncidentForm() {
     renderIncidentPendingPhotos();
 
     const locationInput = document.getElementById('incidentLocationInput');
+    // Модалка заявки переиспользует один и тот же <input> при каждом
+    // открытии — если не снять слушатели/DOM-обёртку предыдущего пикера,
+    // они накапливаются на inputEl (см. фикс в
+    // attachEntitySuggest/attachLocationPicker, common.js /
+    // incidentLocations.js), и клик по пункту списка приходится повторять
+    // по несколько раз, пока не попадёшь по актуальному "живому" слою.
+    if (incidentLocationPicker && incidentLocationPicker.destroy) {
+        incidentLocationPicker.destroy();
+    }
     locationInput.value = '';
     incidentLocationPicker = attachLocationPicker(locationInput, {});
 
@@ -271,6 +356,9 @@ function closeIncidentModal() {
         document.body.classList.remove('modal-open');
     }
     currentIncidentId = null;
+    currentIncidentData = null;
+    const toolbar = document.getElementById('incidentDetailToolbar');
+    if (toolbar) toolbar.innerHTML = '';
 }
 
 // ===== ПРИОРИТЕТ (3 кружка) / СТАТУС (3 пилюли) =====
@@ -512,7 +600,7 @@ function renderIncidentEditPhotos() {
     wrap.innerHTML = incidentEditPhotos.map(p => `
         <div class="photo-thumb">
             <img src="${authPhotoUrl(p.path)}" alt="Фото заявки">
-            <button type="button" class="photo-thumb-remove" onclick="deleteIncidentPhoto('${p.filename.replace(/'/g, "\\'")}')" title="Удалить"><span class="icon icon-close"></span></button>
+            <button type="button" class="photo-thumb-remove" onclick="deleteIncidentPhoto('${escapeAttr(p.filename)}')" title="Удалить"><span class="icon icon-close"></span></button>
         </div>
     `).join('');
 }
@@ -594,6 +682,7 @@ function submitIncident() {
                 showToast('Заявка обновлена', 'success', 'icon-check-circle');
                 closeIncidentModal();
                 loadIncidentsList();
+                if (typeof loadIncidentLocationTree === 'function') loadIncidentLocationTree();
             })
             .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
     } else {
@@ -621,6 +710,7 @@ function submitIncident() {
                     showToast('Заявка создана', 'success', 'icon-check-circle');
                     closeIncidentModal();
                     loadIncidentsList();
+                    if (typeof loadIncidentLocationTree === 'function') loadIncidentLocationTree();
                 });
             })
             .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
@@ -637,6 +727,7 @@ function deleteCurrentIncident() {
             showToast('Заявка удалена', 'success', 'icon-check-circle');
             closeIncidentModal();
             loadIncidentsList();
+            if (typeof loadIncidentLocationTree === 'function') loadIncidentLocationTree();
         })
         .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
@@ -645,3 +736,24 @@ function printIncident() {
     if (!currentIncidentId) return;
     window.open(`/print/incident/${currentIncidentId}`, '_blank');
 }
+
+// Enter сохраняет заявку — тот же принцип, что и Enter-сохранение для
+// оборудования (equipment.js) и для строк режимов/работ в engineCard.js.
+// Два исключения:
+// 1) e.defaultPrevented — Enter уже обработан автодополнением места
+//    (attachSuggestDropdown/attachEntitySuggest в common.js сами вызывают
+//    preventDefault при выборе подсказки из списка).
+// 2) поля добавления ссылки (incidentLinkUrlInput/incidentLinkCaptionInput) —
+//    у них своей кнопки/Enter-обработчика на добавление пока нет, но раз
+//    это обычный <input>, Enter в них не должен проваливаться в общий
+//    submit и случайно сохранять/закрывать всю заявку вместо (пока
+//    ручного, через кнопку) добавления ссылки.
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.defaultPrevented) return;
+    if (e.target.tagName !== 'INPUT') return; // не трогаем textarea (перенос строки) и select
+    const modal = document.getElementById('incidentTicketModal');
+    if (!modal || !modal.classList.contains('active')) return;
+    if (e.target.id === 'incidentLinkUrlInput' || e.target.id === 'incidentLinkCaptionInput') return;
+    e.preventDefault();
+    submitIncident();
+});

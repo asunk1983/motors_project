@@ -79,6 +79,7 @@ function switchTab(tabId) {
         searchInput.dispatchEvent(new Event('input'));
         searchFieldSelect.value = 'all';
         searchFieldSelect.dispatchEvent(new Event('change'));
+        document.getElementById('engineStatusFilter').value = '';
         resetLocationFilter();
     } else {
         if (tabId === 'import') updateStats();
@@ -182,6 +183,11 @@ function loadEngines() {
         url += `&location=${encodeURIComponent(activeLocation)}`;
     }
 
+    const statusFilter = document.getElementById('engineStatusFilter').value;
+    if (statusFilter) {
+        url += `&status=${encodeURIComponent(statusFilter)}`;
+    }
+
     apiFetch(url)
         .then(r => r.json())
         .then(data => {
@@ -201,6 +207,24 @@ function loadEngines() {
 }
 
 
+// ===== СТАТУС ДВИГАТЕЛЯ =====
+const ENGINE_STATUS_LABELS = {
+    work: 'В работе',
+    reserve: 'В резерве',
+    repair: 'В ремонте',
+};
+
+function engineStatusBadgeHtml(status) {
+    const key = ENGINE_STATUS_LABELS[status] ? status : 'work';
+    return `<span class="engine-status-badge engine-status-${key}">${ENGINE_STATUS_LABELS[key]}</span>`;
+}
+
+function onEngineStatusFilterChange() {
+    currentPage = 1;
+    loadEngines();
+}
+
+
 // ===== ТАБЛИЦА =====
 function renderTable() {
     const tbody = document.getElementById('tableBody');
@@ -209,7 +233,7 @@ function renderTable() {
     const pageData = allEngines.slice(start, end);
 
     if (!pageData || pageData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="no-data">Нет данных</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="no-data">Нет данных</td></tr>`;
         document.getElementById('pageInfo').textContent = 'Показано 0 из 0';
         return;
     }
@@ -218,6 +242,7 @@ function renderTable() {
         <tr class="clickable-row" onclick="showDetail(${e.id})" data-id="${e.id}">
             <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedEngineIds.has(e.id) ? 'checked' : ''} onchange="toggleEngineSelection(${e.id}, this.checked)"></td>
             <td><span class="badge-id">${e.id}</span></td>
+            <td>${engineStatusBadgeHtml(e.status)}</td>
             <td>${highlightMatch(e.location, currentSearchQuery) || '—'}</td>
             <td class="mono">${highlightMatch(e.engine_type, currentSearchQuery) || '—'}</td>
             <td class="mono mono-muted">${highlightMatch(e.serial_number, currentSearchQuery) || '—'}</td>

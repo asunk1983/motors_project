@@ -74,8 +74,8 @@ def validate_equipment_payload(data: dict):
 
 
 def sanitize_equipment_data(data: dict) -> dict:
-    fields = ('equipment_type_id', 'name', 'article', 'manufacturer', 'serial_number',
-              'workshop', 'location', 'location_node_id', 'firmware_version', 'criticality', 'installed_at',
+    fields = ('equipment_type_id', 'name', 'article', 'manufacturer',
+              'workshop', 'location', 'location_node_id', 'criticality', 'installed_at',
               'specs', 'note')
     clean = {k: data[k] for k in fields if k in data}
     if 'name' in clean:

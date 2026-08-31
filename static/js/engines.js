@@ -163,7 +163,21 @@ function attachFieldAutocomplete(inputEl, fieldName) {
 document.addEventListener('keydown', function(e) {
     const photoModal = document.getElementById('photoModal');
     const detailModal = document.getElementById('detailModal');
-    
+    // equipmentModal/incidentTicketModal — та же листалка ◀/▶, что и у
+    // карточки двигателя (запрошено вместе с унификацией шапки карточек,
+    // см. renderEquipmentDetailToolbar/renderIncidentDetailToolbar).
+    const equipmentModal = document.getElementById('equipmentModal');
+    const incidentModal = document.getElementById('incidentTicketModal');
+
+    // Если стрелками двигают курсор внутри текстового поля (input/textarea/
+    // contenteditable) — не перехватываем событие для листания карточек/фото,
+    // иначе введённый текст не сохраняется при смене карточки.
+    const activeTag = e.target.tagName;
+    const isEditableTarget = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || e.target.isContentEditable;
+    if (isEditableTarget && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        return;
+    }
+
     if (photoModal && photoModal.classList.contains('active')) {
         if (e.key === 'ArrowLeft') {
             e.preventDefault();
@@ -191,6 +205,34 @@ document.addEventListener('keydown', function(e) {
             }
         }
     }
+
+    if (equipmentModal && equipmentModal.classList.contains('active')) {
+        if (!photoModal || !photoModal.classList.contains('active')) {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                navigateEquipment(-1);
+                return;
+            }
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                navigateEquipment(1);
+                return;
+            }
+        }
+    }
+
+    if (incidentModal && incidentModal.classList.contains('active')) {
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            navigateIncident(-1);
+            return;
+        }
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            navigateIncident(1);
+            return;
+        }
+    }
     
     if (e.key === 'Escape') {
         if (photoModal && photoModal.classList.contains('active')) {
@@ -199,6 +241,14 @@ document.addEventListener('keydown', function(e) {
         }
         if (detailModal && detailModal.classList.contains('active')) {
             closeDetail();
+            return;
+        }
+        if (equipmentModal && equipmentModal.classList.contains('active')) {
+            closeEquipmentModal();
+            return;
+        }
+        if (incidentModal && incidentModal.classList.contains('active')) {
+            closeIncidentModal();
         }
     }
 });

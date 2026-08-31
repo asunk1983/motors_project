@@ -174,6 +174,28 @@ input, select, textarea {
     color: inherit;
     font-family: inherit;
 }
+
+/* ---- ФОН ДЛЯ "ГОЛЫХ" ПОЛЕЙ БЕЗ КЛАССА (fallback) ----
+   Раньше фон получали только поля с явными классами
+   (.search-input, .form-group input, .crew-tag-input input и т.п.) —
+   background: var(--color-bg-card) прописан точечно. Поля без такого
+   класса (например #newCrewName) фон не получали вовсе и оставались
+   с дефолтным белым фоном браузера. В светлой теме это было незаметно,
+   а в тёмной — вместе с правилом color: inherit выше давало светлый
+   текст на светлом (белом) фоне, то есть текст пропадал.
+   Это низкоспецифичное правило — если у поля уже есть свой класс
+   с background/border (например .crew-tag-input input, .search-input),
+   он побеждает по специфичности и это правило не мешает. Чекбоксы,
+   радио и прочие непереключаемые типы явно исключены, чтобы не портить
+   их нативный вид. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"]):not([type="range"]):not([type="color"]):not([type="image"]),
+select,
+textarea {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+}
  
 /* Клавиатурный фокус — обязателен, независимо от того, что не было в ТЗ.
    Заметный контур, но не ломающий плотную вёрстку. */
@@ -691,6 +713,27 @@ body.role-reader .write-action {
     color: var(--color-accent);
     background: rgba(67,56,202,0.12);
 }
+/* ---- Тёмная тема: текст ВЫБРАННОГО пункта дерева — добавлено ----
+   В светлой теме активный пункт дерева (.tree-root.active/.tree-workshop.active/
+   .tree-location.active и их .tree-count-chip) красится в var(--color-accent)
+   (индиго #4338CA) — на белой подложке читается нормально. В тёмной теме
+   тот же индиго на тёмном фоне выглядит уже скорее синим и не даёт
+   привычного контраста активного состояния — переопределяем текст на
+   белый, оставляя ту же индиго-подложку (rgba(67,56,202,0.1/0.12)) —
+   она и так работает как индикатор выбора независимо от цвета текста.
+   var(--color-accent) как переменную не трогаем: она используется и вне
+   контекста "выбрано" (чипы, бейджи, кнопка "+" при hover и т.п.), где
+   белый текст был бы неуместен. */
+:root[data-theme="dark"] .tree-root.active,
+:root[data-theme="dark"] .tree-workshop.active,
+:root[data-theme="dark"] .tree-location.active {
+    color: #fff;
+}
+:root[data-theme="dark"] .tree-root.active .tree-count-chip,
+:root[data-theme="dark"] .tree-workshop.active .tree-count-chip,
+:root[data-theme="dark"] .tree-location.active .tree-count-chip {
+    color: #fff;
+}
 /* Обратная совместимость: старое имя класса (на случай, если где-то в
    кэшированной разметке/расширениях остался .tree-location-count) —
    тот же внешний вид, что и .tree-count-chip, просто алиас. */
@@ -701,6 +744,34 @@ body.role-reader .write-action {
     display: flex;
     flex-direction: column;
     min-height: 0;
+}
+
+/* ===== РЕЗАЙЗЕР БОКОВЫХ ПАНЕЛЕЙ С ДЕРЕВОМ (common.js::initPanelResizer) =====
+   Общий класс для всех трёх похожих панелей (Каталог/Оборудование/
+   Инциденты) — сама логика перетаскивания в JS, здесь только полоса и
+   её подсветка. Курсор col-resize дублируется на body из JS во время
+   драга (см. initPanelResizer), здесь — для наведения в состоянии покоя. */
+.panel-resizer {
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 6px;
+    cursor: col-resize;
+    position: relative;
+}
+.panel-resizer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    transform: translateX(-50%);
+    background: var(--color-border);
+    transition: background-color .15s ease, width .15s ease;
+}
+.panel-resizer:hover::after {
+    background: var(--color-accent);
+    width: 3px;
 }
 
 .search-input, .sort-select, .search-field-select {
@@ -1090,11 +1161,15 @@ mark.search-highlight {
    рендера. 96vh вместо 90vh — та же идея по высоте. */
 .modal-lg { max-width: 1500px; max-height: 96vh; }
 
-/* ===== РУЧНОЙ РЕСАЙЗ И РАЗВОРОТ НА ВЕСЬ ЭКРАН (карточка двигателя) =====
-   Скопом только #detailModal, а не общий .modal-lg — этот класс делят
-   карточка двигателя и модалка обрезки фото (photoCropModal), и ресайз
-   контейнера с canvas для кропа не проверялся, поведение под вопросом,
-   поэтому туда это намеренно не распространяется.
+/* ===== РУЧНОЙ РЕСАЙЗ И РАЗВОРОТ НА ВЕСЬ ЭКРАН =====
+   Явный список ID (#detailModal, #equipmentModal, #incidentTicketModal),
+   а НЕ общий .modal-lg — этот класс делят также карточка двигателя и
+   модалка обрезки фото (photoCropModal), и ресайз контейнера с canvas
+   для кропа не проверялся, поведение под вопросом, поэтому туда это
+   намеренно не распространяется (см. ниже добавленные equipmentModal/
+   incidentTicketModal той же карточкой-логикой — просто ещё двумя
+   строками в тех же двух селекторах, чтобы отдельно не копипастить два
+   идентичных блока).
 
    Нативный CSS resize, не кастомный JS-драг: работает без доп. кода,
    браузер сам ограничивает перетаскивание по min/max-width/height ниже.
@@ -1106,7 +1181,9 @@ mark.search-highlight {
    точного оконного поведения потребуется отдельно позиционировать модалку
    через position:fixed + JS pointermove вместо flex-центровки — не
    делаю сейчас, чтобы не усложнять непроверенным в браузере кодом. */
-#detailModal .modal-content {
+#detailModal .modal-content,
+#equipmentModal .modal-content,
+#incidentTicketModal .modal-content {
     resize: both;
     min-width: 480px;
     min-height: 360px;
@@ -1116,7 +1193,9 @@ mark.search-highlight {
    width/height, которые нативный resize пишет прямо в атрибут style
    элемента при ручном перетаскивании (обычная specificity класса
    этого не может, инлайн-стиль без !important всегда выигрывает). */
-#detailModal .modal-content.maximized {
+#detailModal .modal-content.maximized,
+#equipmentModal .modal-content.maximized,
+#incidentTicketModal .modal-content.maximized {
     width: 96vw !important;
     height: 96vh !important;
     max-width: 96vw !important;
@@ -1155,7 +1234,7 @@ mark.search-highlight {
     background: var(--color-bg-card);
 }
 .modal-header h2 { font-size: var(--text-lg); color: var(--color-text-dark); margin: 0; }
-#detailToolbar { flex-shrink: 0; }
+#detailToolbar, #equipmentDetailToolbar, #incidentDetailToolbar { flex-shrink: 0; }
 .modal-close {
     background: none;
     border: none;
@@ -1689,7 +1768,12 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
    ===================================================================== */
 @media (max-width: 900px) {
     .catalog-layout { flex-direction: column; }
-    .tree-panel { width: 100%; max-height: 240px; }
+    /* !important обязателен: initPanelResizer выставляет ширину инлайн-
+       стилем (style.width), у которого приоритет выше обычного правила
+       CSS — без !important панель на мобильных застревала бы на
+       десктопной ширине, сохранённой в localStorage. */
+    .tree-panel { width: 100% !important; max-height: 240px; }
+    .panel-resizer { display: none; }
 }
 @media (max-width: 768px) {
     .tab-content { padding: var(--space-4); }
@@ -1894,13 +1978,26 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 }
 
 /* ===== БАЗА ЗНАНИЙ (вкладка knowledge, superadmin) ===== */
+/* Было display:grid с grid-template-columns: 1fr 1fr — переведено на
+   flex, потому что CSS Grid игнорирует инлайн style.width на дочернем
+   элементе (трек колонки задаётся grid-template-columns и перекрывает
+   его), а панели "Места" нужна перетаскиваемая ширина через
+   common.js::initPanelResizer (тот же паттерн, что .catalog-layout). */
 .knowledge-dictionaries-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    align-items: stretch;
     gap: var(--space-4);
 }
+#locationDictionaryPanel {
+    flex-shrink: 0;
+}
+.knowledge-dictionaries-grid > .settings-group:last-child {
+    flex: 1;
+    min-width: 0;
+}
 @media (max-width: 900px) {
-    .knowledge-dictionaries-grid { grid-template-columns: 1fr; }
+    .knowledge-dictionaries-grid { flex-direction: column; }
+    #locationDictionaryPanel { width: 100% !important; }
 }
 .knowledge-dict-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -1985,6 +2082,48 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .incident-status-resolved { background: var(--color-secondary-bg-subtle); color: var(--color-secondary); }
 .incident-status-rejected { background: var(--color-danger-bg); color: var(--color-danger); }
 
+/* =====================================================================
+   СТАТУС ДВИГАТЕЛЯ (каталог) — work/reserve/repair, namespaced
+   engine-status-*, не пересекается с .status-*/.incident-status-*
+   (те про заявки/инциденты, этот про эксплуатационное состояние).
+   ===================================================================== */
+.col-engine-status { width: 110px; }
+.engine-status-badge {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 999px;
+    white-space: nowrap;
+}
+.engine-status-badge.engine-status-work { background: var(--color-secondary-bg-subtle); color: var(--color-secondary); }
+.engine-status-badge.engine-status-reserve { background: var(--color-warning-bg); color: var(--color-warning); }
+.engine-status-badge.engine-status-repair { background: var(--color-danger-bg); color: var(--color-danger); }
+
+/* Переключатель в карточке двигателя — три кнопки-сегмента в тулбаре. */
+.engine-status-switch {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--color-bg-subtle);
+    border-radius: var(--radius-full);
+    padding: 2px;
+}
+.engine-status-switch-btn {
+    border: none;
+    background: transparent;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+.engine-status-switch-btn:hover { color: var(--color-text-dark); }
+.engine-status-switch-btn.engine-status-work.active { background: var(--color-secondary-bg-subtle); color: var(--color-secondary); }
+.engine-status-switch-btn.engine-status-reserve.active { background: var(--color-warning-bg); color: var(--color-warning); }
+.engine-status-switch-btn.engine-status-repair.active { background: var(--color-danger-bg); color: var(--color-danger); }
+
 /* ---- Приоритет: 3 кружка (форма заявки) ---- */
 .incident-priority-dot {
     width: 28px;
@@ -2064,9 +2203,24 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .crew-tag-remove:hover { color: var(--color-danger); }
 
 /* ---- Пункты автопоиска сущностей (attachEntitySuggest, common.js) ---- */
-.entity-suggest-item { display: flex; justify-content: space-between; gap: var(--space-3); }
+.entity-suggest-item { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
 .entity-suggest-sublabel { color: var(--color-text-muted); font-size: var(--text-xs); }
 .entity-suggest-create { color: var(--color-accent); font-weight: 600; }
+.entity-suggest-meta { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
+.entity-suggest-action {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.entity-suggest-action:hover { background: rgba(67,56,202,0.15); color: var(--color-accent); }
 
 /* =====================================================================
    ДЕРЕВО МЕСТ НА ВКЛАДКЕ "ОБОРУДОВАНИЕ" (ТЗ раздел 3.1)
@@ -2075,20 +2229,72 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
    #tab-catalog.active { display:flex; height:100%; ... } — правило
    специфично для ID каталога и не применяется к #tab-equipment. Здесь —
    тот же паттерн, но заведённый через info-subtab-content (подвкладка
-   "Номенклатура" — единственная, которой это нужно; "Конструктор"
-   остаётся обычным блочным потоком, как раньше).
-   ===================================================================== */
+   "Номенклатура" — единственная, которой это нужно; "Конструктор" и
+   "Учёт ЗИП" остаются обычным блочным потоком, как раньше).
+
+   Раньше #tab-equipment.active не получал flex/height:100%/max-width —
+   в итоге #equipmentSubtab-list.active мог полагаться только на
+   min-height:500px — фиксированный пол "на глаз", а не реальную высоту
+   вкладки, и работал в другом масштабе, чем .catalog-layout Каталога
+   (у которого высота честная, от #tab-catalog.active). Теперь оба тега
+   растут от одного и того же source of truth — height:100% контейнера
+   вкладки, — и .catalog-main/.tree-panel получают на Оборудовании
+   ТОЧНО такую же высоту и ширину экрана, как на Каталоге. */
+#tab-equipment.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding-bottom: 0;
+    max-width: none;
+}
+#tab-equipment.active > h2 {
+    flex-shrink: 0;
+    margin-bottom: var(--space-4);
+}
+#tab-equipment .info-subtabs {
+    flex-shrink: 0;
+}
 #equipmentSubtab-list.active {
     display: flex;
     flex-direction: column;
-    min-height: 500px;
+    flex: 1;
+    min-height: 0;
 }
 #equipmentSubtab-list.active .catalog-layout {
     flex: 1;
     min-height: 0;
 }
-#equipmentLocationTreePanel {
-    max-height: 600px;
+
+/* =====================================================================
+   ДЕРЕВО МЕСТ НА ВКЛАДКЕ "ИНЦИДЕНТЫ" (Журнал)
+   Тот же паттерн, что и у #tab-equipment.active выше — "Справочники"
+   (вторая подвкладка) остаётся обычным блочным потоком, только
+   "Журналу" нужна честная высота на всю вкладку. */
+#tab-incidents.active {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding-bottom: 0;
+    max-width: none;
+}
+#tab-incidents.active > h2 {
+    flex-shrink: 0;
+    margin-bottom: var(--space-4);
+}
+#tab-incidents .info-subtabs {
+    flex-shrink: 0;
+}
+#incidentsSubtab-journal.active {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+#incidentsSubtab-journal.active .catalog-layout {
+    flex: 1;
+    min-height: 0;
 }
 
 /* =====================================================================

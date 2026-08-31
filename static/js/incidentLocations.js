@@ -30,7 +30,7 @@ function attachLocationPicker(inputEl, options) {
     if (selected) inputEl.value = selected.label;
     inputEl.placeholder = allowEmpty ? 'Без родителя (корень дерева)' : 'Начните вводить название места...';
 
-    attachEntitySuggest(inputEl, {
+    const suggest = attachEntitySuggest(inputEl, {
         minChars: 1,
         searchFn: (query) => apiFetch(`/api/locations/search?q=${encodeURIComponent(query)}`)
             .then(r => r.json())
@@ -41,29 +41,84 @@ function attachLocationPicker(inputEl, options) {
             if (onChange) onChange(selected);
         },
         onCreateNew: (query) => {
-            openCreateLocationWizard(query, (created) => {
+            // Если к этому моменту уже было выбрано существующее место
+            // (пользователь выбрал его из списка, а затем продолжил
+            // печатать/нажал "Создать", не найдя точного совпадения по
+            // имени — поиск ищет только по name узла, не по всему пути,
+            // так что для уже подставленного breadcrumb'а вида
+            // "3506 → Линия Ноймаг → зона б" результатов не будет) — это
+            // выбранное место логично считать родителем НОВОГО места, а
+            // не пытаться создать узел, буквально названный всем этим
+            // путём (баг: узел с именем "3506 → ... → зона б" в корне
+            // дерева). При этом реально допечатанный пользователем текст
+            // (обычно — новый последний сегмент, например "зона б" вместо
+            // старого "зона 1") нельзя просто выбрасывать в пустоту —
+            // вытаскиваем именно его как имя нового узла.
+            const priorSelection = selected;
+            let prefillName = query;
+            if (priorSelection) {
+                const segments = query.split('→').map(s => s.trim()).filter(Boolean);
+                const tail = segments.length ? segments[segments.length - 1] : '';
+                const priorSegments = (priorSelection.label || '').split('→').map(s => s.trim()).filter(Boolean);
+                const priorTail = priorSegments.length ? priorSegments[priorSegments.length - 1] : '';
+                // Если хвост совпадает с последним сегментом уже выбранного
+                // места — пользователь ничего не менял (просто нажал
+                // "Создать" на существующем месте) — пустое поле безопаснее,
+                // чем повтор уже существующего имени.
+                prefillName = tail === priorTail ? '' : tail;
+            }
+            openCreateLocationWizard(prefillName, (created) => {
                 selected = created;
                 inputEl.value = created.label;
                 if (onChange) onChange(selected);
-            });
-        }
+            }, priorSelection || null);
+        },
+        // "+" у конкретного найденного места — создать НОВОЕ место прямо
+        // под ним, не выбирая сам найденный узел (сама строка по-прежнему
+        // выбирается обычным кликом через onSelect). Закрывает ровно тот
+        // пробел UX, из-за которого раньше пришлось печатать "1" и жать
+        // общее "+Создать «1»" без родителя — теперь родитель уже
+        // проставлен тем местом, у которого нажали "+".
+        onItemAction: (item) => {
+            openCreateLocationWizard('', (created) => {
+                selected = created;
+                inputEl.value = created.label;
+                if (onChange) onChange(selected);
+            }, { id: item.id, label: item.label });
+        },
+        itemActionIcon: 'icon-add',
+        itemActionTitle: 'Добавить место сюда'
     });
 
     // Ручная очистка поля (например, стёр текст руками, не выбрав пункт) —
     // сбрасывает выбранный id, чтобы форма не ушла на сервер со старым
     // id при изменившемся видимом тексте.
-    inputEl.addEventListener('input', () => {
+    function onManualClear() {
         if (inputEl.value.trim() === '') {
             selected = null;
             if (onChange) onChange(null);
         }
-    });
+    }
+    inputEl.addEventListener('input', onManualClear);
 
     return {
         getValue: () => selected,
         setValue: (id, label) => {
             selected = id ? { id, label } : null;
             inputEl.value = label || '';
+        },
+        // ВАЖНО: если форма/модалка переиспользует один и тот же inputEl
+        // и переинициализирует пикер при каждом открытии (см.
+        // clearEquipmentForm в equipment.js, аналогично в incidents.js) —
+        // ОБЯЗАТЕЛЬНО вызывать destroy() у предыдущего инстанса ПЕРЕД
+        // повторным attachLocationPicker(). Иначе слушатели и dropdown-
+        // обёртки накапливаются на одном и том же inputEl (см. разбор
+        // бага в attachEntitySuggest, common.js) — клик по пункту списка
+        // приходится повторять по несколько раз, пока не попадёшь по
+        // актуальному, "живому" слою.
+        destroy: function () {
+            inputEl.removeEventListener('input', onManualClear);
+            if (suggest && suggest.destroy) suggest.destroy();
         }
     };
 }
@@ -72,7 +127,10 @@ function attachLocationPicker(inputEl, options) {
 // Мастер создания нового места: родитель (через тот же пикер) → тип → имя
 // ---------------------------------------------------------------------
 
-function openCreateLocationWizard(prefillName, onCreated) {
+// initialParent — опционально {id, label}; если задан, поле "Родительское
+// место" мастера открывается уже заполненным этим узлом (используется
+// кнопкой "Добавить подсущность" в справочнике — см. addChildLocationNode).
+function openCreateLocationWizard(prefillName, onCreated, initialParent) {
     const overlay = document.createElement('div');
     overlay.className = 'modal active';
     overlay.innerHTML = `
@@ -112,7 +170,11 @@ function openCreateLocationWizard(prefillName, onCreated) {
     document.body.classList.add('modal-open');
 
     const parentInput = overlay.querySelector('#wizardParentInput');
-    const parentPicker = attachLocationPicker(parentInput, { allowEmpty: true });
+    const parentPicker = attachLocationPicker(parentInput, {
+        allowEmpty: true,
+        initialId: initialParent ? initialParent.id : null,
+        initialLabel: initialParent ? initialParent.label : ''
+    });
 
     function close() {
         overlay.remove();
@@ -160,6 +222,13 @@ function openCreateLocationWizard(prefillName, onCreated) {
 
 let _locationDictNodes = [];
 
+// ID узлов, ветки которых свёрнуты пользователем (по аналогии с
+// activeWorkshop в locationTree.js, только тут не выбор фильтра, а
+// именно сворачивание — веток может быть свёрнуто сразу несколько,
+// независимо друг от друга). По умолчанию всё развёрнуто (пусто) —
+// то же поведение, что было до появления сворачивания.
+const _collapsedLocationDictIds = new Set();
+
 function loadLocationDictionary() {
     apiFetch('/api/locations')
         .then(r => r.json())
@@ -171,6 +240,15 @@ function loadLocationDictionary() {
             const el = document.getElementById('locationDictionaryList');
             if (el) el.innerHTML = '<div class="no-data">Не удалось загрузить дерево мест</div>';
         });
+}
+
+function toggleLocationDictNode(id) {
+    if (_collapsedLocationDictIds.has(id)) {
+        _collapsedLocationDictIds.delete(id);
+    } else {
+        _collapsedLocationDictIds.add(id);
+    }
+    renderLocationDictionary();
 }
 
 function renderLocationDictionary() {
@@ -186,23 +264,67 @@ function renderLocationDictionary() {
         (byParent[key] = byParent[key] || []).push(n);
     });
 
+    // Визуальный язык — тот же, что у дерева цехов на вкладке "Каталог"
+    // (locationTree.js: .tree-workshop/.tree-chevron/.tree-count-chip),
+    // но глубина здесь произвольная (не 2 фиксированных уровня), поэтому
+    // отступ каждого уровня задаём инлайн-стилем (padding-left), а не
+    // отдельными CSS-классами под каждый уровень.
     function renderLevel(parentKey, depth) {
         const children = byParent[parentKey] || [];
-        return children.map(n => `
-            <div class="knowledge-dict-row" style="padding-left:${depth * 20 + 10}px">
-                <div>
-                    <div class="knowledge-dict-code">${escapeHtml(LOCATION_NODE_TYPE_LABELS[n.node_type] || n.node_type)}</div>
-                    ${escapeHtml(n.name)}
-                </div>
-                <div style="display:flex;gap:4px">
-                    <button class="btn btn-secondary btn-sm" onclick="renameLocationNode(${n.id}, '${n.name.replace(/'/g, "\\'")}')" title="Переименовать"><span class="icon icon-edit"></span></button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteLocationNode(${n.id})" title="Удалить"><span class="icon icon-delete"></span></button>
-                </div>
-            </div>
-        `).join('') + children.map(n => renderLevel(String(n.id), depth + 1)).join('');
+        return children.map(n => {
+            const childKey = String(n.id);
+            const hasChildren = !!(byParent[childKey] && byParent[childKey].length);
+            const isCollapsed = _collapsedLocationDictIds.has(n.id);
+            const chevron = hasChildren
+                ? `<span class="tree-chevron" onclick="event.stopPropagation(); toggleLocationDictNode(${n.id})">${isCollapsed ? '▶' : '▼'}</span>`
+                : `<span class="tree-chevron"></span>`;
+            const rowClickHandler = hasChildren ? ` onclick="toggleLocationDictNode(${n.id})"` : '';
+
+            const row = `
+                <div class="tree-workshop" style="padding-left:${depth * 20 + 10}px"${rowClickHandler}>
+                    ${chevron}
+                    <span class="tree-workshop-label">${escapeHtml(n.name)}</span>
+                    <span class="tree-count-chip" title="Тип места">${escapeHtml(LOCATION_NODE_TYPE_LABELS[n.node_type] || n.node_type)}</span>
+                    <span style="display:flex;gap:4px" onclick="event.stopPropagation()">
+                        <button class="btn btn-secondary btn-sm" onclick="addChildLocationNode(${n.id})" title="Добавить подсущность"><span class="icon icon-add"></span></button>
+                        <button class="btn btn-secondary btn-sm" onclick="renameLocationNode(${n.id}, '${escapeAttr(n.name)}')" title="Переименовать"><span class="icon icon-edit"></span></button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteLocationNode(${n.id})" title="Удалить"><span class="icon icon-delete"></span></button>
+                    </span>
+                </div>`;
+
+            const childrenHtml = (hasChildren && !isCollapsed) ? renderLevel(childKey, depth + 1) : '';
+            return row + childrenHtml;
+        }).join('');
     }
 
     el.innerHTML = renderLevel('root', 0);
+}
+
+// Строит breadcrumb ("Цех 3506 → Секция А") по уже загруженному в память
+// _locationDictNodes, без похода на /api/locations/<id>/breadcrumb —
+// справочник и так уже держит полный плоский список в памяти.
+function _localBreadcrumb(nodeId) {
+    const byId = {};
+    _locationDictNodes.forEach(n => { byId[n.id] = n; });
+    const parts = [];
+    let current = byId[nodeId];
+    while (current) {
+        parts.unshift(current.name);
+        current = current.parent_id !== null ? byId[current.parent_id] : null;
+    }
+    return parts.join(' → ');
+}
+
+// Кнопка "Добавить подсущность" в справочнике — открывает тот же мастер,
+// что и "+ Создать новое место" в пикере форм, но с уже проставленным
+// родителем (сам узел, на котором нажали кнопку).
+function addChildLocationNode(parentId) {
+    const parentNode = _locationDictNodes.find(n => n.id === parentId);
+    if (!parentNode) return;
+    const parentLabel = _localBreadcrumb(parentId);
+    openCreateLocationWizard('', () => {
+        loadLocationDictionary();
+    }, { id: parentId, label: parentLabel });
 }
 
 function createRootLocationNode() {

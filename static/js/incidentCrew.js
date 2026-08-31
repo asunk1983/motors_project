@@ -155,20 +155,85 @@ function createCrewMember() {
         .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
+// ---------------------------------------------------------------------
+// Модалка редактирования человека (ФИО + должность + цех одной формой)
+// ---------------------------------------------------------------------
+
+// Модалка создаётся один раз и переиспользуется (как #detailModal и
+// прочие модалки проекта — см. .modal/.modal-content в style.css).
+function _ensureEditCrewModal() {
+    let modal = document.getElementById('editCrewModal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = 'editCrewModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width:480px">
+            <div class="modal-header">
+                <h2>Изменить человека</h2>
+                <button type="button" class="modal-close" onclick="_closeEditCrewModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editCrewId">
+                <div class="form-group">
+                    <label for="editCrewName">ФИО</label>
+                    <input type="text" id="editCrewName">
+                </div>
+                <div class="form-group">
+                    <label for="editCrewPosition">Должность</label>
+                    <input type="text" id="editCrewPosition">
+                </div>
+                <div class="form-group">
+                    <label for="editCrewWorkshop">Цех</label>
+                    <input type="text" id="editCrewWorkshop">
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:var(--space-4)">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="_closeEditCrewModal()">Отмена</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="_saveEditCrewMember()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) _closeEditCrewModal();
+    });
+    return modal;
+}
+
+function _closeEditCrewModal() {
+    const modal = document.getElementById('editCrewModal');
+    if (modal) modal.classList.remove('active');
+}
+
 function editCrewMember(id) {
     const item = _crewDictItems.find(i => i.id === id);
     if (!item) return;
-    const full_name = prompt('ФИО:', item.full_name);
-    if (full_name === null) return;
-    const position = prompt('Должность:', item.position || '');
-    if (position === null) return;
-    const workshop = prompt('Цех:', item.workshop || '');
-    if (workshop === null) return;
+
+    const modal = _ensureEditCrewModal();
+    document.getElementById('editCrewId').value = item.id;
+    document.getElementById('editCrewName').value = item.full_name || '';
+    document.getElementById('editCrewPosition').value = item.position || '';
+    document.getElementById('editCrewWorkshop').value = item.workshop || '';
+    modal.classList.add('active');
+}
+
+function _saveEditCrewMember() {
+    const id = document.getElementById('editCrewId').value;
+    const full_name = document.getElementById('editCrewName').value.trim();
+    const position = document.getElementById('editCrewPosition').value.trim();
+    const workshop = document.getElementById('editCrewWorkshop').value.trim();
+
+    if (!full_name) {
+        showToast('Укажите ФИО', 'warning', 'icon-warning');
+        return;
+    }
 
     apiFetch(`/api/crew/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: full_name.trim(), position: position.trim(), workshop: workshop.trim() })
+        body: JSON.stringify({ full_name, position, workshop })
     })
         .then(r => r.json())
         .then(result => {
@@ -176,6 +241,8 @@ function editCrewMember(id) {
                 showToast(result.error, 'error', 'icon-cancel');
                 return;
             }
+            _closeEditCrewModal();
+            showToast('Сохранено', 'success', 'icon-check-circle');
             loadCrewDictionary();
         })
         .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));

@@ -143,6 +143,16 @@ def delete_ticket_route(ticket_id):
         return jsonify({'success': True, 'message': 'Заявка удалена'})
 
 
+@incident_ticket_bp.route('/location-counts', methods=['GET'])
+def get_incident_location_counts_route():
+    """{location_node_id: count} — только СОБСТВЕННЫЕ счётчики узлов, без
+    суммирования по поддереву (суммирует фронтенд — дерево уже загружено
+    целиком, см. incidentLocationTree.js). Тот же контракт ответа, что и
+    у /api/equipment/location-counts (equipment_routes.py)."""
+    with db_connection() as conn:
+        return jsonify(incident_ticket_repo.get_location_counts(conn))
+
+
 # ---------------------------------------------------------------------
 # Ссылки
 # ---------------------------------------------------------------------

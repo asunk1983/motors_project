@@ -88,6 +88,7 @@ def init_db(conn=None):
                 cooling TEXT,
                 note TEXT,
                 photo_count INTEGER DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'work',
                 created_at TEXT,
                 updated_at TEXT
             )
@@ -444,6 +445,12 @@ def init_db(conn=None):
         _ensure_column(cursor, 'engines', 'updated_at', 'TEXT')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_engines_updated_at ON engines(updated_at)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_engines_created_at ON engines(created_at)')
+
+        # status — эксплуатационное состояние двигателя: work/reserve/repair
+        # (в работе/в резерве/в ремонте). ADD COLUMN с DEFAULT в SQLite
+        # заполняет им и уже существующие строки, отдельный backfill не нужен.
+        _ensure_column(cursor, 'engines', 'status', "TEXT NOT NULL DEFAULT 'work'")
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_engines_status ON engines(status)')
 
         # knowledge_article <-> equipment_type: статья привязывается к КЛАССУ
         # оборудования (не к конкретному экземпляру) — статья про перегрев
