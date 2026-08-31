@@ -29,5 +29,5 @@ Thumbs.db
 docs/
 tests/
 get-pip.py
-config/
+config/*.json
 
