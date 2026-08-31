@@ -232,12 +232,13 @@ function renderDetailContent() {
     </div>`;
     if (isEdit) {
         html += '<div class="table-wrapper"><table class="data-table works-table"><thead><tr>';
-        html += '<th class="col-work-num">№ п/п</th><th class="col-work-date">Дата</th><th>Вид производимых работ</th><th class="col-work-isolation">Сопротивление изоляции, ГОм</th><th class="col-work-inspection">Внешний осмотр и проверка работы</th><th class="col-work-signature">ФИО исполнителя</th>';
+        html += '<th class="col-work-num">№ п/п</th><th class="col-work-date">Дата</th><th>Вид производимых работ</th><th class="col-work-isolation">Сопротивление изоляции, ГОм</th><th class="col-work-inspection">Внешний осмотр и проверка работы</th><th class="col-work-signature">ФИО исполнителя</th><th class="col-work-status">Статус</th>';
         html += '<th class="col-work-action"></th>';
         html += '</tr></thead><tbody id="worksDisplayBody">';
         const works = data.works || [];
         if (works.length > 0) {
             works.forEach((w, idx) => {
+                const wStatus = w.status || 'work';
                 html += `<tr>
                     <td class="work-cell-num">${idx + 1}</td>
                     <td><input type="date" class="work-edit-input" data-field="date" value="${escapeHtml(w.date) || ''}"></td>
@@ -245,18 +246,22 @@ function renderDetailContent() {
                     <td><input type="number" step="any" class="work-edit-input" data-field="isolation" value="${escapeHtml(w.isolation) || ''}" placeholder="ГОм"></td>
                     <td><input type="text" class="work-edit-input" data-field="inspection" value="${escapeHtml(w.inspection) || ''}" placeholder="Результат"></td>
                     <td><input type="text" class="work-edit-input" data-field="signature" value="${escapeHtml(w.signature) || ''}" placeholder="ФИО"></td>
+                    <td><select class="work-edit-input" data-field="status">
+                        ${['work', 'reserve', 'repair'].map(s => `<option value="${s}" ${wStatus === s ? 'selected' : ''}>${ENGINE_STATUS_LABELS[s]}</option>`).join('')}
+                    </select></td>
                     <td class="work-cell-action"><button type="button" class="btn btn-danger btn-sm work-remove-btn" onclick="removeWorkRowInline(${idx})" title="Удалить работу">−</button></td>
                 </tr>`;
             });
         } else {
-            html += '<tr><td colspan="7" class="no-data">Не было произведено работ</td></tr>';
+            html += '<tr><td colspan="8" class="no-data">Не было произведено работ</td></tr>';
         }
         html += '</tbody></table></div>';
     } else if (data.works && data.works.length > 0) {
         html += '<div class="table-wrapper"><table class="data-table"><thead><tr>';
-        html += '<th>№ п/п</th><th>Дата</th><th>Вид производимых работ</th><th>Сопротивление изоляции, ГОм</th><th>Внешний осмотр и проверка работы</th><th>ФИО исполнителя</th>';
+        html += '<th>№ п/п</th><th>Дата</th><th>Вид производимых работ</th><th>Сопротивление изоляции, ГОм</th><th>Внешний осмотр и проверка работы</th><th>ФИО исполнителя</th><th>Статус</th>';
         html += '</tr></thead><tbody>';
         data.works.forEach((w, idx) => {
+            const wStatus = w.status || 'work';
             html += `<tr>
                 <td>${idx + 1}</td>
                 <td>${_formatRuDate(w.date) || '—'}</td>
@@ -264,6 +269,7 @@ function renderDetailContent() {
                 <td>${escapeHtml(w.isolation) || '—'}</td>
                 <td>${escapeHtml(w.inspection) || '—'}</td>
                 <td>${escapeHtml(w.signature) || '—'}</td>
+                <td><span class="engine-status-badge engine-status-${wStatus}">${ENGINE_STATUS_LABELS[wStatus]}</span></td>
             </tr>`;
         });
         html += '</tbody></table></div>';
@@ -301,11 +307,13 @@ function renderDetailContent() {
                     saveDetailEdit();
                     return;
                 }
-                // Tab на поле "ФИО исполнителя" (последнее поле) последней
-                // строки таблицы — создаём новую запись и сразу переводим
-                // фокус в её первое поле, как в Excel/1С. Shift+Tab (движение
-                // назад) не трогаем — обычная навигация без создания строки.
-                if (e.key === 'Tab' && !e.shiftKey && this.dataset.field === 'signature') {
+                // Tab на поле "Статус" (последнее поле, после добавления
+                // столбца статуса стало последним вместо "ФИО исполнителя")
+                // последней строки таблицы — создаём новую запись и сразу
+                // переводим фокус в её первое поле, как в Excel/1С.
+                // Shift+Tab (движение назад) не трогаем — обычная навигация
+                // без создания строки.
+                if (e.key === 'Tab' && !e.shiftKey && this.dataset.field === 'status') {
                     const tr = this.closest('tr');
                     const tbody = document.getElementById('worksDisplayBody');
                     if (tr && tbody && tr === tbody.lastElementChild) {
@@ -340,7 +348,7 @@ function addWorkRowInline(focusFirstField) {
     // никакой отдельной конвертации не нужно).
     currentEngineData.works.push({
         date: new Date().toISOString().slice(0, 10),
-        work_description: '', isolation: '', inspection: '', signature: ''
+        work_description: '', isolation: '', inspection: '', signature: '', status: 'work'
     });
     renderDetailContent();
 

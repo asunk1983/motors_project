@@ -116,6 +116,7 @@ def init_db(conn=None):
                 isolation TEXT,
                 inspection TEXT,
                 signature TEXT,
+                status TEXT NOT NULL DEFAULT 'work',
                 FOREIGN KEY (engine_id) REFERENCES engines (id) ON DELETE CASCADE
             )
         ''')
@@ -451,6 +452,12 @@ def init_db(conn=None):
         # заполняет им и уже существующие строки, отдельный backfill не нужен.
         _ensure_column(cursor, 'engines', 'status', "TEXT NOT NULL DEFAULT 'work'")
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_engines_status ON engines(status)')
+
+        # maintenance_works.status — тот же словарь состояний, что и у
+        # engines.status (work/reserve/repair): в каком состоянии
+        # оказался двигатель по итогам этой работы (например, "ремонт"
+        # для записи о выводе в ремонт, "в работе" — для ввода обратно).
+        _ensure_column(cursor, 'maintenance_works', 'status', "TEXT NOT NULL DEFAULT 'work'")
 
         # knowledge_article <-> equipment_type: статья привязывается к КЛАССУ
         # оборудования (не к конкретному экземпляру) — статья про перегрев

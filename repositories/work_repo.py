@@ -3,7 +3,7 @@
 Содержит ТОЛЬКО SQL-запросы. Бизнес-логика — в services/.
 """
 WORK_COLUMNS = frozenset([
-    'work_number', 'date', 'work_description', 'isolation', 'inspection', 'signature'
+    'work_number', 'date', 'work_description', 'isolation', 'inspection', 'signature', 'status'
 ])
 
 

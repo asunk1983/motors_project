@@ -4,6 +4,7 @@
 (_validate_numeric_value, _validate_mode_numeric_fields).
 """
 from modules.db import ENGINE_COLUMNS_ORDERED, MODE_COLUMNS
+from repositories.engine_repo import VALID_STATUSES
 
 
 def validate_numeric_value(value, label: str):
@@ -81,6 +82,26 @@ def validate_mode_numeric_fields(mode: dict):
     return None
 
 
+def validate_work_status(work: dict):
+    """Проверяет поле status записи о произведённой работе
+    (в работе/в резерве/в ремонте).
+
+    Использует тот же словарь состояний, что и статус двигателя
+    (VALID_STATUSES из engine_repo) — единый набор статусов на всё
+    приложение, применённый здесь к отдельной записи работ.
+
+    Пустое значение допустимо: колонка в БД имеет DEFAULT 'work'.
+
+    Возвращает строку-ошибку или None.
+    """
+    status = work.get('status')
+    if status is None or status == '':
+        return None
+    if status not in VALID_STATUSES:
+        return f'Статус работы должен быть одним из: {", ".join(VALID_STATUSES)}'
+    return None
+
+
 def validate_engine_payload(data: dict):
     """Валидирует payload создания/обновления двигателя.
 
@@ -98,6 +119,9 @@ def validate_engine_payload(data: dict):
 
     for work in data.get('works', []):
         err = validate_numeric_value(work.get('isolation'), 'Сопротивление изоляции')
+        if err:
+            return False, err
+        err = validate_work_status(work)
         if err:
             return False, err
 

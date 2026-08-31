@@ -1358,6 +1358,7 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .works-table .col-work-isolation { width: 120px; }
 .works-table .col-work-inspection { width: 140px; }
 .works-table .col-work-signature { width: 120px; }
+.works-table .col-work-status { width: 130px; }
 .works-table .col-work-action { width: 40px; }
 .works-table .work-cell-num { font-weight: 600; text-align: center; background: var(--color-bg-subtle); }
 /* .work-cell-action / .work-remove-btn — общие для таблиц "работы" и
