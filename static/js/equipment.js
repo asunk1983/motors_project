@@ -59,6 +59,17 @@ function switchEquipmentSubtab(name) {
     if (stockBtn) stockBtn.className = 'btn btn-sm ' + (name === 'stock' ? 'btn-primary' : 'btn-secondary');
 
     if (name === 'stock') loadStockSummary();
+    // При возврате на "Список" подвкладка только что стала видимой —
+    // пока она была скрыта, applyDynamicEquipmentPageSize (дёрнутый
+    // ResizeObserver'ом на скрытии/показе) не мог ничего измерить и не
+    // трогал pageSize (см. recalcEquipmentPageSize). Явно пересчитываем
+    // и перерисовываем сейчас, когда размеры уже реальные — иначе список
+    // может остаться со старым/некорректным pageSize до следующего
+    // F5 или ухода на другую вкладку.
+    if (name === 'list') {
+        renderEquipmentTable();
+        applyDynamicEquipmentPageSize();
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -693,6 +704,22 @@ function recalcEquipmentPageSize() {
     const headerHeight = headerRow ? headerRow.getBoundingClientRect().height : 44;
     const rowHeight = hasRealRow ? bodyRow.getBoundingClientRect().height : 43;
 
+    // Подвкладка "Список" скрыта через display:none (см.
+    // switchEquipmentSubtab) — ResizeObserver на #equipmentTableWrapper
+    // всё равно срабатывает при таком скрытии (высота падает до 0), и
+    // тогда wrapper.clientHeight/headerHeight/rowHeight все = 0.
+    // Math.floor(0 / 0) даёт NaN, а Math.max(NaN, 5) возвращает NaN (а не
+    // 5!) — из-за этого equipmentPageSize/equipmentCurrentPage превращались
+    // в NaN, и таблица рендерилась пустой ЕЩЁ ПОКА подвкладка была скрыта.
+    // При возврате на "Список" уже испорченное состояние просто
+    // показывалось как есть (switchEquipmentSubtab не перерисовывает
+    // таблицу) — отсюда пустой equipmentTableWrapper, пока не сделать F5.
+    // Если измерить нечего (скрыто/ещё не отрисовано) — не трогаем текущий
+    // pageSize.
+    if (!wrapper.clientHeight || !headerHeight || !rowHeight) {
+        return equipmentPageSize;
+    }
+
     const available = wrapper.clientHeight - headerHeight;
     const fit = Math.floor(available / rowHeight);
     return Math.max(fit, 5);
@@ -853,6 +880,18 @@ async function onEquipmentTypeChange(existingSpecs) {
 // Модалка добавления/редактирования
 // ---------------------------------------------------------------------
 
+// Кнопка "+" у узла в боковом дереве мест (equipmentLocationTree.js) —
+// тот же принцип, что createAndOpenEngine в locationTree.js для каталога
+// двигателей: открыть форму создания сразу с предзаполненным местом,
+// без необходимости искать место повторно через пикер внутри модалки.
+function createEquipmentAtLocation(nodeId, label) {
+    openEquipmentModal(null).then(() => {
+        if (equipmentFormLocationPicker) {
+            equipmentFormLocationPicker.setValue(nodeId, label);
+        }
+    });
+}
+
 function clearEquipmentForm() {
     document.getElementById('equipmentId').value = '';
     document.getElementById('equipmentDetailView').innerHTML = '';
@@ -860,8 +899,6 @@ function clearEquipmentForm() {
     document.getElementById('equipmentName').value = '';
     document.getElementById('equipmentArticle').value = '';
     document.getElementById('equipmentManufacturer').value = '';
-    document.getElementById('equipmentSerialNumber').value = '';
-    document.getElementById('equipmentFirmware').value = '';
     document.getElementById('equipmentCriticality').value = '';
     document.getElementById('equipmentNote').value = '';
     renderDynamicSpecsFields([], {});
@@ -870,6 +907,15 @@ function clearEquipmentForm() {
     // тот же паттерн, что и incidentLocationPicker в incidents.js.
     const locationInput = document.getElementById('equipmentLocationInput');
     if (locationInput) {
+        // Форма переиспользует один и тот же <input> при каждом открытии
+        // модалки — если не снять слушатели/DOM-обёртку предыдущего
+        // пикера, они накапливаются на inputEl (см. фикс в
+        // attachEntitySuggest/attachLocationPicker), и клик по пункту
+        // списка приходится повторять по многу раз, пока не попадёшь по
+        // актуальному "живому" слою.
+        if (equipmentFormLocationPicker && equipmentFormLocationPicker.destroy) {
+            equipmentFormLocationPicker.destroy();
+        }
         locationInput.value = '';
         equipmentFormLocationPicker = attachLocationPicker(locationInput, {});
     }
@@ -906,7 +952,7 @@ function renderEquipmentExistingPhotos() {
         return;
     }
     wrap.innerHTML = equipmentExistingPhotos.map(p => {
-        const safeFilename = p.filename.replace(/'/g, "\\'");
+        const safeFilename = escapeAttr(p.filename);
         return `<div class="photo-thumb">
             <img src="${authPhotoUrl(p.path)}" alt="Фото оборудования">
             <button type="button" class="photo-thumb-remove" title="Удалить фото" onclick="deleteEquipmentExistingPhoto('${safeFilename}')"><span class="icon icon-close"></span></button>
@@ -958,6 +1004,27 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 
+// Enter сохраняет карточку оборудования — тот же принцип "удобства", что
+// Enter-сохранение для строк режимов/работ в engineCard.js, только на
+// уровне всей формы (у equipment нет построчного инлайн-редактора, форма
+// одна целиком). Слушатель на document, а не на каждом поле — полей
+// динамические (специфичные атрибуты типа), навешивать на каждое по
+// отдельности пришлось бы перевешивать при каждой смене типа.
+// e.defaultPrevented — ключевая проверка: attachSuggestDropdown/
+// attachEntitySuggest (common.js) сами обрабатывают Enter, когда открыт
+// список подсказок (выбирают пункт и вызывают preventDefault) — если это
+// уже произошло, форму сохранять не нужно, иначе выбор подсказки
+// одновременно с этим сохранял бы всю карточку.
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' || e.defaultPrevented) return;
+    if (e.target.tagName !== 'INPUT') return; // не трогаем textarea (перенос строки) и select
+    const editFields = document.getElementById('equipmentEditFields');
+    if (!editFields || editFields.style.display === 'none') return;
+    if (!editFields.contains(e.target)) return;
+    e.preventDefault();
+    submitEquipment();
+});
+
 let equipmentDetailData = null;   // кэш последнего открытого item — для переключения view->edit без повторного fetch
 let equipmentDetailMode = 'view'; // 'view' | 'edit' | 'create'
 
@@ -970,6 +1037,9 @@ async function openEquipmentModal(id, startInEdit = false) {
         equipmentDetailData = null;
         titleEl.innerHTML = '<span class="icon icon-package-2"></span> Новое оборудование';
         _showEquipmentEditMode();
+        // Ещё не сохранённая запись — листать/печатать/датировать нечего,
+        // тот же принцип, что и у "🆕 Новый двигатель" в engineCard.js.
+        renderEquipmentDetailToolbar();
         document.getElementById('equipmentModal').classList.add('active');
         return;
     }
@@ -998,9 +1068,68 @@ async function openEquipmentModal(id, startInEdit = false) {
             await renderEquipmentDetailView(item);
             _showEquipmentViewMode();
         }
+        renderEquipmentDetailToolbar();
     } catch (e) {
         showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
     }
+}
+
+// ===== ТУЛБАР КАРТОЧКИ (счётчик/даты/навигация) =====
+// По образцу renderDetailContent() в engineCard.js (тулбар карточки
+// двигателя) — вынесен в отдельную функцию и рендерится в отдельный
+// #equipmentDetailToolbar (вне .modal-body, не скроллится вместе с
+// формой). allEquipment — уже загруженный (текущим фильтром/сортировкой)
+// полный список, тот же источник, что использует renderEquipmentTable()
+// для постраничного вывода — навигация идёт по нему, а не по одной
+// странице таблицы.
+function renderEquipmentDetailToolbar() {
+    const toolbar = document.getElementById('equipmentDetailToolbar');
+    if (!toolbar) return;
+    if (!equipmentDetailData || equipmentDetailMode === 'create') {
+        toolbar.innerHTML = '';
+        return;
+    }
+
+    const item = equipmentDetailData;
+    const currentIndex = allEquipment.findIndex(e => e.id === item.id);
+    const total = allEquipment.length;
+    const isEdit = equipmentDetailMode === 'edit';
+
+    const infoHtml = `
+        <span class="detail-toolbar-title"><span class="icon icon-package-2"></span> Карточка оборудования</span>
+        <span class="detail-toolbar-position">${currentIndex + 1} / ${total}</span>
+        <span class="detail-toolbar-dates">Изменено: ${formatRuDateTime(item.updated_at)} · Создано: ${formatRuDateTime(item.created_at)}</span>
+    `;
+
+    // "Редактировать" скрыта, пока уже в режиме редактирования — сама
+    // форма (equipmentEditFields) уже даёт свои Сохранить/Отмена внизу,
+    // дублировать их в шапке не нужно. Остальные кнопки (навигация/
+    // печать/удаление) доступны в обоих режимах, как и в карточке
+    // двигателя.
+    const navHtml = `
+        ${!isEdit ? '<button class="btn btn-warning btn-sm write-action" onclick="event.stopPropagation(); switchEquipmentToEdit()"><span class="icon icon-edit"></span> Редактировать</button>' : ''}
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigateEquipment(-1)" ${currentIndex <= 0 ? 'disabled' : ''}>◀ Предыдущий</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); navigateEquipment(1)" ${currentIndex === total - 1 ? 'disabled' : ''}>Следующий ▶</button>
+        <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); printEquipment(${item.id})"><span class="icon icon-print"></span> Печать</button>
+        <button class="btn btn-danger btn-sm write-action" onclick="event.stopPropagation(); deleteEquipmentEntry(${item.id})"><span class="icon icon-delete"></span> Удалить</button>
+    `;
+
+    toolbar.innerHTML = `<div class="detail-toolbar">
+        <div class="detail-toolbar-info">${infoHtml}</div>
+        <div class="detail-toolbar-nav">${navHtml}</div>
+    </div>`;
+}
+
+// Листание ◀ Предыдущий / Следующий ▶ — тот же принцип, что navigateEngine
+// в engineCard.js: ищем текущую позицию в уже загруженном списке
+// (allEquipment) и открываем соседа в режиме просмотра.
+function navigateEquipment(direction) {
+    if (!equipmentDetailData) return;
+    const currentIndex = allEquipment.findIndex(e => e.id === equipmentDetailData.id);
+    if (currentIndex === -1) return;
+    const newIndex = currentIndex + direction;
+    if (newIndex < 0 || newIndex >= allEquipment.length) return;
+    openEquipmentModal(allEquipment[newIndex].id);
 }
 
 // Переключение уже открытой карточки из просмотра в редактирование БЕЗ
@@ -1014,6 +1143,7 @@ async function switchEquipmentToEdit() {
         '<span class="icon icon-package-2"></span> Редактирование оборудования';
     await _fillEquipmentEditFields(equipmentDetailData);
     _showEquipmentEditMode();
+    renderEquipmentDetailToolbar();
 }
 
 function _showEquipmentEditMode() {
@@ -1033,8 +1163,6 @@ async function _fillEquipmentEditFields(item) {
     document.getElementById('equipmentName').value = item.name || '';
     document.getElementById('equipmentArticle').value = item.article || '';
     document.getElementById('equipmentManufacturer').value = item.manufacturer || '';
-    document.getElementById('equipmentSerialNumber').value = item.serial_number || '';
-    document.getElementById('equipmentFirmware').value = item.firmware_version || '';
     document.getElementById('equipmentCriticality').value = item.criticality || '';
     document.getElementById('equipmentNote').value = item.note || '';
     document.getElementById('equipmentTypeSelect').value = item.equipment_type_id;
@@ -1094,28 +1222,18 @@ async function renderEquipmentDetailView(item) {
     if (equipmentExistingPhotos.length > 0) {
         photosHtml = '<div class="detail-photos">' + equipmentExistingPhotos.map(p => `
             <div class="gallery-thumb-wrap">
-                <img src="${authPhotoUrl(p.path)}" class="gallery-thumb" onclick="openPhotoModalWithNav('${p.path.replace(/'/g, "\\'")}')" loading="lazy">
+                <img src="${authPhotoUrl(p.path)}" class="gallery-thumb" onclick="openPhotoModalWithNav('${escapeAttr(p.path)}')" loading="lazy">
             </div>
         `).join('') + '</div>';
     }
 
     container.innerHTML = `
-        <div class="detail-toolbar" style="padding:0 0 var(--space-4) 0; border-bottom:none">
-            <div class="detail-toolbar-nav">
-                <button class="btn btn-warning btn-sm write-action" onclick="switchEquipmentToEdit()"><span class="icon icon-edit"></span> Редактировать</button>
-                <button class="btn btn-secondary btn-sm" onclick="printEquipment(${item.id})"><span class="icon icon-print"></span> Печать</button>
-                <button class="btn btn-danger btn-sm write-action" onclick="deleteEquipmentEntry(${item.id})"><span class="icon icon-delete"></span> Удалить</button>
-            </div>
-        </div>
-
         <div class="detail-subsection-header"><h4><span class="icon icon-table-chart"></span> Характеристики</h4></div>
         <div class="detail-grid">
             <div class="detail-item"><label>Тип</label><div class="value">${escapeHtml(item.equipment_type_name || '—')}</div></div>
             <div class="detail-item"><label>Артикул</label><div class="value">${escapeHtml(item.article) || '—'}</div></div>
             <div class="detail-item"><label>Производитель</label><div class="value">${escapeHtml(item.manufacturer) || '—'}</div></div>
-            <div class="detail-item"><label>Серийный номер</label><div class="value">${escapeHtml(item.serial_number) || '—'}</div></div>
             <div class="detail-item"><label>Место</label><div class="value">${escapeHtml(locationText)}</div></div>
-            <div class="detail-item"><label>Версия прошивки</label><div class="value">${escapeHtml(item.firmware_version) || '—'}</div></div>
             <div class="detail-item"><label>Критичность</label><div class="value">${item.criticality ? '●'.repeat(item.criticality) + '○'.repeat(5 - item.criticality) : '—'}</div></div>
             ${attrsHtml}
         </div>
@@ -1134,6 +1252,9 @@ function printEquipment(id) {
 
 function closeEquipmentModal() {
     document.getElementById('equipmentModal').classList.remove('active');
+    const toolbar = document.getElementById('equipmentDetailToolbar');
+    if (toolbar) toolbar.innerHTML = '';
+    equipmentDetailData = null;
 }
 
 async function submitEquipment() {
@@ -1157,9 +1278,7 @@ async function submitEquipment() {
         name,
         article: document.getElementById('equipmentArticle').value.trim(),
         manufacturer: document.getElementById('equipmentManufacturer').value.trim(),
-        serial_number: document.getElementById('equipmentSerialNumber').value.trim(),
         location_node_id: locationValue ? locationValue.id : null,
-        firmware_version: document.getElementById('equipmentFirmware').value.trim(),
         criticality: criticalityRaw ? Number(criticalityRaw) : null,
         note: document.getElementById('equipmentNote').value.trim(),
         specs: collectSpecsFromForm(),
@@ -1179,6 +1298,12 @@ async function submitEquipment() {
         showToast(id ? 'Оборудование обновлено' : 'Оборудование добавлено', 'success');
         closeEquipmentModal();
         await loadEquipmentList();
+        // Место оборудования могло измениться (создание, редактирование
+        // с новым location_node_id) — счётчики в боковом дереве
+        // (equipmentLocationTreeBody) считаются отдельным запросом
+        // (/api/equipment/location-counts) и без явного обновления
+        // остаются устаревшими до следующей полной загрузки вкладки.
+        if (typeof loadEquipmentLocationTree === 'function') await loadEquipmentLocationTree();
     } catch (e) {
         showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
     }
@@ -1194,7 +1319,18 @@ async function deleteEquipmentEntry(id) {
             return;
         }
         showToast('Оборудование удалено', 'success');
+        // Кнопка "Удалить" теперь есть и в шапке открытой карточки
+        // (renderEquipmentDetailToolbar), не только в таблице — если
+        // удалили именно открытую запись, закрываем модалку, иначе она
+        // осталась бы висеть с данными уже удалённого оборудования.
+        if (equipmentDetailData && equipmentDetailData.id === id) {
+            closeEquipmentModal();
+        }
         await loadEquipmentList();
+        // Та же причина, что и в submitEquipment — удалённая запись
+        // могла быть привязана к месту, счётчик которого иначе останется
+        // завышенным до перезагрузки вкладки.
+        if (typeof loadEquipmentLocationTree === 'function') await loadEquipmentLocationTree();
     } catch (e) {
         showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
     }

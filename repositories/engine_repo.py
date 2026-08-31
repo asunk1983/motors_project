@@ -47,12 +47,15 @@ def get_works_for_engine(conn, engine_id: int):
 
 def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
             search_field: str = 'all', search_query: str = '',
-            workshop: str = None, location: str = None):
+            workshop: str = None, location: str = None, status: str = None):
     """Получить список двигателей с пагинацией, сортировкой и поиском.
 
     workshop/location — точный (не LIKE) фильтр для дерева навигации,
     комбинируется с обычным текстовым поиском (search_field/search_query).
     Пустая строка '' означает "без цеха"/"без места установки" (NULL или '').
+
+    status — точный фильтр по эксплуатационному состоянию
+    ('work'/'reserve'/'repair'). None — фильтр не активен (все статусы).
     """
     sort_map = {
         'location_asc': 'location ASC',
@@ -98,6 +101,10 @@ def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
         else:
             conditions.append('location = ?')
             params.append(location)
+
+    if status:
+        conditions.append('status = ?')
+        params.append(status)
 
     where_clause = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
 
@@ -246,6 +253,23 @@ def update_photo_count(conn, engine_id: int, count: int) -> None:
     cur = conn.cursor()
     cur.execute('UPDATE engines SET photo_count = ? WHERE id = ?', (count, engine_id))
     conn.commit()
+
+
+VALID_STATUSES = ('work', 'reserve', 'repair')
+
+
+def update_status(conn, engine_id: int, status: str) -> bool:
+    """Обновить эксплуатационный статус двигателя.
+
+    Отдельная лёгкая операция (не через update()/ENGINE_COLUMNS_ORDERED) —
+    статус меняется кликом по переключателю в карточке, без входа в режим
+    редактирования и без валидации остальных полей характеристик.
+    updated_at НЕ трогаем: смена статуса — не редактирование карточки.
+    """
+    cur = conn.cursor()
+    cur.execute('UPDATE engines SET status = ? WHERE id = ?', (status, engine_id))
+    conn.commit()
+    return cur.rowcount > 0
 
 
 def get_by_filename(conn, filename: str):

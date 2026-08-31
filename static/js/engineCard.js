@@ -1,57 +1,13 @@
 // static/js/engineCard.js — детальная карточка двигателя, фото, обрезка, режимы/работы.
 // Требует: common.js, engines.js (глобальные переменные состояния)
 
-// created_at/updated_at приходят с бэкенда как datetime.now().isoformat()
-// (иногда с 6-значными микросекундами — это не строгий ISO 8601, часть
-// браузеров может не распарсить). Обрезаем дробную часть секунд до
-// миллисекунд перед new Date(), чтобы не зависеть от лояльности парсера.
-function formatRuDateTime(iso) {
-    if (!iso) return '—';
-    const normalized = iso.replace(/(\.\d{3})\d*$/, '$1');
-    const d = new Date(normalized);
-    if (isNaN(d.getTime())) return escapeHtml(iso);
-    const pad = n => String(n).padStart(2, '0');
-    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-// ===== РАЗВОРОТ КАРТОЧКИ ДВИГАТЕЛЯ НА ВЕСЬ ЭКРАН =====
-// Как в обычном оконном приложении: первое нажатие разворачивает,
-// повторное — возвращает размер, который был до разворачивания. Если
-// пользователь до этого сам потянул за угол (нативный CSS resize — см.
-// #detailModal .modal-content в style.css), эти изменения хранятся
-// браузером прямо в element.style.width/height; здесь просто читаем и
-// на время разворота откладываем их в переменную, а не пересчитываем
-// заново.
-// Состояние (detailModalPrevSize) живёт, пока не перезагрузили страницу:
-// .modal-content — статический элемент в index.html, его никогда не
-// перерисовывает renderDetailContent() (та трогает только #detailContent
-// и #detailToolbar внутри), поэтому размер/разворот сохраняются и при
-// переключении карточек кнопками Предыдущий/Следующий, и при закрытии/
-// повторном открытии модалки — как и ожидаешь от окна, которое помнишь,
-// что развернул.
-let detailModalPrevSize = null;
-
+// formatRuDateTime() и toggleModalMaximize() переехали в common.js —
+// используются также equipment.js и incidents.js для тех же дат/кнопки
+// разворота в шапках карточек оборудования и заявок. Тонкая обёртка ниже
+// сохраняет старое имя вызова (используется в index.html и ниже в этом
+// файле), чтобы не трогать больше ничего лишнего.
 function toggleDetailMaximize() {
-    const modalContent = document.querySelector('#detailModal .modal-content');
-    const btn = document.getElementById('detailMaximizeBtn');
-    if (!modalContent) return;
-    if (modalContent.classList.contains('maximized')) {
-        // Восстановить: снять класс, вернуть запомненные inline-размеры
-        // (пустая строка — если пользователь никогда не тянул за угол,
-        // тогда просто сработают дефолтные max-width/max-height из CSS).
-        modalContent.classList.remove('maximized');
-        modalContent.style.width = detailModalPrevSize ? detailModalPrevSize.width : '';
-        modalContent.style.height = detailModalPrevSize ? detailModalPrevSize.height : '';
-        detailModalPrevSize = null;
-        if (btn) { btn.innerHTML = '<span class="icon icon-open-in-full"></span>'; btn.title = 'Развернуть на весь экран'; }
-    } else {
-        detailModalPrevSize = {
-            width: modalContent.style.width || '',
-            height: modalContent.style.height || ''
-        };
-        modalContent.classList.add('maximized');
-        if (btn) { btn.innerHTML = '<span class="icon icon-close-fullscreen"></span>'; btn.title = 'Восстановить размер'; }
-      }
+    toggleModalMaximize('detailModal', 'detailMaximizeBtn');
 }
 
 // ===== ДЕТАЛЬНАЯ МОДАЛКА =====
@@ -149,8 +105,22 @@ function renderDetailContent() {
            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); printEngineCard()"><span class="icon icon-print"></span> Печать</button>
            <button class="btn btn-danger btn-sm write-action" onclick="event.stopPropagation(); deleteCurrentEngine()"><span class="icon icon-delete"></span> Удалить</button>`;
 
+    // Переключатель статуса — доступен и в режиме просмотра, и в режиме
+    // редактирования (это не поле характеристик, меняется отдельным
+    // PATCH-запросом сразу по клику, не дожидаясь "Сохранить"). Для новой
+    // ещё не созданной карточки (isPendingNew) скрыт — engine_id ещё
+    // не подтверждён на сервере.
+    const statusHtml = isPendingNew ? '' : `
+        <div class="engine-status-switch" role="group" aria-label="Статус двигателя">
+            ${['work', 'reserve', 'repair'].map(s => `
+                <button type="button"
+                    class="engine-status-switch-btn engine-status-${s} ${data.status === s || (!data.status && s === 'work') ? 'active' : ''}"
+                    onclick="event.stopPropagation(); setEngineStatus('${s}')">${ENGINE_STATUS_LABELS[s]}</button>
+            `).join('')}
+        </div>`;
+
     toolbar.innerHTML = `<div class="detail-toolbar">
-        <div class="detail-toolbar-info">${infoHtml}</div>
+        <div class="detail-toolbar-info">${infoHtml}${statusHtml}</div>
         <div class="detail-toolbar-nav">${editButtonsHtml}${navButtonsHtml}</div>
     </div>`;
 
@@ -210,7 +180,7 @@ function renderDetailContent() {
     // список на PUT /api/engine/:id/modes — он и раньше делал полную
     // замену (DELETE+INSERT), так что backend не менялся.
     html += `<div class="detail-subsection-header"><h4><span class="icon icon-bolt"></span> Режимы работы</h4>
-        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="addModeRowInline()"><span class="icon icon-add"></span> Добавить режим</button>' : ''}
+        ${isEdit ? '<button type="button" class="btn btn-success btn-sm" onclick="addModeRowInline()"><span class="icon icon-add"></span> Добавить режим</button>' : ''}
     </div>`;
     if (isEdit) {
         html += '<div class="table-wrapper"><table class="data-table modes-table"><thead><tr>';
@@ -258,11 +228,11 @@ function renderDetailContent() {
     // read-only строк) — это заодно убирает баг с задвоением номера
     // при добавлении нескольких строк подряд без сохранения.
     html += `<div class="detail-subsection-header"><h4><span class="icon icon-build"></span> Произведенные работы</h4>
-        ${isEdit ? '<button class="btn btn-success btn-sm" onclick="addWorkRowInline()"><span class="icon icon-add"></span> Добавить</button>' : ''}
+        ${isEdit ? '<button type="button" class="btn btn-success btn-sm" onclick="addWorkRowInline()"><span class="icon icon-add"></span> Добавить</button>' : ''}
     </div>`;
     if (isEdit) {
         html += '<div class="table-wrapper"><table class="data-table works-table"><thead><tr>';
-        html += '<th class="col-work-num">№ п/п</th><th class="col-work-date">Дата</th><th>Вид производимых работ</th><th class="col-work-isolation">Сопротивление изоляции</th><th class="col-work-inspection">Внешний осмотр и проверка работы</th><th class="col-work-signature">ФИО исполнителя</th>';
+        html += '<th class="col-work-num">№ п/п</th><th class="col-work-date">Дата</th><th>Вид производимых работ</th><th class="col-work-isolation">Сопротивление изоляции, ГОм</th><th class="col-work-inspection">Внешний осмотр и проверка работы</th><th class="col-work-signature">ФИО исполнителя</th>';
         html += '<th class="col-work-action"></th>';
         html += '</tr></thead><tbody id="worksDisplayBody">';
         const works = data.works || [];
@@ -272,7 +242,7 @@ function renderDetailContent() {
                     <td class="work-cell-num">${idx + 1}</td>
                     <td><input type="date" class="work-edit-input" data-field="date" value="${escapeHtml(w.date) || ''}"></td>
                     <td><input type="text" class="work-edit-input" data-field="work_description" value="${escapeHtml(w.work_description) || ''}" placeholder="Введите описание"></td>
-                    <td><input type="number" step="any" class="work-edit-input" data-field="isolation" value="${escapeHtml(w.isolation) || ''}" placeholder="МОм"></td>
+                    <td><input type="number" step="any" class="work-edit-input" data-field="isolation" value="${escapeHtml(w.isolation) || ''}" placeholder="ГОм"></td>
                     <td><input type="text" class="work-edit-input" data-field="inspection" value="${escapeHtml(w.inspection) || ''}" placeholder="Результат"></td>
                     <td><input type="text" class="work-edit-input" data-field="signature" value="${escapeHtml(w.signature) || ''}" placeholder="ФИО"></td>
                     <td class="work-cell-action"><button type="button" class="btn btn-danger btn-sm work-remove-btn" onclick="removeWorkRowInline(${idx})" title="Удалить работу">−</button></td>
@@ -284,7 +254,7 @@ function renderDetailContent() {
         html += '</tbody></table></div>';
     } else if (data.works && data.works.length > 0) {
         html += '<div class="table-wrapper"><table class="data-table"><thead><tr>';
-        html += '<th>№ п/п</th><th>Дата</th><th>Вид производимых работ</th><th>Сопротивление изоляции</th><th>Внешний осмотр и проверка работы</th><th>ФИО исполнителя</th>';
+        html += '<th>№ п/п</th><th>Дата</th><th>Вид производимых работ</th><th>Сопротивление изоляции, ГОм</th><th>Внешний осмотр и проверка работы</th><th>ФИО исполнителя</th>';
         html += '</tr></thead><tbody>';
         data.works.forEach((w, idx) => {
             html += `<tr>
@@ -329,6 +299,19 @@ function renderDetailContent() {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     saveDetailEdit();
+                    return;
+                }
+                // Tab на поле "ФИО исполнителя" (последнее поле) последней
+                // строки таблицы — создаём новую запись и сразу переводим
+                // фокус в её первое поле, как в Excel/1С. Shift+Tab (движение
+                // назад) не трогаем — обычная навигация без создания строки.
+                if (e.key === 'Tab' && !e.shiftKey && this.dataset.field === 'signature') {
+                    const tr = this.closest('tr');
+                    const tbody = document.getElementById('worksDisplayBody');
+                    if (tr && tbody && tr === tbody.lastElementChild) {
+                        e.preventDefault();
+                        addWorkRowInline(true);
+                    }
                 }
             });
         });
@@ -338,7 +321,7 @@ function renderDetailContent() {
 
 // ===== ДОБАВЛЕНИЕ СТРОКИ РАБОТЫ =====
 // ===== ДОБАВЛЕНИЕ СТРОКИ РАБОТЫ =====
-function addWorkRowInline() {
+function addWorkRowInline(focusFirstField) {
     if (!currentEngineData) return;
     // Сначала считываем то, что уже напечатано в DOM (включая другие,
     // ещё не сохранённые строки) — иначе renderDetailContent() ниже
@@ -368,10 +351,19 @@ function addWorkRowInline() {
             lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
             lastRow.classList.add('work-row-flash');
             setTimeout(() => lastRow.classList.remove('work-row-flash'), 2000);
+            // Пришли сюда через Tab с последнего поля — сразу ставим
+            // курсор в первое поле новой строки, чтобы можно было
+            // продолжать вводить без клика мышью.
+            if (focusFirstField) {
+                const firstInput = lastRow.querySelector('.work-edit-input');
+                if (firstInput) firstInput.focus();
+            }
         }
     }, 100);
 
-    showToast('Добавлена строка. Заполните поля и нажмите "Сохранить" или Enter.', 'success', 'icon-add');
+    if (!focusFirstField) {
+        showToast('Добавлена строка. Заполните поля и нажмите "Сохранить" или Enter.', 'success', 'icon-add');
+    }
 }
 
 
@@ -405,6 +397,32 @@ function removeWorkRowInline(idx) {
 // как минимум одного реального бага (saveWorksOnly стирала историю работ,
 // см. комментарий у works ниже). Теперь один detailMode('view'|'edit') на
 // всю карточку и одна кнопка "<span class="icon icon-save"></span> Сохранить" в шапке (см. renderDetailContent).
+
+// ===== СТАТУС ДВИГАТЕЛЯ =====
+// ENGINE_STATUS_LABELS определён в catalog.js (переиспользуется и для
+// бейджа в таблице каталога, и для подписей кнопок переключателя здесь).
+function setEngineStatus(status) {
+    if (!currentEngineId || currentEngineId === pendingNewEngineId) return;
+    if (currentEngineData && currentEngineData.status === status) return;
+
+    apiFetch(`/api/engine/${currentEngineId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.error) {
+            showToast(result.error, 'error', 'icon-cancel');
+            return;
+        }
+        currentEngineData.status = status;
+        renderDetailContent();
+        loadEngines();
+        showToast('Статус обновлён', 'success', 'icon-check-circle');
+    })
+    .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
+}
 
 function enterEditMode() {
     detailMode = 'edit';

@@ -39,9 +39,6 @@
                 <button class="tab-btn" data-tab="equipment">
                     <span class="icon icon-package-2"></span> Оборудование
                 </button>
-                <button class="tab-btn" data-tab="tickets">
-                    <span class="icon icon-warning"></span> Заявки
-                </button>
                 <button class="tab-btn" data-tab="incidents">
                     <span class="icon icon-warning"></span> Инциденты
                 </button>
@@ -59,9 +56,6 @@
                 </button>
                 <button class="tab-btn" data-tab="admin" style="display:none">
                     <span class="icon icon-shield"></span> Админ
-                </button>
-                <button class="tab-btn" data-tab="knowledge" style="display:none">
-                    <span class="icon icon-lightbulb"></span> База знаний
                 </button>
             </nav>
 
@@ -105,6 +99,8 @@
                         <div id="locationTreeBody"><div class="no-data">Загрузка...</div></div>
                     </aside>
 
+                    <div class="panel-resizer" id="locationTreeResizer" title="Потянуть, чтобы изменить ширину"></div>
+
                     <div class="catalog-main">
                         <div class="toolbar">
                             <div class="toolbar-left">
@@ -117,6 +113,12 @@
                                     <option value="manufacturer">Производитель</option>
                                     <option value="purpose">Назначение</option>
                                     <option value="workshop">Цех</option>
+                                </select>
+                                <select id="engineStatusFilter" class="sort-select" onchange="onEngineStatusFilterChange()">
+                                    <option value="">Все статусы</option>
+                                    <option value="work">В работе</option>
+                                    <option value="reserve">В резерве</option>
+                                    <option value="repair">В ремонте</option>
                                 </select>
                                 <select id="sortSelect" class="sort-select">
                                     <option value="location_asc">По месту установки (А-Я)</option>
@@ -145,6 +147,7 @@
                                     <tr>
                                         <th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"></th>
                                         <th class="col-id sortable" onclick="sortTable('id')">ID ↕</th>
+                                        <th class="col-engine-status">Статус</th>
                                         <th class="sortable" onclick="sortTable('location')">Место установки ↕</th>
                                         <th class="sortable" onclick="sortTable('engine_type')">Тип ↕</th>
                                         <th class="sortable" onclick="sortTable('serial_number')">Зав. номер ↕</th>
@@ -155,7 +158,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="tableBody">
-                                    <tr><td colspan="9" class="no-data">Загрузка данных...</td></tr>
+                                    <tr><td colspan="10" class="no-data">Загрузка данных...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -197,6 +200,8 @@
                             </div>
                             <div id="equipmentLocationTreeBody"><div class="no-data">Загрузка...</div></div>
                         </aside>
+
+                        <div class="panel-resizer" id="equipmentLocationTreeResizer" title="Потянуть, чтобы изменить ширину"></div>
 
                         <div class="catalog-main">
                             <div class="toolbar">
@@ -304,45 +309,6 @@
                 </div>
             </div>
 
-            <!-- Вкладка: Заявки. Открыта всем ролям (как двигатели/оборудование) —
-                 это основной рабочий функционал. ticket != failure: заявка
-                 может не подтвердиться как отказ — см. ticket.js. -->
-            <div class="tab-content" id="tab-tickets">
-                <h2><span class="icon icon-warning"></span> Заявки</h2>
-
-                <div class="toolbar">
-                    <div class="toolbar-left">
-                        <select id="ticketStatusFilter" class="sort-select" style="width:180px" onchange="loadTicketsList()">
-                            <option value="">Все статусы</option>
-                            <option value="new">Новые</option>
-                            <option value="in_progress">В работе</option>
-                            <option value="waiting">Ожидание</option>
-                            <option value="resolved">Решены</option>
-                            <option value="closed">Закрыты</option>
-                            <option value="rejected">Отклонены</option>
-                        </select>
-                    </div>
-                    <div class="toolbar-right">
-                        <button class="btn btn-success btn-sm" onclick="openNewTicketModal()"><span class="icon icon-add"></span> Новая заявка</button>
-                    </div>
-                </div>
-
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>№</th>
-                            <th>Тема</th>
-                            <th>Оборудование</th>
-                            <th>Приоритет</th>
-                            <th>Статус</th>
-                            <th>Создана</th>
-                            <th class="col-actions">Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="ticketsListBody"><tr><td colspan="7" class="no-data">Загрузка...</td></tr></tbody>
-                </table>
-            </div>
-
             <!-- Вкладка: Инциденты. Свободный журнал диагностики отказов —
                  НЕ пересекается с "Заявки" (ticket.js): там формализованный
                  протокол ремонта типизированной единицы оборудования, здесь —
@@ -359,48 +325,66 @@
                 </div>
 
                 <div class="info-subtab-content active" id="incidentsSubtab-journal">
-                    <div class="toolbar">
-                        <div class="toolbar-left">
-                            <select id="incidentStatusFilter" class="sort-select" style="width:160px" onchange="loadIncidentsList()">
-                                <option value="">Все статусы</option>
-                                <option value="in_progress">В работе</option>
-                                <option value="resolved">Решено</option>
-                                <option value="rejected">Отклонено</option>
-                            </select>
-                            <select id="incidentPriorityFilter" class="sort-select" style="width:160px" onchange="loadIncidentsList()">
-                                <option value="">Любой приоритет</option>
-                                <option value="low">Низкий</option>
-                                <option value="medium">Средний</option>
-                                <option value="high">Высокий</option>
-                            </select>
-                        </div>
-                        <div class="toolbar-right">
-                            <span id="incidentSelectionInfo" class="selection-info hidden">Выбрано: <b id="incidentSelectionCount">0</b></span>
-                            <button class="btn btn-secondary btn-sm" id="incidentExportBtn" onclick="exportSelectedIncidents()" disabled><span class="icon icon-table-chart"></span> Экспорт выбранного</button>
-                            <button class="btn btn-success btn-sm" onclick="openIncidentModal()"><span class="icon icon-add"></span> Новая заявка</button>
+                    <div class="catalog-layout">
+                        <aside class="tree-panel" id="incidentLocationTreePanel">
+                            <div class="tree-panel-header" onclick="resetIncidentLocationFilter()">
+                                <div class="tree-panel-header-title">
+                                    <span>МЕСТО</span>
+                                </div>
+                                <button type="button" class="tree-reset-btn" title="Сбросить фильтр"><span class="icon icon-close"></span></button>
+                            </div>
+                            <div id="incidentLocationTreeBody"><div class="no-data">Загрузка...</div></div>
+                        </aside>
+
+                        <div class="panel-resizer" id="incidentLocationTreeResizer" title="Потянуть, чтобы изменить ширину"></div>
+
+                        <div class="catalog-main">
+                            <div class="toolbar">
+                                <div class="toolbar-left">
+                                    <select id="incidentStatusFilter" class="sort-select" style="width:160px" onchange="loadIncidentsList()">
+                                        <option value="">Все статусы</option>
+                                        <option value="in_progress">В работе</option>
+                                        <option value="resolved">Решено</option>
+                                        <option value="rejected">Отклонено</option>
+                                    </select>
+                                    <select id="incidentPriorityFilter" class="sort-select" style="width:160px" onchange="loadIncidentsList()">
+                                        <option value="">Любой приоритет</option>
+                                        <option value="low">Низкий</option>
+                                        <option value="medium">Средний</option>
+                                        <option value="high">Высокий</option>
+                                    </select>
+                                </div>
+                                <div class="toolbar-right">
+                                    <span id="incidentSelectionInfo" class="selection-info hidden">Выбрано: <b id="incidentSelectionCount">0</b></span>
+                                    <button class="btn btn-secondary btn-sm" id="incidentExportBtn" onclick="exportSelectedIncidents()" disabled><span class="icon icon-table-chart"></span> Экспорт выбранного</button>
+                                    <button class="btn btn-success btn-sm" onclick="openIncidentModal()"><span class="icon icon-add"></span> Новая заявка</button>
+                                </div>
+                            </div>
+
+                            <div class="table-wrapper" id="incidentsTableWrapper">
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-checkbox"><input type="checkbox" id="incidentSelectAllCheckbox" onchange="toggleIncidentSelectAll(this.checked)"></th>
+                                            <th>№</th>
+                                            <th>Место</th>
+                                            <th>Проблема</th>
+                                            <th>Приоритет</th>
+                                            <th>Статус</th>
+                                            <th>Инициатор(ы)</th>
+                                            <th>Создана</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="incidentsListBody"><tr><td colspan="8" class="no-data">Загрузка...</td></tr></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
-
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th class="col-checkbox"><input type="checkbox" id="incidentSelectAllCheckbox" onchange="toggleIncidentSelectAll(this.checked)"></th>
-                                <th>№</th>
-                                <th>Место</th>
-                                <th>Проблема</th>
-                                <th>Приоритет</th>
-                                <th>Статус</th>
-                                <th>Инициатор(ы)</th>
-                                <th>Создана</th>
-                            </tr>
-                        </thead>
-                        <tbody id="incidentsListBody"><tr><td colspan="8" class="no-data">Загрузка...</td></tr></tbody>
-                    </table>
                 </div>
 
                 <div class="info-subtab-content" id="incidentsSubtab-dictionaries">
                     <div class="knowledge-dictionaries-grid">
-                        <div class="settings-group">
+                        <div class="settings-group" id="locationDictionaryPanel">
                             <h3><span class="icon icon-list-alt"></span> Места</h3>
                             <div class="admin-add-form">
                                 <input type="text" id="newLocationRootName" placeholder="Название корневого места">
@@ -417,6 +401,8 @@
                             <p class="settings-hint">Вложенные места добавляются через мастер прямо из формы заявки ("+ Создать «...»" в поле Место).</p>
                             <div id="locationDictionaryList"><div class="no-data">Загрузка...</div></div>
                         </div>
+
+                        <div class="panel-resizer" id="locationDictionaryResizer" title="Потянуть, чтобы изменить ширину"></div>
 
                         <div class="settings-group">
                             <h3><span class="icon icon-person"></span> Люди</h3>
@@ -578,65 +564,6 @@
                  _require_superadmin в routes/auth.py и applyRoleUI() в auth.js.
                  Пока не привязана к двигателям — самостоятельный справочный
                  инструмент, см. modules/db.py, раздел "База знаний"). -->
-            <div class="tab-content" id="tab-knowledge">
-                <h2><span class="icon icon-lightbulb"></span> База знаний по отказам</h2>
-
-                <div class="info-subtabs">
-                    <button class="btn btn-sm btn-primary" id="knowledgeSubtabArticlesBtn" onclick="switchKnowledgeSubtab('articles')"><span class="icon icon-list-alt"></span> Статьи</button>
-                    <button class="btn btn-sm btn-secondary" id="knowledgeSubtabDictionariesBtn" onclick="switchKnowledgeSubtab('dictionaries')"><span class="icon icon-build"></span> Справочники</button>
-                </div>
-
-                <div class="info-subtab-content active" id="knowledgeSubtab-articles">
-                    <div class="toolbar">
-                        <div class="toolbar-left">
-                            <select id="knowledgeEquipmentTypeFilter" class="sort-select" style="width:200px" onchange="loadKnowledgeArticles()">
-                                <option value="">Все типы оборудования</option>
-                            </select>
-                            <input type="text" id="knowledgeSearchInput" placeholder="Поиск по симптому или заголовку..." class="search-input">
-                        </div>
-                        <div class="toolbar-right">
-                            <button class="btn btn-success btn-sm" onclick="openKnowledgeArticleModal()"><span class="icon icon-add"></span> Добавить статью</button>
-                        </div>
-                    </div>
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>Заголовок</th>
-                                <th>Симптом</th>
-                                <th>Тип оборудования</th>
-                                <th>Устранение</th>
-                                <th>Обновлено</th>
-                                <th class="col-actions">Действия</th>
-                            </tr>
-                        </thead>
-                        <tbody id="knowledgeArticlesBody"><tr><td colspan="6" class="no-data">Загрузка...</td></tr></tbody>
-                    </table>
-                </div>
-
-                <div class="info-subtab-content" id="knowledgeSubtab-dictionaries">
-                    <div class="knowledge-dictionaries-grid">
-                        <div class="settings-group">
-                            <h3><span class="icon icon-warning"></span> Режимы отказа</h3>
-                            <div class="admin-add-form">
-                                <input type="text" id="newFailureModeCode" placeholder="КОД_UPPER_SNAKE" style="width:170px">
-                                <input type="text" id="newFailureModeName" placeholder="Название">
-                                <button class="btn btn-success btn-sm" onclick="createFailureMode()"><span class="icon icon-add"></span></button>
-                            </div>
-                            <div id="failureModesList"><div class="no-data">Загрузка...</div></div>
-                        </div>
-                        <div class="settings-group">
-                            <h3><span class="icon icon-bolt"></span> Причины отказа</h3>
-                            <div class="admin-add-form">
-                                <input type="text" id="newFailureCauseCode" placeholder="КОД_UPPER_SNAKE" style="width:170px">
-                                <input type="text" id="newFailureCauseName" placeholder="Название">
-                                <button class="btn btn-success btn-sm" onclick="createFailureCause()"><span class="icon icon-add"></span></button>
-                            </div>
-                            <div id="failureCausesList"><div class="no-data">Загрузка...</div></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Вкладка: Инфо -->
             <div class="tab-content" id="tab-info">
                 <h2><span class="icon icon-info"></span> Инфо</h2>
@@ -702,7 +629,7 @@
                 <div class="modal-header">
                     <h2 id="detailTitle">Детали двигателя</h2>
                     <div class="modal-header-actions">
-                        <button class="modal-maximize" id="detailMaximizeBtn" onclick="toggleDetailMaximize()" title="Развернуть на весь экран"><span class="icon icon-open-in-full"></span></button>
+                        <button class="modal-maximize" id="detailMaximizeBtn" onclick="toggleModalMaximize('detailModal', 'detailMaximizeBtn')" title="Развернуть на весь экран"><span class="icon icon-open-in-full"></span></button>
                         <button class="modal-close" onclick="closeDetail()">&times;</button>
                     </div>
                 </div>
@@ -775,77 +702,23 @@
         </div>
 
         <!-- Модальное окно статьи базы знаний (создание/редактирование) -->
-        <div class="modal" id="knowledgeArticleModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 id="knowledgeArticleModalTitle"><span class="icon icon-lightbulb"></span> Новая статья</h2>
-                    <button class="modal-close" onclick="closeKnowledgeArticleModal()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="knowledgeArticleId">
-                    <div class="form-group">
-                        <label>Заголовок</label>
-                        <input type="text" id="knowledgeArticleTitle" placeholder="Короткое название ситуации">
-                    </div>
-                    <div class="form-group">
-                        <label>Симптом</label>
-                        <textarea id="knowledgeArticleSymptom" placeholder="Что наблюдается"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Режим отказа</label>
-                        <select id="knowledgeArticleFailureMode">
-                            <option value="">— не выбран —</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Тип оборудования</label>
-                        <select id="knowledgeArticleEquipmentType">
-                            <option value="">— общая статья, без привязки —</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Способ устранения</label>
-                        <select id="knowledgeArticleResolutionType">
-                            <option value="HARDWARE">Аппаратно (ремонт/замена)</option>
-                            <option value="FIRMWARE">Прошивка</option>
-                            <option value="CONFIGURATION">Конфигурация/параметры</option>
-                            <option value="MIXED">Смешанно</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Вероятные причины</label>
-                        <div id="knowledgeArticleCauses" class="knowledge-causes-list">
-                            <div class="no-data">Загрузка...</div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Диагностика (что проверить)</label>
-                        <textarea id="knowledgeArticleDiagnostics" placeholder="Мегомметр, внешний осмотр..."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Рекомендуемое действие</label>
-                        <textarea id="knowledgeArticleAction"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Справочная информация</label>
-                        <textarea id="knowledgeArticleReference" placeholder="ГОСТ, паспортный порог, ссылка..."></textarea>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" onclick="closeKnowledgeArticleModal()">Отмена</button>
-                        <button type="button" class="btn btn-success" onclick="submitKnowledgeArticle()"><span class="icon icon-save"></span> Сохранить</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Модальное окно оборудования (создание/редактирование, с
              динамическими полями по выбранному типу — см. equipment.js) -->
         <div class="modal" id="equipmentModal">
             <div class="modal-content modal-lg">
                 <div class="modal-header">
                     <h2 id="equipmentModalTitle"><span class="icon icon-package-2"></span> Новое оборудование</h2>
-                    <button class="modal-close" onclick="closeEquipmentModal()">&times;</button>
+                    <div class="modal-header-actions">
+                        <button class="modal-maximize" id="equipmentMaximizeBtn" onclick="toggleModalMaximize('equipmentModal', 'equipmentMaximizeBtn')" title="Развернуть на весь экран"><span class="icon icon-open-in-full"></span></button>
+                        <button class="modal-close" onclick="closeEquipmentModal()">&times;</button>
+                    </div>
                 </div>
+                <!-- Тулбар со счётчиком/датами/навигацией — заполняется из
+                     renderEquipmentDetailToolbar() (equipment.js), пусто для
+                     нового оборудования (ещё не сохранено, листать нечего).
+                     Вне .modal-body по тому же принципу, что и #detailToolbar
+                     у карточки двигателя — не скроллится вместе с формой. -->
+                <div id="equipmentDetailToolbar"></div>
                 <div class="modal-body">
                     <!-- Режим просмотра (ТЗ 3.5) — заполняется целиком из JS
                          (renderEquipmentDetailView), т.к. набор атрибутов
@@ -875,16 +748,8 @@
                             <input type="text" id="equipmentManufacturer">
                         </div>
                         <div class="form-group">
-                            <label>Серийный номер</label>
-                            <input type="text" id="equipmentSerialNumber">
-                        </div>
-                        <div class="form-group">
                             <label>Место</label>
                             <input type="text" id="equipmentLocationInput" placeholder="Начните вводить название места...">
-                        </div>
-                        <div class="form-group">
-                            <label>Версия прошивки</label>
-                            <input type="text" id="equipmentFirmware" placeholder="если применимо">
                         </div>
                         <div class="form-group">
                             <label>Критичность (1–5)</label>
@@ -918,57 +783,6 @@
             </div>
         </div>
 
-        <!-- Модальное окно новой заявки -->
-        <div class="modal" id="newTicketModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2><span class="icon icon-warning"></span> Новая заявка</h2>
-                    <button class="modal-close" onclick="closeNewTicketModal()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Оборудование</label>
-                        <select id="ticketEquipmentSelect">
-                            <option value="">— не указано —</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Приоритет</label>
-                        <select id="ticketPrioritySelect">
-                            <option value="high">Высокий</option>
-                            <option value="normal" selected>Обычный</option>
-                            <option value="low">Низкий</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Тема</label>
-                        <input type="text" id="ticketTitle" placeholder="Кратко опишите проблему">
-                    </div>
-                    <div class="form-group">
-                        <label>Описание</label>
-                        <textarea id="ticketDescription" placeholder="Что наблюдается, когда началось..."></textarea>
-                    </div>
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" onclick="closeNewTicketModal()">Отмена</button>
-                        <button type="button" class="btn btn-success" onclick="submitNewTicket()"><span class="icon icon-save"></span> Создать заявку</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно детальной карточки заявки — содержимое
-             рендерится динамически в ticket.js (renderTicketDetail),
-             т.к. форма зависит от статуса заявки и наличия отказа. -->
-        <div class="modal" id="ticketDetailModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2 id="ticketDetailTitle"><span class="icon icon-warning"></span> Заявка</h2>
-                    <button class="modal-close" onclick="closeTicketDetailModal()">&times;</button>
-                </div>
-                <div class="modal-body" id="ticketDetailBody"></div>
-            </div>
-        </div>
-
         <!-- Модальное окно заявки Инцидента (создание/просмотр/редактирование
              одной формой — см. incidents.js::openIncidentModal). Секции
              фото/ссылок переключаются между "режимом создания" (очередь в
@@ -979,8 +793,17 @@
             <div class="modal-content modal-lg">
                 <div class="modal-header">
                     <h2 id="incidentModalTitle"><span class="icon icon-warning"></span> Новая заявка</h2>
-                    <button class="modal-close" onclick="closeIncidentModal()">&times;</button>
+                    <div class="modal-header-actions">
+                        <button class="modal-maximize" id="incidentMaximizeBtn" onclick="toggleModalMaximize('incidentTicketModal', 'incidentMaximizeBtn')" title="Развернуть на весь экран"><span class="icon icon-open-in-full"></span></button>
+                        <button class="modal-close" onclick="closeIncidentModal()">&times;</button>
+                    </div>
                 </div>
+                <!-- Тулбар со счётчиком/датами/навигацией — заполняется из
+                     renderIncidentDetailToolbar() (incidents.js), пусто для
+                     новой заявки. Кнопки "Удалить"/"Печать" переехали сюда
+                     из form-actions внизу (см. ниже) — та же логика, что и
+                     в карточке двигателя/оборудования. -->
+                <div id="incidentDetailToolbar"></div>
                 <div class="modal-body">
                     <div class="form-group">
                         <label>Место</label>
@@ -1060,8 +883,6 @@
                     </div>
 
                     <div class="form-actions">
-                        <button type="button" id="incidentDeleteBtn" class="btn btn-danger" style="display:none;margin-right:auto" onclick="deleteCurrentIncident()"><span class="icon icon-delete"></span> Удалить заявку</button>
-                        <button type="button" id="incidentPrintBtn" class="btn btn-secondary" style="display:none" onclick="printIncident()"><span class="icon icon-print"></span> Печать</button>
                         <button type="button" class="btn btn-secondary" onclick="closeIncidentModal()">Отмена</button>
                         <button type="button" class="btn btn-success" onclick="submitIncident()"><span class="icon icon-save"></span> Сохранить</button>
                     </div>
@@ -1080,11 +901,10 @@
     <script src="/static/js/backupManager.js"></script>
     <script src="/static/js/search.js?v=20260813"></script>
     <script src="/static/js/auth.js?v=20260721"></script>
-    <script src="/static/js/knowledge.js?v=20260813"></script>
     <script src="/static/js/equipment.js?v=20260821"></script>
     <script src="/static/js/equipmentLocationTree.js?v=20260821"></script>
-    <script src="/static/js/ticket.js?v=20260816"></script>
     <script src="/static/js/incidentLocations.js?v=20260820"></script>
+    <script src="/static/js/incidentLocationTree.js?v=20260830"></script>
     <script src="/static/js/incidentCrew.js?v=20260820"></script>
     <script src="/static/js/incidents.js?v=20260820"></script>
     <script>
@@ -1115,6 +935,45 @@
         document.addEventListener('DOMContentLoaded', function() {
             authInit();
             setTimeout(hideAppLoadingOverlay, 8000);
+
+            // Резайзер боковых панелей с деревом мест (common.js::initPanelResizer).
+            // Сами панели (aside/.settings-group) статичны в разметке —
+            // при переключении вкладок/подвкладок перерисовывается только
+            // их innerHTML (#...Body/#...List), сам контейнер и хендл
+            // не пересоздаются. Поэтому резайзер вешается один раз здесь,
+            // а не в loadLocationTree/loadEquipmentTab/loadIncidentsTab.
+            initPanelResizer({
+                panelEl: document.getElementById('locationTreePanel'),
+                handleEl: document.getElementById('locationTreeResizer'),
+                storageKey: 'panelWidth:catalog',
+                minWidth: 180,
+                maxWidth: 600,
+                defaultWidth: 260
+            });
+            initPanelResizer({
+                panelEl: document.getElementById('equipmentLocationTreePanel'),
+                handleEl: document.getElementById('equipmentLocationTreeResizer'),
+                storageKey: 'panelWidth:equipment',
+                minWidth: 180,
+                maxWidth: 600,
+                defaultWidth: 260
+            });
+            initPanelResizer({
+                panelEl: document.getElementById('incidentLocationTreePanel'),
+                handleEl: document.getElementById('incidentLocationTreeResizer'),
+                storageKey: 'panelWidth:incidents',
+                minWidth: 180,
+                maxWidth: 600,
+                defaultWidth: 260
+            });
+            initPanelResizer({
+                panelEl: document.getElementById('locationDictionaryPanel'),
+                handleEl: document.getElementById('locationDictionaryResizer'),
+                storageKey: 'panelWidth:incidentDictionary',
+                minWidth: 240,
+                maxWidth: 640,
+                defaultWidth: 340
+            });
         });
     </script>
 </body>

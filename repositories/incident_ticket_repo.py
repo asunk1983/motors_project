@@ -3,7 +3,35 @@
 
 import sqlite3
 
-from repositories import incident_equipment_repo
+from repositories import incident_equipment_repo, location_repo
+
+
+# ---------------------------------------------------------------------
+# Самовосстанавливающаяся миграция: колонка updated_at
+# ---------------------------------------------------------------------
+# incident_ticket изначально заводился только с created_at/closed_at —
+# "Изменено" в шапке карточки (см. фронт: incidents.js::
+# renderIncidentDetailToolbar) нечего показывать без отдельной колонки.
+# Вместо правки modules/db.py (общая точка миграций, файл здесь не
+# запрашивался) — самодостаточная проверка прямо в репозитории: если
+# колонки ещё нет, добавляем её и один раз бэкафилливаем существующие
+# строки значением created_at. ALTER TABLE ... ADD COLUMN в SQLite —
+# дешёвая операция, PRAGMA table_info тоже, но кэшируем результат
+# флагом на модуль, чтобы не гонять её на каждый запрос в рамках
+# одного процесса.
+_updated_at_ensured = False
+
+
+def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
+    global _updated_at_ensured
+    if _updated_at_ensured:
+        return
+    cols = [row[1] for row in conn.execute('PRAGMA table_info(incident_ticket)').fetchall()]
+    if 'updated_at' not in cols:
+        conn.execute('ALTER TABLE incident_ticket ADD COLUMN updated_at TEXT')
+        conn.execute('UPDATE incident_ticket SET updated_at = created_at WHERE updated_at IS NULL')
+        conn.commit()
+    _updated_at_ensured = True
 
 
 def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str | None = None,
@@ -25,10 +53,11 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
         params.append(location_node_id)
     where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
 
+    _ensure_updated_at_column(conn)
     cur = conn.execute(
         f'''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
-               t.created_at, t.closed_at, t.created_by_user_id,
+               t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
                ln.name AS location_name,
                u.username AS created_by_username
         FROM incident_ticket t
@@ -41,16 +70,25 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
     )
     rows = [dict(row) for row in cur.fetchall()]
     for row in rows:
+        # ln.name из JOIN даёт только имя последнего узла ("Секция А"),
+        # а не весь путь — фронт (incidents.js: список заявок и
+        # incidentTicketModal) ожидает в location_name полный путь, как
+        # уже строит location_repo.search() для автопоиска. Тот же
+        # приём, что и с initiators/executors ниже: один построчный
+        # дозапрос поверх основного SELECT, без раздувания самого JOIN.
+        if row['location_node_id'] is not None:
+            row['location_name'] = location_repo.get_breadcrumb_text(conn, row['location_node_id'])
         row['initiators'] = get_initiators(conn, row['id'])
         row['executors'] = get_executors(conn, row['id'])
     return rows
 
 
 def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
+    _ensure_updated_at_column(conn)
     cur = conn.execute(
         '''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
-               t.created_at, t.closed_at, t.created_by_user_id,
+               t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
                ln.name AS location_name,
                u.username AS created_by_username
         FROM incident_ticket t
@@ -64,6 +102,8 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
     if not row:
         return None
     data = dict(row)
+    if data['location_node_id'] is not None:
+        data['location_name'] = location_repo.get_breadcrumb_text(conn, data['location_node_id'])
     data['initiators'] = get_initiators(conn, ticket_id)
     data['executors'] = get_executors(conn, ticket_id)
     data['equipment'] = incident_equipment_repo.get_relations(conn, ticket_id)
@@ -74,11 +114,13 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
 def create(conn: sqlite3.Connection, location_node_id: int, problem: str, created_by_user_id: int,
            solution: str | None = None, priority: str = 'medium', status: str = 'in_progress',
            closed_at: str | None = None) -> int:
+    _ensure_updated_at_column(conn)
     cur = conn.execute(
         '''
         INSERT INTO incident_ticket
-            (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id,
+             created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
         ''',
         (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id)
     )
@@ -91,6 +133,7 @@ def update(conn: sqlite3.Connection, ticket_id: int, **fields) -> bool:
     status, closed_at. None-значения игнорируются (кроме closed_at,
     которому явный None нужно уметь ставить при возврате в "В работе" —
     для этого используется отдельный именованный параметр)."""
+    _ensure_updated_at_column(conn)
     allowed = {'location_node_id', 'problem', 'solution', 'priority', 'status'}
     set_parts, params = [], []
     for key, value in fields.items():
@@ -105,6 +148,10 @@ def update(conn: sqlite3.Connection, ticket_id: int, **fields) -> bool:
         params.append(fields['closed_at'])
     if not set_parts:
         return False
+    # "Изменено" в шапке карточки (incidents.js::renderIncidentDetailToolbar)
+    # держим актуальным на любое реальное изменение — тот же принцип, что
+    # updated_at у equipment (см. update_equipment в equipment_repo.py).
+    set_parts.append("updated_at = datetime('now')")
     params.append(ticket_id)
     cur = conn.execute(f'UPDATE incident_ticket SET {", ".join(set_parts)} WHERE id = ?', params)
     conn.commit()
@@ -189,6 +236,41 @@ def delete_link(conn: sqlite3.Connection, link_id: int) -> bool:
     cur = conn.execute('DELETE FROM incident_ticket_link WHERE id = ?', (link_id,))
     conn.commit()
     return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------------
+# Дерево мест на вкладке "Инциденты" (по аналогии с
+# equipment_repo.get_equipment_location_counts — см. HANDOFF, раздел 4:
+# та же СВОЯ ошибка там уже была найдена и исправлена, здесь сразу
+# делаем правильно)
+# ---------------------------------------------------------------------
+
+def get_location_counts(conn: sqlite3.Connection) -> dict:
+    """Количество заявок на каждый location_node_id — СВОИ узлы, без
+    суммирования по поддереву (это делает фронт, incidentLocationTree.js,
+    как и equipmentLocationTree.js). Заявки без места
+    (location_node_id IS NULL) считаются отдельно под ключом 'unassigned'.
+
+    Все ключи словаря приводятся к str ЯВНО. Причина — уже найденный на
+    equipment баг: Flask's jsonify по умолчанию сериализует со
+    sort_keys=True, а Python не умеет сравнивать int и str при сортировке
+    в одном dict → TypeError на КАЖДОМ запросе (500 на бэкенде), фронт при
+    этом тихо принимал {"error": ...} за валидные счётчики и показывал
+    везде 0 без единой видимой ошибки. Мешать int (id узла) и str
+    ('unassigned') в одном dict без явного приведения — тот же паттерн,
+    воспроизводить его здесь не нужно."""
+    cur = conn.execute(
+        'SELECT location_node_id, COUNT(*) AS cnt FROM incident_ticket GROUP BY location_node_id'
+    )
+    counts = {}
+    unassigned = 0
+    for row in cur.fetchall():
+        if row['location_node_id'] is None:
+            unassigned += row['cnt']
+        else:
+            counts[str(row['location_node_id'])] = row['cnt']
+    counts['unassigned'] = unassigned
+    return counts
 
 
 # ---------------------------------------------------------------------

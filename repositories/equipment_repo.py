@@ -263,8 +263,8 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
         conditions.append('e.equipment_type_id = ?')
         params.append(equipment_type_id)
     if search:
-        conditions.append('(e.name LIKE ? OR e.article LIKE ? OR e.serial_number LIKE ?)')
-        params += [f'%{search}%'] * 3
+        conditions.append('(e.name LIKE ? OR e.article LIKE ?)')
+        params += [f'%{search}%'] * 2
     if location_node_id:
         subtree_ids = location_repo.get_subtree_ids(conn, location_node_id)
         if not subtree_ids:
@@ -306,13 +306,37 @@ def get_equipment_location_counts(conn) -> dict:
     фронтенд (equipmentLocationTree.js::_equipmentSubtreeCount), т.к.
     дерево уже загружено там целиком и пересчитывать на каждый клик
     дешевле в памяти браузера, чем гонять рекурсивный SQL на каждый
-    рендер дерева."""
+    рендер дерева.
+
+    Отдельно добавляем ключ 'unassigned' — количество оборудования БЕЗ
+    места (location_node_id IS NULL). Раньше такое оборудование вообще не
+    попадало в выборку (WHERE location_node_id IS NOT NULL), из-за чего
+    итог "Все объекты" в боковом дереве (сумма по всем узлам-корням) был
+    занижен ровно на количество непривязанного оборудования и не совпадал
+    с реальным числом записей в номенклатуре.
+    Ключи возвращаемого словаря — ВСЕ строки (str(location_node_id) и
+    'unassigned'), а не int. Иначе Flask's jsonify (sort_keys=True по
+    умолчанию) при сортировке ключей перед сериализацией падает:
+    TypeError: '<' not supported between instances of 'str' and 'int' —
+    Python не умеет сравнивать int и str для сортировки смешанного
+    словаря. На фронтенде ничего не меняется: JSON-ключи и так всегда
+    строки на проводе, а JS обращается к ним через object[nodeId], что
+    само приводит nodeId к строке при доступе.
+    """
     cur = conn.cursor()
     cur.execute(
         'SELECT location_node_id, COUNT(*) as cnt FROM equipment '
-        'WHERE location_node_id IS NOT NULL GROUP BY location_node_id'
+        'GROUP BY location_node_id'
     )
-    return {row['location_node_id']: row['cnt'] for row in cur.fetchall()}
+    result = {}
+    unassigned = 0
+    for row in cur.fetchall():
+        if row['location_node_id'] is None:
+            unassigned = row['cnt']
+        else:
+            result[str(row['location_node_id'])] = row['cnt']
+    result['unassigned'] = unassigned
+    return result
 
 
 def create_equipment(conn, data: dict) -> int:
@@ -320,14 +344,14 @@ def create_equipment(conn, data: dict) -> int:
     cur = conn.cursor()
     cur.execute('''
         INSERT INTO equipment
-            (equipment_type_id, name, article, manufacturer, serial_number,
-             workshop, location, location_node_id, firmware_version, criticality, installed_at,
+            (equipment_type_id, name, article, manufacturer,
+             workshop, location, location_node_id, criticality, installed_at,
              specs_json, note, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
-        data.get('serial_number'), data.get('workshop'), data.get('location'), data.get('location_node_id'),
-        data.get('firmware_version'), data.get('criticality'), data.get('installed_at'),
+        data.get('workshop'), data.get('location'), data.get('location_node_id'),
+        data.get('criticality'), data.get('installed_at'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, now,
     ))
     conn.commit()
@@ -339,14 +363,14 @@ def update_equipment(conn, equipment_id: int, data: dict) -> bool:
     cur = conn.cursor()
     cur.execute('''
         UPDATE equipment SET
-            equipment_type_id = ?, name = ?, article = ?, manufacturer = ?, serial_number = ?,
-            workshop = ?, location = ?, location_node_id = ?, firmware_version = ?, criticality = ?, installed_at = ?,
+            equipment_type_id = ?, name = ?, article = ?, manufacturer = ?,
+            workshop = ?, location = ?, location_node_id = ?, criticality = ?, installed_at = ?,
             specs_json = ?, note = ?, updated_at = ?
         WHERE id = ?
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
-        data.get('serial_number'), data.get('workshop'), data.get('location'), data.get('location_node_id'),
-        data.get('firmware_version'), data.get('criticality'), data.get('installed_at'),
+        data.get('workshop'), data.get('location'), data.get('location_node_id'),
+        data.get('criticality'), data.get('installed_at'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, equipment_id,
     ))
     conn.commit()

@@ -159,12 +159,10 @@ function resetLocationFilter() {
     loadLocationTree();
 }
 
-// Небольшой хелпер — escapeHtml есть в common.js, но он не безопасен для
-// использования внутри одинарных кавычек onclick-атрибута (апострофы
-// в названии цеха/места сломают разметку). Отдельная, более строгая версия.
-function escapeAttr(str) {
-    return String(str || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
-}
+// escapeAttr — общая утилита из common.js (экранирование для onclick-атрибута
+// в одинарных кавычках). Раньше была определена здесь локально, а её же
+// использовал equipmentLocationTree.js (другая вкладка, независимый файл) без
+// гарантии, что оба файла всегда загружены вместе. См. common.js.
 
 document.addEventListener('DOMContentLoaded', function() {
     loadLocationTree();
