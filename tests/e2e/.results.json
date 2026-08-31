@@ -1,0 +1,812 @@
+{
+  "tests/e2e/test_01_auth.py::test_01_login_success": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_01_login_success",
+    "scenario": "1. Вход в систему",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 3.43,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_02_logout": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_02_logout",
+    "scenario": "2. Выход (logout)",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_03_valid_token_on_reload": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_03_valid_token_on_reload",
+    "scenario": "3. Проверка токена при загрузке (валидный)",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_03b_invalid_token_on_reload": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_03b_invalid_token_on_reload",
+    "scenario": "3. Проверка токена при загрузке (невалидный)",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_04_401_redirect_to_login": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_04_401_redirect_to_login",
+    "scenario": "4. Редирект на вход при 401 от apiFetch",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_05_admin_tabs_visible_for_admin": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_05_admin_tabs_visible_for_admin",
+    "scenario": "5. Вкладки Импорт/Админ видны для админа",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_05b_admin_tabs_hidden_for_user": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_05b_admin_tabs_hidden_for_user",
+    "scenario": "5. Вкладки Импорт/Админ скрыты для пользователя",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_06_list_users": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_06_list_users",
+    "scenario": "6. Список пользователей",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_07_create_user": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_07_create_user",
+    "scenario": "7. Создание пользователя",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_08_change_password": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_08_change_password",
+    "scenario": "8. Смена пароля",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_09_revoke_user_sessions": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_09_revoke_user_sessions",
+    "scenario": "9. Сброс всех сессий пользователя",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_01_auth.py::test_10_delete_user": {
+    "nodeid": "tests/e2e/test_01_auth.py::test_10_delete_user",
+    "scenario": "10. Удаление пользователя",
+    "group": "test_01_auth",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_11_misc.py::test_81_status_api": {
+    "nodeid": "tests/e2e/test_11_misc.py::test_81_status_api",
+    "scenario": "81. API статус",
+    "group": "test_11_misc",
+    "status": "failed",
+    "duration": 0.35,
+    "details": "tests/e2e/conftest.py:192: in admin_api\n    resp = ctx.post(\"/api/auth/login\",\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:21455: in post\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:290: in post\n    return await self.fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:329: in fetch\n    return await self._inner_fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:435: in _inner_fetch\n    response = await s",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_11_misc.py::test_82_search_suggestions": {
+    "nodeid": "tests/e2e/test_11_misc.py::test_82_search_suggestions",
+    "scenario": "82. Подсказки поискового поля (search-suggestions)",
+    "group": "test_11_misc",
+    "status": "failed",
+    "duration": 0.33,
+    "details": "tests/e2e/conftest.py:192: in admin_api\n    resp = ctx.post(\"/api/auth/login\",\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:21455: in post\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:290: in post\n    return await self.fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:329: in fetch\n    return await self._inner_fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:435: in _inner_fetch\n    response = await s",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_11_misc.py::test_83_photo_url": {
+    "nodeid": "tests/e2e/test_11_misc.py::test_83_photo_url",
+    "scenario": "83. URL фото с токеном",
+    "group": "test_11_misc",
+    "status": "failed",
+    "duration": 0.37,
+    "details": "tests/e2e/conftest.py:192: in admin_api\n    resp = ctx.post(\"/api/auth/login\",\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:21455: in post\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:290: in post\n    return await self.fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:329: in fetch\n    return await self._inner_fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:435: in _inner_fetch\n    response = await s",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_11_misc.py::test_84_test_endpoint": {
+    "nodeid": "tests/e2e/test_11_misc.py::test_84_test_endpoint",
+    "scenario": "84. Страница /test",
+    "group": "test_11_misc",
+    "status": "failed",
+    "duration": 0.33,
+    "details": "tests/e2e/conftest.py:192: in admin_api\n    resp = ctx.post(\"/api/auth/login\",\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:21455: in post\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:290: in post\n    return await self.fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:329: in fetch\n    return await self._inner_fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:435: in _inner_fetch\n    response = await s",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_11_misc.py::test_84b_status_after_create": {
+    "nodeid": "tests/e2e/test_11_misc.py::test_84b_status_after_create",
+    "scenario": "84b. Статус сервера после создания двигателя",
+    "group": "test_11_misc",
+    "status": "failed",
+    "duration": 0.34,
+    "details": "tests/e2e/conftest.py:192: in admin_api\n    resp = ctx.post(\"/api/auth/login\",\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:21455: in post\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:290: in post\n    return await self.fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:329: in fetch\n    return await self._inner_fetch(\n.venv/lib/python3.12/site-packages/playwright/_impl/_fetch.py:435: in _inner_fetch\n    response = await s",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_11_view_catalog_on_entry": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_11_view_catalog_on_entry",
+    "scenario": "11. Просмотр каталога при входе",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_12_quick_search": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_12_quick_search",
+    "scenario": "12. Быстрый поиск",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_13_search_field_selection": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_13_search_field_selection",
+    "scenario": "13. Выбор поля поиска",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_14_sorting": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_14_sorting",
+    "scenario": "14. Сортировка через выпадающий список",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_14b_sorting_column_header": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_14b_sorting_column_header",
+    "scenario": "14b. Сортировка по клику на заголовке колонки",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_15_toggle_table_cards": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_15_toggle_table_cards",
+    "scenario": "15. Переключение вида (таблица/карточки)",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_16_pagination": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_16_pagination",
+    "scenario": "16. Пагинация",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_17_select_for_export": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_17_select_for_export",
+    "scenario": "17. Выбор двигателей для экспорта",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_18_select_all": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_18_select_all",
+    "scenario": "18. Выбор всех",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_19_clear_selection": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_19_clear_selection",
+    "scenario": "19. Очистка выбора",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_02_catalog.py::test_21_refresh_catalog": {
+    "nodeid": "tests/e2e/test_02_catalog.py::test_21_refresh_catalog",
+    "scenario": "21. Обновление каталога (кнопка Refresh)",
+    "group": "test_02_catalog",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_22_open_add_tab": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_22_open_add_tab",
+    "scenario": "22. Открытие вкладки «Добавить»",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_23_fill_form": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_23_fill_form",
+    "scenario": "23. Заполнение формы",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_24_add_mode_row": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_24_add_mode_row",
+    "scenario": "24. Добавление ряда режима работы",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_25_add_work_row": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_25_add_work_row",
+    "scenario": "25. Добавление записи о работе",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_26_select_photos": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_26_select_photos",
+    "scenario": "26. Выбор фото",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 2.32,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_28_remove_pending_photo": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_28_remove_pending_photo",
+    "scenario": "28. Удаление непривязанного фото",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_29_clear_form": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_29_clear_form",
+    "scenario": "29. Очистка формы",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_30_apply_creates_engine": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_30_apply_creates_engine",
+    "scenario": "30. Кнопка «Применить» (создание двигателя)",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_03_add_engine.py::test_31_save_via_form": {
+    "nodeid": "tests/e2e/test_03_add_engine.py::test_31_save_via_form",
+    "scenario": "31. Сохранение через кнопку формы (submit)",
+    "group": "test_03_add_engine",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_32_open_detail_card": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_32_open_detail_card",
+    "scenario": "32. Открытие детальной карточки",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_33_view_characteristics": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_33_view_characteristics",
+    "scenario": "33. Просмотр характеристик",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_34_edit_and_save": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_34_edit_and_save",
+    "scenario": "34. Редактирование и сохранение характеристик",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_35_cancel_editing": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_35_cancel_editing",
+    "scenario": "35. Отмена редактирования",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_36_toggle_modes": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_36_toggle_modes",
+    "scenario": "36. Переключение режимов просмотра/редактирования",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_37_add_save_mode": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_37_add_save_mode",
+    "scenario": "37. Добавление и сохранение режима работы",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_38_add_save_work": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_38_add_save_work",
+    "scenario": "38. Добавление и сохранение работы",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_40_navigation": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_40_navigation",
+    "scenario": "40. Навигация между двигателями",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_41_print_card": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_41_print_card",
+    "scenario": "41. Печать карточки",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_04_detail.py::test_42_close_card": {
+    "nodeid": "tests/e2e/test_04_detail.py::test_42_close_card",
+    "scenario": "42. Закрытие карточки",
+    "group": "test_04_detail",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_05_photos.py::test_43_add_photo": {
+    "nodeid": "tests/e2e/test_05_photos.py::test_43_add_photo",
+    "scenario": "43. Добавление фото в карточку",
+    "group": "test_05_photos",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_05_photos.py::test_44_delete_photo": {
+    "nodeid": "tests/e2e/test_05_photos.py::test_44_delete_photo",
+    "scenario": "44. Удаление фото",
+    "group": "test_05_photos",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_05_photos.py::test_46_view_photo_modal": {
+    "nodeid": "tests/e2e/test_05_photos.py::test_46_view_photo_modal",
+    "scenario": "46. Просмотр фото в модальном окне",
+    "group": "test_05_photos",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_05_photos.py::test_47_navigate_photos": {
+    "nodeid": "tests/e2e/test_05_photos.py::test_47_navigate_photos",
+    "scenario": "47. Навигация между фото в модальном окне",
+    "group": "test_05_photos",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_05_photos.py::test_48_close_photo_modal": {
+    "nodeid": "tests/e2e/test_05_photos.py::test_48_close_photo_modal",
+    "scenario": "48. Закрытие модального окна фото (Escape)",
+    "group": "test_05_photos",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_05_photos.py::test_49_autocomplete": {
+    "nodeid": "tests/e2e/test_05_photos.py::test_49_autocomplete",
+    "scenario": "49. Автодополнение полей в редактировании",
+    "group": "test_05_photos",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_06_import.py::test_50_switch_import_tab": {
+    "nodeid": "tests/e2e/test_06_import.py::test_50_switch_import_tab",
+    "scenario": "50. Переключение на вкладку «Импорт»",
+    "group": "test_06_import",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_06_import.py::test_51_import_excel": {
+    "nodeid": "tests/e2e/test_06_import.py::test_51_import_excel",
+    "scenario": "51. Импорт из Excel",
+    "group": "test_06_import",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_06_import.py::test_52_clear_db": {
+    "nodeid": "tests/e2e/test_06_import.py::test_52_clear_db",
+    "scenario": "52. Очистка БД",
+    "group": "test_06_import",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_07_search.py::test_53_switch_search_tab": {
+    "nodeid": "tests/e2e/test_07_search.py::test_53_switch_search_tab",
+    "scenario": "53. Переключение на вкладку «Поиск»",
+    "group": "test_07_search",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_07_search.py::test_54_add_condition": {
+    "nodeid": "tests/e2e/test_07_search.py::test_54_add_condition",
+    "scenario": "54. Добавление условия поиска",
+    "group": "test_07_search",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_07_search.py::test_55_select_field_operator": {
+    "nodeid": "tests/e2e/test_07_search.py::test_55_select_field_operator",
+    "scenario": "55. Выбор поля и оператора",
+    "group": "test_07_search",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_07_search.py::test_56_autocomplete": {
+    "nodeid": "tests/e2e/test_07_search.py::test_56_autocomplete",
+    "scenario": "56. Автодополнение (autocomplete)",
+    "group": "test_07_search",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_07_search.py::test_57_execute_search": {
+    "nodeid": "tests/e2e/test_07_search.py::test_57_execute_search",
+    "scenario": "57. Выполнение поиска",
+    "group": "test_07_search",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_07_search.py::test_58_clear_conditions": {
+    "nodeid": "tests/e2e/test_07_search.py::test_58_clear_conditions",
+    "scenario": "58. Очистка всех условий",
+    "group": "test_07_search",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_08_settings.py::test_59_switch_settings_tab": {
+    "nodeid": "tests/e2e/test_08_settings.py::test_59_switch_settings_tab",
+    "scenario": "59. Переключение на вкладку «Настройки»",
+    "group": "test_08_settings",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_08_settings.py::test_60_view_db_stats": {
+    "nodeid": "tests/e2e/test_08_settings.py::test_60_view_db_stats",
+    "scenario": "60. Просмотр статистики БД",
+    "group": "test_08_settings",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_08_settings.py::test_61_view_photo_stats": {
+    "nodeid": "tests/e2e/test_08_settings.py::test_61_view_photo_stats",
+    "scenario": "61. Просмотр статистики фото",
+    "group": "test_08_settings",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_08_settings.py::test_63_create_backup": {
+    "nodeid": "tests/e2e/test_08_settings.py::test_63_create_backup",
+    "scenario": "63. Создание резервной копии",
+    "group": "test_08_settings",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_08_settings.py::test_64_view_backup_list": {
+    "nodeid": "tests/e2e/test_08_settings.py::test_64_view_backup_list",
+    "scenario": "64. Просмотр списка резервных копий",
+    "group": "test_08_settings",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_08_settings.py::test_66_info_hint": {
+    "nodeid": "tests/e2e/test_08_settings.py::test_66_info_hint",
+    "scenario": "66. Инфо-подсказка в настройках",
+    "group": "test_08_settings",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_09_backups.py::test_67_view_backup_list": {
+    "nodeid": "tests/e2e/test_09_backups.py::test_67_view_backup_list",
+    "scenario": "67. Просмотр списка резервных копий",
+    "group": "test_09_backups",
+    "status": "failed",
+    "duration": 6.42,
+    "details": "pw = <playwright._impl._playwright.Playwright object at 0x7579aa1e57c0>\n\n    @pytest.fixture(scope=\"session\")\n    def browser(pw):\n        # Видимый браузер, как просил пользователь.\n>       b = pw.chromium.launch(headless=False,\n                               args=[\"--window-size=1300,820\", \"--no-first-run\"])\n\ntests/e2e/conftest.py:76: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in ",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_09_backups.py::test_68_create_backup": {
+    "nodeid": "tests/e2e/test_09_backups.py::test_68_create_backup",
+    "scenario": "68. Создание резервной копии",
+    "group": "test_09_backups",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "pw = <playwright._impl._playwright.Playwright object at 0x7579aa1e57c0>\n\n    @pytest.fixture(scope=\"session\")\n    def browser(pw):\n        # Видимый браузер, как просил пользователь.\n>       b = pw.chromium.launch(headless=False,\n                               args=[\"--window-size=1300,820\", \"--no-first-run\"])\n\ntests/e2e/conftest.py:76: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in ",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_09_backups.py::test_69_download_backup": {
+    "nodeid": "tests/e2e/test_09_backups.py::test_69_download_backup",
+    "scenario": "69. Скачивание резервной копии",
+    "group": "test_09_backups",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "pw = <playwright._impl._playwright.Playwright object at 0x7579aa1e57c0>\n\n    @pytest.fixture(scope=\"session\")\n    def browser(pw):\n        # Видимый браузер, как просил пользователь.\n>       b = pw.chromium.launch(headless=False,\n                               args=[\"--window-size=1300,820\", \"--no-first-run\"])\n\ntests/e2e/conftest.py:76: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in ",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_09_backups.py::test_71_delete_backup": {
+    "nodeid": "tests/e2e/test_09_backups.py::test_71_delete_backup",
+    "scenario": "71. Удаление резервной копии",
+    "group": "test_09_backups",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "pw = <playwright._impl._playwright.Playwright object at 0x7579aa1e57c0>\n\n    @pytest.fixture(scope=\"session\")\n    def browser(pw):\n        # Видимый браузер, как просил пользователь.\n>       b = pw.chromium.launch(headless=False,\n                               args=[\"--window-size=1300,820\", \"--no-first-run\"])\n\ntests/e2e/conftest.py:76: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in ",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_72_switch_info_tab": {
+    "nodeid": "tests/e2e/test_10_info.py::test_72_switch_info_tab",
+    "scenario": "72. Переключение на вкладку «Инфо»",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_73_subtab_switching": {
+    "nodeid": "tests/e2e/test_10_info.py::test_73_subtab_switching",
+    "scenario": "73. Переключение подвкладок",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_74_view_changelog": {
+    "nodeid": "tests/e2e/test_10_info.py::test_74_view_changelog",
+    "scenario": "74. Просмотр changelog",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_75_add_changelog": {
+    "nodeid": "tests/e2e/test_10_info.py::test_75_add_changelog",
+    "scenario": "75. Добавление записи в changelog",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_76_delete_changelog": {
+    "nodeid": "tests/e2e/test_10_info.py::test_76_delete_changelog",
+    "scenario": "76. Удаление записи из changelog",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_77_view_wishlist": {
+    "nodeid": "tests/e2e/test_10_info.py::test_77_view_wishlist",
+    "scenario": "77. Просмотр wishlist",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_78_add_wishlist": {
+    "nodeid": "tests/e2e/test_10_info.py::test_78_add_wishlist",
+    "scenario": "78. Добавление элемента в wishlist",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_79_edit_wishlist": {
+    "nodeid": "tests/e2e/test_10_info.py::test_79_edit_wishlist",
+    "scenario": "79. Редактирование элемента wishlist (toggle done)",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  },
+  "tests/e2e/test_10_info.py::test_80_delete_wishlist": {
+    "nodeid": "tests/e2e/test_10_info.py::test_80_delete_wishlist",
+    "scenario": "80. Удаление элемента из wishlist",
+    "group": "test_10_info",
+    "status": "failed",
+    "duration": 0.0,
+    "details": "tests/e2e/conftest.py:76: in browser\n    b = pw.chromium.launch(headless=False,\n.venv/lib/python3.12/site-packages/playwright/sync_api/_generated.py:16702: in launch\n    self._sync(\n.venv/lib/python3.12/site-packages/playwright/_impl/_browser_type.py:97: in launch\n    await self._channel.send(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:76: in send\n    return await self._connection.wrap_api_call(\n.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py:632: in wr",
+    "console": "",
+    "screenshot": null
+  }
+}
