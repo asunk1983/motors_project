@@ -124,6 +124,57 @@ def upload_equipment_photos(equipment_id, files):
     return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped})
 
 
+def replace_equipment_photo(equipment_id, filename, file):
+    """Перезаписывает уже существующее фото на диске — используется при
+    обрезке (crop) в UI, тот же паттерн, что
+    manager.py::replace_engine_photo для двигателей.
+
+    file — объект FileStorage (request.files['photo']), содержащий уже
+    обрезанный canvas.toBlob()-результат. Если его расширение не
+    совпадает с исходным (canvas может перекодировать формат, см.
+    _cropMimeForExt на фронте), файл пересохраняется под тем же базовым
+    именем, но с новым расширением, а старый файл — удаляется, чтобы на
+    диске не оставалось двух копий одного фото."""
+    if '..' in filename or '/' in filename or '\\' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    if not filename.startswith(f'ID{equipment_id}_'):
+        return jsonify({'error': 'Фото не принадлежит этой записи оборудования'}), 403
+
+    folder = _photos_folder()
+    old_path = os.path.join(folder, filename)
+    if not os.path.exists(old_path):
+        return jsonify({'error': 'Фото не найдено'}), 404
+
+    if not file or not file.filename:
+        return jsonify({'error': 'Файл не передан'}), 400
+
+    new_ext = os.path.splitext(file.filename)[1].lower()
+    if new_ext not in ALLOWED_PHOTO_EXT:
+        return jsonify({'error': 'Недопустимый формат файла'}), 400
+
+    base_name = filename[:filename.rfind('.')]
+    new_filename = base_name + new_ext
+    new_path = os.path.join(folder, new_filename)
+
+    # Временный файл + os.replace() — атомарная запись, тот же приём, что
+    # manager.py::_save_upload_atomically (защита от битого файла при
+    # обрыве записи на середине).
+    tmp_path = new_path + '.tmp'
+    file.save(tmp_path)
+    os.replace(tmp_path, new_path)
+
+    if new_filename != filename:
+        try:
+            os.remove(old_path)
+        except OSError:
+            pass
+
+    if equipment_id in _photo_paths_cache:
+        del _photo_paths_cache[equipment_id]
+
+    return jsonify({'success': True, 'filename': new_filename})
+
+
 def delete_equipment_photo(equipment_id, filename):
     """Удаляет одно фото с диска."""
     if '..' in filename or '/' in filename or '\\' in filename:

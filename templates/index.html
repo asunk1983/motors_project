@@ -640,67 +640,6 @@
             </div>
         </div>
 
-        <!-- Модальное окно добавления фото (карточка двигателя) -->
-        <div class="modal" id="photoAddModal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2><span class="icon icon-photo-camera"></span> Добавить фото</h2>
-                    <button class="modal-close" onclick="closePhotoAddModal()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <label class="btn btn-secondary file-input-label">
-                        <span class="icon icon-add"></span> Выбрать фото
-                        <input type="file" id="detailPhotoInput" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" multiple class="file-input-hidden">
-                    </label>
-                    <div id="detailPhotoPreview" class="detail-photos photos-preview"></div>
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" onclick="closePhotoAddModal()">Отмена</button>
-                        <button type="button" class="btn btn-success" onclick="submitDetailPhotoAdd()"><span class="icon icon-save"></span> Загрузить</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно обрезки фото. DOM-сосед photoAddModal/detailModal,
-             а не потомок — по тому же правилу, что и остальные под-модалки
-             (см. CLAUDE.md, раздел "Модалки"). Добавлена в список
-             исключений click-outside detailModal в engines.js. -->
-        <div class="modal" id="photoCropModal">
-            <div class="modal-content modal-lg">
-                <div class="modal-header">
-                    <h2><span class="icon icon-content-cut"></span> Обрезка фото</h2>
-                    <button class="modal-close" onclick="closeCropModal()">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="crop-stage" id="cropStage">
-                        <canvas id="cropCanvas" class="crop-canvas"></canvas>
-                        <div class="crop-selection" id="cropSelection">
-                            <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
-                            <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
-                            <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
-                            <div class="crop-handle crop-handle-se" data-handle="se"></div>
-                        </div>
-                    </div>
-                    <div class="crop-hint">Перетащите рамку целиком или потяните за угол, чтобы изменить область обрезки.</div>
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" onclick="closeCropModal()">Отмена</button>
-                        <button type="button" class="btn btn-success" onclick="applyCrop()"><span class="icon icon-content-cut"></span> Обрезать и применить</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Модальное окно просмотра фото -->
-        <div class="modal photo-modal" id="photoModal">
-            <button class="modal-close" onclick="closePhotoModal()">&times;</button>
-            <div class="photo-modal-stage">
-                <button id="photoPrevBtn" class="photo-nav-btn prev hidden" onclick="navigatePhotoModal(-1)"><span class="icon icon-chevron-left"></span></button>
-                <img id="modalImage" src="" alt="Фото" class="photo-modal-img" onclick="event.stopPropagation()">
-                <button id="photoNextBtn" class="photo-nav-btn next hidden" onclick="navigatePhotoModal(1)"><span class="icon icon-chevron-left icon-chevron-right"></span></button>
-            </div>
-            <div id="photoCounter" class="photo-counter">1 / 1</div>
-        </div>
-
         <!-- Модальное окно статьи базы знаний (создание/редактирование) -->
         <!-- Модальное окно оборудования (создание/редактирование, с
              динамическими полями по выбранному типу — см. equipment.js) -->
@@ -888,6 +827,86 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <!-- Утилитарные под-модалки фото (добавление/обрезка/просмотр) —
+             намеренно вынесены В КОНЕЦ списка модалок, ПОСЛЕ всех
+             карточек (detailModal/equipmentModal/incidentTicketModal).
+             Они DOM-соседи этих карточек, а не потомки (см. CLAUDE.md,
+             раздел "Модалки"), а без явного z-index в style.css порядок
+             наложения position:fixed-элементов определяется порядком в
+             DOM — кто позже, тот сверху. Раньше эти три блока стояли
+             сразу после detailModal и ДО equipmentModal/
+             incidentTicketModal, из-за чего обрезка/просмотр фото
+             корректно накрывали карточку двигателя, но у карточек
+             оборудования и заявок Инцидентов оказывались НИЖЕ них —
+             сама модалка оборудования/заявки перекрывала обрезку,
+             и её содержимое "вылезало" за пределы формы. Перенос сюда
+             гарантирует правильное наложение независимо от того, из
+             какой карточки открыта обрезка/добавление/просмотр фото. -->
+
+        <!-- Модальное окно добавления фото (карточка двигателя) -->
+        <div class="modal" id="photoAddModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><span class="icon icon-photo-camera"></span> Добавить фото</h2>
+                    <button class="modal-close" onclick="closePhotoAddModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <label class="btn btn-secondary file-input-label">
+                        <span class="icon icon-add"></span> Выбрать фото
+                        <input type="file" id="detailPhotoInput" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" multiple class="file-input-hidden">
+                    </label>
+                    <div id="detailPhotoPreview" class="detail-photos photos-preview"></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closePhotoAddModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="submitDetailPhotoAdd()"><span class="icon icon-save"></span> Загрузить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно обрезки фото. DOM-сосед photoAddModal/detailModal/
+             equipmentModal/incidentTicketModal, а не потомок — по тому же
+             правилу, что и остальные под-модалки (см. CLAUDE.md, раздел
+             "Модалки"). Добавлена в список исключений click-outside
+             detailModal в engines.js. Используется также карточкой
+             оборудования (equipment.js::openCropModal(..., 'equipment')). -->
+        <div class="modal" id="photoCropModal">
+            <div class="modal-content modal-lg">
+                <div class="modal-header">
+                    <h2><span class="icon icon-content-cut"></span> Обрезка фото</h2>
+                    <button class="modal-close" onclick="closeCropModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="crop-stage" id="cropStage">
+                        <canvas id="cropCanvas" class="crop-canvas"></canvas>
+                        <div class="crop-selection" id="cropSelection">
+                            <div class="crop-handle crop-handle-nw" data-handle="nw"></div>
+                            <div class="crop-handle crop-handle-ne" data-handle="ne"></div>
+                            <div class="crop-handle crop-handle-sw" data-handle="sw"></div>
+                            <div class="crop-handle crop-handle-se" data-handle="se"></div>
+                        </div>
+                    </div>
+                    <div class="crop-hint">Перетащите рамку целиком или потяните за угол, чтобы изменить область обрезки.</div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeCropModal()">Отмена</button>
+                        <button type="button" class="btn btn-success" onclick="applyCrop()"><span class="icon icon-content-cut"></span> Обрезать и применить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Модальное окно просмотра фото (общий лайтбокс — двигатели,
+             оборудование, заявки Инцидентов, см. currentPhotos) -->
+        <div class="modal photo-modal" id="photoModal">
+            <button class="modal-close" onclick="closePhotoModal()">&times;</button>
+            <div class="photo-modal-stage">
+                <button id="photoPrevBtn" class="photo-nav-btn prev hidden" onclick="navigatePhotoModal(-1)"><span class="icon icon-chevron-left"></span></button>
+                <img id="modalImage" src="" alt="Фото" class="photo-modal-img" onclick="event.stopPropagation()">
+                <button id="photoNextBtn" class="photo-nav-btn next hidden" onclick="navigatePhotoModal(1)"><span class="icon icon-chevron-left icon-chevron-right"></span></button>
+            </div>
+            <div id="photoCounter" class="photo-counter">1 / 1</div>
         </div>
     </div>
 

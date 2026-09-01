@@ -420,6 +420,19 @@ def upload_equipment_photos_route(equipment_id):
         return jsonify({'error': str(e)}), 500
 
 
+@equipment_bp.route('/equipment/<int:equipment_id>/photos/<filename>', methods=['PUT'])
+def replace_equipment_photo_route(equipment_id, filename):
+    try:
+        with db_connection() as conn:
+            if not get_equipment_by_id(conn, equipment_id):
+                return jsonify({'error': 'Оборудование не найдено'}), 404
+        file = request.files.get('photo')
+        return equipment_manager.replace_equipment_photo(equipment_id, filename, file)
+    except Exception as e:
+        logger.exception('replace_equipment_photo_route failed')
+        return jsonify({'error': str(e)}), 500
+
+
 @equipment_bp.route('/equipment/<int:equipment_id>/photos/<filename>', methods=['DELETE'])
 def delete_equipment_photo_route(equipment_id, filename):
     return equipment_manager.delete_equipment_photo(equipment_id, filename)

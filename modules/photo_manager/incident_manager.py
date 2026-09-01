@@ -120,6 +120,55 @@ def upload_ticket_photos(ticket_id, files):
     return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped})
 
 
+def replace_ticket_photo(ticket_id, filename, file):
+    """Перезаписывает уже существующее фото на диске — используется при
+    обрезке (crop) в UI, тот же паттерн, что
+    equipment_manager.py::replace_equipment_photo для оборудования и
+    manager.py::replace_engine_photo для двигателей.
+
+    file — объект FileStorage (request.files['photo']), содержащий уже
+    обрезанный canvas.toBlob()-результат. Если его расширение не
+    совпадает с исходным, файл пересохраняется под тем же базовым именем,
+    но с новым расширением, а старый файл — удаляется."""
+    if '..' in filename or '/' in filename or '\\' in filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    if not filename.startswith(f'ID{ticket_id}_'):
+        return jsonify({'error': 'Фото не принадлежит этой заявке'}), 403
+
+    folder = _photos_folder()
+    old_path = os.path.join(folder, filename)
+    if not os.path.exists(old_path):
+        return jsonify({'error': 'Фото не найдено'}), 404
+
+    if not file or not file.filename:
+        return jsonify({'error': 'Файл не передан'}), 400
+
+    new_ext = os.path.splitext(file.filename)[1].lower()
+    if new_ext not in ALLOWED_PHOTO_EXT:
+        return jsonify({'error': 'Недопустимый формат файла'}), 400
+
+    base_name = filename[:filename.rfind('.')]
+    new_filename = base_name + new_ext
+    new_path = os.path.join(folder, new_filename)
+
+    # Временный файл + os.replace() — атомарная запись, тот же приём, что
+    # и в equipment_manager.py::replace_equipment_photo.
+    tmp_path = new_path + '.tmp'
+    file.save(tmp_path)
+    os.replace(tmp_path, new_path)
+
+    if new_filename != filename:
+        try:
+            os.remove(old_path)
+        except OSError:
+            pass
+
+    if ticket_id in _photo_paths_cache:
+        del _photo_paths_cache[ticket_id]
+
+    return jsonify({'success': True, 'filename': new_filename})
+
+
 def delete_ticket_photo(ticket_id, filename):
     """Удаляет одно фото с диска."""
     if '..' in filename or '/' in filename or '\\' in filename:

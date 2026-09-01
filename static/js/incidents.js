@@ -580,7 +580,7 @@ function renderIncidentPendingPhotos() {
         const url = URL.createObjectURL(file);
         const box = document.createElement('div');
         box.className = 'photo-thumb is-pending';
-        box.innerHTML = `<img src="${url}" alt="Новое фото"><button type="button" class="photo-thumb-remove" onclick="removePendingIncidentPhoto(${idx})"><span class="icon icon-close"></span></button>`;
+        box.innerHTML = `<img src="${url}" alt="Новое фото"><button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('incidentPending', ${idx})"><span class="icon icon-content-cut"></span></button><button type="button" class="photo-thumb-remove" onclick="removePendingIncidentPhoto(${idx})"><span class="icon icon-close"></span></button>`;
         wrap.appendChild(box);
     });
 }
@@ -600,6 +600,7 @@ function renderIncidentEditPhotos() {
     wrap.innerHTML = incidentEditPhotos.map(p => `
         <div class="photo-thumb">
             <img src="${authPhotoUrl(p.path)}" alt="Фото заявки">
+            <button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('existing', '${escapeAttr(p.filename)}', '${escapeAttr(p.path)}', 'incident')"><span class="icon icon-content-cut"></span></button>
             <button type="button" class="photo-thumb-remove" onclick="deleteIncidentPhoto('${escapeAttr(p.filename)}')" title="Удалить"><span class="icon icon-close"></span></button>
         </div>
     `).join('');

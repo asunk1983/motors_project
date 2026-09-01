@@ -699,8 +699,9 @@ function removeDetailPhoto(filename) {
 // добавления нового двигателя). Какой из них редактируется сейчас,
 // хранится в cropState.list, чтобы не дублировать canvas-логику дважды.
 const cropState = {
-    list: null,        // 'detail' | 'pending' | 'existing'
-    index: -1,          // индекс в detailPhotoFiles/pendingPhotoFiles (для 'detail'/'pending')
+    list: null,        // 'detail' | 'pending' | 'equipmentPending' | 'incidentPending' | 'existing'
+    entity: null,        // 'engine' | 'equipment' | 'incident' — какую сущность/эндпоинт задействовать для 'existing' (обрезка уже сохранённого на сервере фото)
+    index: -1,          // индекс в detailPhotoFiles/pendingPhotoFiles/equipmentPendingPhotoFiles/incidentPendingPhotoFiles (для не-'existing' списков)
     filename: null,      // имя файла на диске (только для 'existing')
     objectUrl: null,     // ObjectURL для File-веток; для 'existing' не используется (грузим по серверному пути)
     image: null,        // Image в естественном разрешении
@@ -715,7 +716,10 @@ const CROP_MAX_H = 440;
 // там же и обоснование, отдельной JS-константы для неё больше не нужно.
 
 function _cropFilesArray() {
-    return cropState.list === 'detail' ? detailPhotoFiles : pendingPhotoFiles;
+    if (cropState.list === 'detail') return detailPhotoFiles;
+    if (cropState.list === 'equipmentPending') return equipmentPendingPhotoFiles;
+    if (cropState.list === 'incidentPending') return incidentPendingPhotoFiles;
+    return pendingPhotoFiles;
 }
 
 // Расширение файла -> mime-тип, в котором canvas должен отдать обрезанный
@@ -762,13 +766,20 @@ function _openCropStage(img) {
     document.addEventListener('pointerup', _cropPointerUp);
 }
 
-// openCropModal('detail'|'pending', idx) — обрезка ещё не загруженного File.
-// openCropModal('existing', filename, path) — обрезка уже сохранённого на
-// сервере фото (карточка, режим редактирования).
-function openCropModal(list, a, b) {
+// openCropModal('detail'|'pending'|'equipmentPending'|'incidentPending', idx) —
+// обрезка ещё не загруженного File (равнозначные ветки, различаются только
+// тем, из какого массива берётся File — см. _cropFilesArray).
+// openCropModal('existing', filename, path, entity) — обрезка уже
+// сохранённого на сервере фото (карточка, режим редактирования). entity
+// ('engine' по умолчанию, либо 'equipment'/'incident') определяет, какой
+// API вызвать в _applyCropExisting — фото двигателей, оборудования и
+// заявок Инцидентов лежат в разных папках (PHOTOS_FOLDER / PhotoE / PhotoI)
+// за разными маршрутами.
+function openCropModal(list, a, b, entity) {
     if (list === 'existing') {
         const filename = a, path = b;
         cropState.list = 'existing';
+        cropState.entity = entity || 'engine';
         cropState.index = -1;
         cropState.filename = filename;
         if (cropState.objectUrl) { URL.revokeObjectURL(cropState.objectUrl); cropState.objectUrl = null; }
@@ -809,6 +820,7 @@ function closeCropModal() {
     }
     cropState.image = null;
     cropState.filename = null;
+    cropState.entity = null;
     cropState.drag = null;
 
     // Remove global pointer listeners for crop functionality
@@ -899,7 +911,13 @@ function _cropPointerUp() {
 function applyCrop() {
     if (!cropState.image) return;
     if (cropState.list === 'existing') {
-        _applyCropExisting();
+        if (cropState.entity === 'equipment') {
+            _applyCropExistingEquipment();
+        } else if (cropState.entity === 'incident') {
+            _applyCropExistingIncident();
+        } else {
+            _applyCropExisting();
+        }
     } else {
         _applyCropFile();
     }
@@ -940,6 +958,10 @@ function _applyCropFile() {
         closeCropModal();
         if (cropState.list === 'detail') {
             renderDetailPhotoPreview();
+        } else if (cropState.list === 'equipmentPending') {
+            renderEquipmentPendingPhotos();
+        } else if (cropState.list === 'incidentPending') {
+            renderIncidentPendingPhotos();
         } else {
             renderPhotosPreview();
         }
@@ -997,6 +1019,122 @@ function _applyCropExisting() {
                 if (!photos) return;
                 currentPhotos = photos;
                 renderDetailContent();
+                showToast('Фото обрезано', 'success', 'icon-check-circle');
+            })
+            .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
+    }, mimeType, 0.92);
+}
+
+// Обрезка уже сохранённого фото ОБОРУДОВАНИЯ — полный аналог
+// _applyCropExisting(), только эндпоинт /api/equipment/:id/photos/:filename
+// (PUT, modules/photo_manager/equipment_manager.py::replace_equipment_photo)
+// и папка PhotoE вместо PHOTOS_FOLDER. equipmentDetailData/
+// equipmentExistingPhotos/currentPhotos — глобальные переменные из
+// equipment.js (тот же принцип совместного использования, что и
+// currentPhotos для лайтбокса).
+function _applyCropExistingEquipment() {
+    if (!equipmentDetailData || !cropState.filename) { closeCropModal(); return; }
+
+    const s = cropState.displayScale;
+    const sx = Math.round(cropState.sel.x * s);
+    const sy = Math.round(cropState.sel.y * s);
+    const sw = Math.round(cropState.sel.w * s);
+    const sh = Math.round(cropState.sel.h * s);
+
+    const out = document.createElement('canvas');
+    out.width = sw;
+    out.height = sh;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(cropState.image, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    const origExt = cropState.filename.slice(cropState.filename.lastIndexOf('.'));
+    const mimeType = _cropMimeForExt(origExt);
+    const outExt = _cropExtForMime(mimeType);
+    const equipmentId = equipmentDetailData.id;
+    const filename = cropState.filename;
+
+    out.toBlob(function(blob) {
+        if (!blob) {
+            showToast('Не удалось обрезать фото', 'error', 'icon-cancel');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('photo', blob, `cropped${outExt}`);
+        apiFetch(`/api/equipment/${equipmentId}/photos/${encodeURIComponent(filename)}`, { method: 'PUT', body: formData })
+            .then(r => r.json())
+            .then(result => {
+                if (result.error) {
+                    showToast(result.error, 'error', 'icon-cancel');
+                    return;
+                }
+                closeCropModal();
+                photoCacheBust = Date.now();
+                return apiFetch(`/api/equipment/${equipmentId}/photos`).then(r => r.json());
+            })
+            .then(photos => {
+                if (!photos) return;
+                equipmentExistingPhotos = Array.isArray(photos) ? photos : [];
+                currentPhotos = equipmentExistingPhotos;
+                renderEquipmentExistingPhotos();
+                // Как и при удалении — detail-photos не обновляется сам по
+                // себе, его нужно перерисовать явно (см. фикс в
+                // deleteEquipmentExistingPhoto).
+                if (equipmentDetailData) renderEquipmentDetailView(equipmentDetailData);
+                showToast('Фото обрезано', 'success', 'icon-check-circle');
+            })
+            .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
+    }, mimeType, 0.92);
+}
+
+// Обрезка уже сохранённого фото ЗАЯВКИ Инцидентов — полный аналог
+// _applyCropExistingEquipment(), только эндпоинт
+// /api/incident-tickets/:id/photos/:filename (PUT,
+// modules/photo_manager/incident_manager.py::replace_ticket_photo) и папка
+// PhotoI вместо PhotoE. currentIncidentId/incidentEditPhotos — глобальные
+// переменные из incidents.js.
+function _applyCropExistingIncident() {
+    if (!currentIncidentId || !cropState.filename) { closeCropModal(); return; }
+
+    const s = cropState.displayScale;
+    const sx = Math.round(cropState.sel.x * s);
+    const sy = Math.round(cropState.sel.y * s);
+    const sw = Math.round(cropState.sel.w * s);
+    const sh = Math.round(cropState.sel.h * s);
+
+    const out = document.createElement('canvas');
+    out.width = sw;
+    out.height = sh;
+    const ctx = out.getContext('2d');
+    ctx.drawImage(cropState.image, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    const origExt = cropState.filename.slice(cropState.filename.lastIndexOf('.'));
+    const mimeType = _cropMimeForExt(origExt);
+    const outExt = _cropExtForMime(mimeType);
+    const ticketId = currentIncidentId;
+    const filename = cropState.filename;
+
+    out.toBlob(function(blob) {
+        if (!blob) {
+            showToast('Не удалось обрезать фото', 'error', 'icon-cancel');
+            return;
+        }
+        const formData = new FormData();
+        formData.append('photo', blob, `cropped${outExt}`);
+        apiFetch(`/api/incident-tickets/${ticketId}/photos/${encodeURIComponent(filename)}`, { method: 'PUT', body: formData })
+            .then(r => r.json())
+            .then(result => {
+                if (result.error) {
+                    showToast(result.error, 'error', 'icon-cancel');
+                    return;
+                }
+                closeCropModal();
+                photoCacheBust = Date.now();
+                return apiFetch(`/api/incident-tickets/${ticketId}/photos`).then(r => r.json());
+            })
+            .then(photos => {
+                if (!photos) return;
+                incidentEditPhotos = Array.isArray(photos) ? photos : [];
+                renderIncidentEditPhotos();
                 showToast('Фото обрезано', 'success', 'icon-check-circle');
             })
             .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));

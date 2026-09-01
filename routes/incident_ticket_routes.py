@@ -230,6 +230,15 @@ def upload_ticket_photos_route(ticket_id):
     return incident_manager.upload_ticket_photos(ticket_id, files)
 
 
+@incident_ticket_bp.route('/<int:ticket_id>/photos/<filename>', methods=['PUT'])
+def replace_ticket_photo_route(ticket_id, filename):
+    with db_connection() as conn:
+        if incident_ticket_repo.get_by_id(conn, ticket_id) is None:
+            return jsonify({'error': 'Заявка не найдена'}), 404
+    file = request.files.get('photo')
+    return incident_manager.replace_ticket_photo(ticket_id, filename, file)
+
+
 @incident_ticket_bp.route('/<int:ticket_id>/photos/<filename>', methods=['DELETE'])
 def delete_ticket_photo_route(ticket_id, filename):
     return incident_manager.delete_ticket_photo(ticket_id, filename)

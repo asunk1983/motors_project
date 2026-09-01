@@ -934,7 +934,7 @@ function renderEquipmentPendingPhotos() {
         const url = URL.createObjectURL(file);
         const box = document.createElement('div');
         box.className = 'photo-thumb is-pending';
-        box.innerHTML = `<img src="${url}" alt="Новое фото (не загружено)"><button type="button" class="photo-thumb-remove" title="Убрать из выбора" onclick="removeEquipmentPendingPhoto(${idx})"><span class="icon icon-close"></span></button>`;
+        box.innerHTML = `<img src="${url}" alt="Новое фото (не загружено)"><button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('equipmentPending', ${idx})"><span class="icon icon-content-cut"></span></button><button type="button" class="photo-thumb-remove" title="Убрать из выбора" onclick="removeEquipmentPendingPhoto(${idx})"><span class="icon icon-close"></span></button>`;
         wrap.appendChild(box);
     });
 }
@@ -953,8 +953,10 @@ function renderEquipmentExistingPhotos() {
     }
     wrap.innerHTML = equipmentExistingPhotos.map(p => {
         const safeFilename = escapeAttr(p.filename);
+        const safePath = escapeAttr(p.path);
         return `<div class="photo-thumb">
             <img src="${authPhotoUrl(p.path)}" alt="Фото оборудования">
+            <button type="button" class="photo-thumb-crop" title="Обрезать" onclick="openCropModal('existing', '${safeFilename}', '${safePath}', 'equipment')"><span class="icon icon-content-cut"></span></button>
             <button type="button" class="photo-thumb-remove" title="Удалить фото" onclick="deleteEquipmentExistingPhoto('${safeFilename}')"><span class="icon icon-close"></span></button>
         </div>`;
     }).join('');
@@ -972,7 +974,14 @@ function deleteEquipmentExistingPhoto(filename) {
                 return;
             }
             equipmentExistingPhotos = equipmentExistingPhotos.filter(p => p.filename !== filename);
+            currentPhotos = equipmentExistingPhotos; // общий лайтбокс (#photoModal) из engineCard.js держит свою ссылку — держим её в актуальном состоянии
             renderEquipmentExistingPhotos();
+            // detail-photos (#equipmentDetailView) рисуется отдельной функцией
+            // и не обновляется автоматически при удалении фото в галерее
+            // редактирования — без этого возврат к просмотру (или общий
+            // лайтбокс #photoModal, currentPhotos) продолжает показывать уже
+            // удалённый файл, пока карточка не будет переоткрыта заново.
+            if (equipmentDetailData) renderEquipmentDetailView(equipmentDetailData);
             showToast('Фото удалено', 'success', 'icon-delete');
         })
         .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
