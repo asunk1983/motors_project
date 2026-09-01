@@ -34,9 +34,21 @@ from modules.photo_manager import manager as photo_manager
 
 DB_PATH = db_module.DB_PATH
 PHOTOS_FOLDER = db_module.PHOTOS_FOLDER
+INCIDENT_PHOTOS_FOLDER = db_module.INCIDENT_PHOTOS_FOLDER
+EQUIPMENT_PHOTOS_FOLDER = db_module.EQUIPMENT_PHOTOS_FOLDER
 BACKUPS_FOLDER = db_module.BACKUPS_FOLDER
 BACKUP_STAGING_FOLDER = db_module.BACKUP_STAGING_FOLDER
 MAX_BACKUPS_KEPT = 3
+
+# Список фото-папок, которые участвуют в backup/restore. Префикс — это
+# имя каталога верхнего уровня внутри zip-архива (и совпадает с именем
+# самой папки на диске). Логика для всех трёх папок идентична:
+# атомарная замена через rollback+replace (как и раньше для photos/).
+PHOTO_FOLDERS = [
+    ('photos', PHOTOS_FOLDER),
+    ('PhotoI', INCIDENT_PHOTOS_FOLDER),
+    ('PhotoE', EQUIPMENT_PHOTOS_FOLDER),
+]
 
 # Настройка логгера для операций бэкапа/восстановления. Пишем в
 # BACKUPS_FOLDER/backup_restore.log, чтобы иметь отдельный файл для
@@ -105,10 +117,18 @@ def _build_backup_zip_bytes(get_db_connection):
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
 
-    photo_files = []
-    if os.path.exists(PHOTOS_FOLDER):
-        photo_files = [f for f in os.listdir(PHOTOS_FOLDER)
-                        if os.path.isfile(os.path.join(PHOTOS_FOLDER, f))]
+    # --- Фото по всем фото-папкам (photos/, PhotoI/, PhotoE/) ---
+    # Словарь {prefix: [filenames, ...]} — единый проход для чексумм и для
+    # записи в zip. Каждая папка обрабатывается симметрично: если её нет
+    # на диске — список пуст, чексумм для неё не будет, в zip файлы не
+    # попадут. Восстановление в этом случае создаст пустую папку.
+    photo_files_by_prefix = {}
+    for prefix, folder in PHOTO_FOLDERS:
+        files = []
+        if os.path.exists(folder):
+            files = [f for f in os.listdir(folder)
+                     if os.path.isfile(os.path.join(folder, f))]
+        photo_files_by_prefix[prefix] = files
 
     # --- Чексуммы ---
     # engine_data.db — хешируем уже полученный db_bytes (консистентный
@@ -119,11 +139,12 @@ def _build_backup_zip_bytes(get_db_connection):
     }
     # Фото — хешируем файлы на диске. Это те же байты, которые zf.write()
     # кладёт в архив, поэтому чексумма совпадает с содержимым архива.
-    for fname in photo_files:
-        try:
-            checksums[f'photos/{fname}'] = _sha256_file(os.path.join(PHOTOS_FOLDER, fname))
-        except OSError:
-            _logger.warning('Failed to compute checksum for photo: %s', fname)
+    for prefix, folder in PHOTO_FOLDERS:
+        for fname in photo_files_by_prefix[prefix]:
+            try:
+                checksums[f'{prefix}/{fname}'] = _sha256_file(os.path.join(folder, fname))
+            except OSError:
+                _logger.warning('Failed to compute checksum for %s/%s', prefix, fname)
 
     manifest = {
         'app': 'engine-passports-backup',
@@ -131,7 +152,9 @@ def _build_backup_zip_bytes(get_db_connection):
         'created_at': datetime.now().isoformat(),
         'engine_count': engine_count,
         'photos_count_db': photos_count_db,
-        'photos_count_files': len(photo_files),
+        'photos_count_files': len(photo_files_by_prefix.get('photos', [])),
+        'photoi_count_files': len(photo_files_by_prefix.get('PhotoI', [])),
+        'photoe_count_files': len(photo_files_by_prefix.get('PhotoE', [])),
         'checksums': checksums,
     }
 
@@ -139,8 +162,9 @@ def _build_backup_zip_bytes(get_db_connection):
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         zf.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
         zf.writestr('engine_data.db', db_bytes)
-        for fname in photo_files:
-            zf.write(os.path.join(PHOTOS_FOLDER, fname), arcname=f'photos/{fname}')
+        for prefix, folder in PHOTO_FOLDERS:
+            for fname in photo_files_by_prefix[prefix]:
+                zf.write(os.path.join(folder, fname), arcname=f'{prefix}/{fname}')
     return buf.getvalue(), manifest
 
 
@@ -172,8 +196,10 @@ def _enforce_backup_limit(max_count=MAX_BACKUPS_KEPT):
 
 
 def _verify_checksums(zip_path, manifest):
-    """Пересчитывает SHA256 для engine_data.db и каждого файла photos/*
-    внутри zip-архива и сверяет с manifest['checksums'].
+    """Пересчитывает SHA256 для engine_data.db и каждого файла из
+    manifest['checksums'] (photos/*, PhotoI/*, PhotoE/* — общий цикл по
+    всем ключам, без хардкода префикса) внутри zip-архива и сверяет с
+    manifest['checksums'].
 
     Возвращает (True, None) при совпадении, (False, error_msg) при
     несовпадении или если чексуммы отсутствуют в манифесте.
@@ -203,7 +229,7 @@ def _verify_checksums(zip_path, manifest):
                     mismatches.append(
                         f'engine_data.db: ожидалась {expected}, получена {actual}'
                     )
-        # photos/*
+        # photos/*, PhotoI/*, PhotoE/* — общий цикл по всем ключам
         for arcname, expected in checksums.items():
             if arcname == 'engine_data.db':
                 continue
@@ -282,32 +308,45 @@ def _apply_backup_zip(zip_path):
     _build_backup_zip_bytes). Сохраняет текущие пользователи и токены,
     чтобы восстановление данных не удаляло учётные записи.
 
+    В архиве участвуют ТРИ фото-папки: photos/ (двигатели), PhotoI/
+    (инциденты), PhotoE/ (оборудование). Логика для них полностью
+    симметрична: каждая папка заменяется атомарно через rollback+replace.
+    Если в архиве для какой-то папки нет ни одного файла — после restore
+    она станет пустой (но существующей), даже если до restore на диске
+    в ней что-то лежало. Это требование согласованности с id-записей в БД
+    (файлы ID{id}_* привязаны к id, который после restore может означать
+    совсем другую запись, чем до restore — лишние файлы на диске дадут
+    рассинхрон).
+
     === Атомарность и rollback ===
     1. Захват файлового лока (backup_restore.lock) — защита от параллельных
        restore-запросов (см. раздел «Race condition» ниже).
     2. Создаётся rollback-точка: копия текущей engine_data.db во временный
        файл. Если что-то пойдёт не так — БД восстанавливается из неё.
-    3. Фото распаковываются во временную папку photos_new_<uuid>, а НЕ
-       напрямую в PHOTOS_FOLDER — чтобы при ошибке старые фото не были
-       удалены.
+    3. Фото по всем фото-папкам распаковываются во временные папки
+       <folder>_new_<uuid>, а НЕ напрямую в рабочие папки — чтобы при
+       ошибке старые фото не были удалены.
     4. engine_data.db из архива распаковывается во временный файл, затем
        sqlite3.backup() копирует его во ВТОРОЙ временный файл
        (engine_data.db.new), а НЕ в рабочую БД напрямую.
     5. Только если ВСЁ прошло успешно:
        - os.replace(rollback_db_path, DB_PATH)  — атомарная замена БД
-       - os.replace(photos_new, PHOTOS_FOLDER)  — атомная замена папки фото
+       - os.replace(<folder>_new, <folder>)    — атомная замена каждой
+         из трёх фото-папок (photos/, PhotoI/, PhotoE/)
        - восстанавливаются пользователи/токены
     6. При ЛЮБОЙ ошибке — в except-блоке:
        - если БД уже была заменена (os.replace прошёл) — откатываем из
          rollback-точки
-       - удаляем временную папку photos_new (старые фото остаются на месте)
+       - для каждой уже заменённой фото-папки — возвращаем её
+         rollback-версию обратно
+       - удаляем временные папки <folder>_new (если остались)
        - удаляем engine_data.db.new
 
     === Race condition при параллельных restore ===
     Без файлового лока два параллельных /confirm-restore могли бы:
       a) оба создать rollback-копию одной и той же БД, второй перезаписал
          бы rollback-файл первого → у первого нет точки отката;
-      b) одновременно удалить и перезаписать PHOTOS_FOLDER → один запрос
+      b) одновременно удалить и перезаписать фото-папки → один запрос
          получил бы 404/битый файл;
       c) одновременно вызвать sqlite3.backup() в DB_PATH → конфликт WAL.
     Файловый лок (backup_restore.lock) последовательно сериализует все
@@ -324,11 +363,28 @@ def _apply_backup_zip(zip_path):
         )
 
     rollback_db_path = None
-    photos_new_folder = None
-    photos_rollback_folder = None
     new_db_path = None
     db_replaced = False
-    photos_replaced = False
+    # Состояние по каждой фото-папке (photos/, PhotoI/, PhotoE/).
+    # Структура единая для всех трёх:
+    #   new_folder      — путь к временной папке <folder>_new_<uuid>,
+    #                     куда извлекаются файлы из zip (создаётся пустой,
+    #                     если в архиве для данного префикса файлов нет);
+    #   rollback_folder — путь к <folder>_rollback_<uuid> (текущая папка,
+    #                     переименованная перед заменой);
+    #   replaced        — True, если замена os.replace уже выполнена;
+    #   count_in_zip    — количество файлов, реально извлечённых в
+    #                     new_folder (используется для restored_files —
+    #                     manifest в этой функции не читается).
+    photo_state = {
+        prefix: {
+            'new_folder': None,
+            'rollback_folder': None,
+            'replaced': False,
+            'count_in_zip': 0,
+        }
+        for prefix, _folder in PHOTO_FOLDERS
+    }
     try:
         _logger.info('Starting restore from zip: %s', zip_path)
 
@@ -370,21 +426,6 @@ def _apply_backup_zip(zip_path):
                     f'не потерять учётные записи. Причина: {e}'
                 ) from e
 
-        # --- 2. Дампим пользователей/токены в JSON для диагностики ---
-        if preserved_users or preserved_tokens:
-            try:
-                dump = {
-                    'preserved_users': [list(u) for u in preserved_users],
-                    'preserved_tokens': [list(t) for t in preserved_tokens],
-                }
-                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-                dump_path = os.path.join(BACKUPS_FOLDER, f'preserved_users_{ts}.json')
-                with open(dump_path, 'w', encoding='utf-8') as df:
-                    json.dump(dump, df, ensure_ascii=False, indent=2)
-                _logger.info('Dumped preserved users/tokens to %s', dump_path)
-            except Exception:
-                _logger.exception('Failed to dump preserved users/tokens for diagnostics')
-
         # --- 3. Создаём rollback-точку: копия текущей БД ---
         if os.path.exists(DB_PATH):
             rollback_fd, rollback_db_path = tempfile.mkstemp(suffix='.db.rollback')
@@ -401,22 +442,46 @@ def _apply_backup_zip(zip_path):
                     'В архиве нет engine_data.db — это не резервная копия этого приложения'
                 )
 
-            # --- 4. Распаковка фото во ВРЕМЕННУЮ папку ---
-            photos_new_folder = os.path.join(
-                os.path.dirname(PHOTOS_FOLDER) or '.',
-                f'photos_new_{uuid.uuid4().hex}'
-            )
-            os.makedirs(photos_new_folder, exist_ok=True)
-            _logger.info('Unpacking photos to temporary folder: %s', photos_new_folder)
+            # --- 4. Распаковка фото во ВРЕМЕННЫЕ папки (по одной на каждую
+            # из PHOTO_FOLDERS). Если в архиве для какого-то префикса нет
+            # ни одного файла — соответствующая <folder>_new_<uuid> остаётся
+            # пустой (создаётся через os.makedirs(exist_ok=True)). На шаге 7b
+            # такая пустая папка заменит текущую папку на диске — это и есть
+            # требуемое "полная замена, даже если в бэкапе пусто".
+            for prefix, folder in PHOTO_FOLDERS:
+                new_folder = os.path.join(
+                    os.path.dirname(folder) or '.',
+                    f'{os.path.basename(folder)}_new_{uuid.uuid4().hex}'
+                )
+                os.makedirs(new_folder, exist_ok=True)
+                photo_state[prefix]['new_folder'] = new_folder
+                _logger.info('Unpacking %s/* to temporary folder: %s', prefix, new_folder)
 
             for name in names:
-                if name.startswith('photos/') and not name.endswith('/'):
-                    target_name = os.path.basename(name)
-                    if not target_name:
-                        continue
-                    with zf.open(name) as src, \
-                         open(os.path.join(photos_new_folder, target_name), 'wb') as dst:
-                        dst.write(src.read())
+                if name.endswith('/'):
+                    continue
+                # Определяем, какой фото-папке принадлежит запись, по
+                # префиксу <prefix>/. Если префикс не из PHOTO_FOLDERS
+                # (например, manifest.json или engine_data.db) — пропускаем.
+                matched_prefix = None
+                for prefix, _folder in PHOTO_FOLDERS:
+                    if name.startswith(f'{prefix}/'):
+                        matched_prefix = prefix
+                        break
+                if matched_prefix is None:
+                    continue
+                target_name = os.path.basename(name)
+                if not target_name:
+                    continue
+                with zf.open(name) as src, \
+                     open(os.path.join(photo_state[matched_prefix]['new_folder'],
+                                       target_name), 'wb') as dst:
+                    dst.write(src.read())
+                # Считаем количество реально извлечённых файлов для
+                # restored_files (т.к. manifest в этой функции не читается).
+                photo_state[matched_prefix]['count_in_zip'] = (
+                    photo_state[matched_prefix].get('count_in_zip', 0) + 1
+                )
 
             # --- 5. Распаковка engine_data.db во временный файл ---
             tmp_db_fd, tmp_db_path = tempfile.mkstemp(suffix='.db.extract')
@@ -458,33 +523,46 @@ def _apply_backup_zip(zip_path):
                 db_replaced = True
                 _logger.info('Atomically replaced DB: %s -> %s', 'engine_data.db.new', DB_PATH)
 
-                # 7b. Замена папки фото (атомарно внутри одного тома)
-                if os.path.exists(PHOTOS_FOLDER):
-                    # ИСПРАВЛЕНО: раньше старая папка фото удалялась через
-                    # rmtree ДО того, как было известно, что вся операция
-                    # (включая последующее восстановление пользователей на
-                    # шаге 8) точно завершится успешно. Если что-то падало
-                    # после этой точки, откат БД срабатывал (см. except
-                    # ниже), а откатить фото было уже нечем — они были
-                    # безвозвратно удалены. Теперь старая папка не удаляется,
-                    # а переименовывается в rollback-путь — как и для БД —
-                    # и удаляется только после полного успеха всей функции
-                    # (см. блок финального success ниже) либо возвращается
-                    # на место при ошибке (см. except).
-                    photos_rollback_folder = os.path.join(
-                        os.path.dirname(PHOTOS_FOLDER) or '.',
-                        f'photos_rollback_{uuid.uuid4().hex}'
-                    )
-                    os.replace(PHOTOS_FOLDER, photos_rollback_folder)
-                    _logger.info('Moved current photos to rollback location: %s',
-                                 photos_rollback_folder)
-                os.replace(photos_new_folder, PHOTOS_FOLDER)
-                photos_replaced = True
-                photos_new_folder = None  # уже переименована
+                # 7b. Замена фото-папок (атомарно внутри одного тома).
+                # Логика симметрична для photos/, PhotoI/, PhotoE/:
+                #   - если текущая папка существует — переименовываем её
+                #     в <folder>_rollback_<uuid>;
+                #   - os.replace(<folder>_new_<uuid>, <folder>).
+                # Если в архиве для префикса не было ни одного файла,
+                # соответствующая <folder>_new_<uuid> пуста — но os.replace
+                # всё равно атомарно подменит текущую папку пустой. Это и
+                # есть требуемое "полная замена, даже если в бэкапе пусто".
+                # ИСПРАВЛЕНО: раньше старая папка фото удалялась через
+                # rmtree ДО того, как было известно, что вся операция
+                # (включая последующее восстановление пользователей на
+                # шаге 8) точно завершится успешно. Если что-то падало
+                # после этой точки, откат БД срабатывал (см. except
+                # ниже), а откатить фото было уже нечем — они были
+                # безвозвратно удалены. Теперь старая папка не удаляется,
+                # а переименовывается в rollback-путь — как и для БД — и
+                # удаляется только после полного успеха всей функции
+                # (см. блок финального success ниже) либо возвращается
+                # на место при ошибке (см. except).
+                any_photo_replaced = False
+                for prefix, folder in PHOTO_FOLDERS:
+                    if os.path.exists(folder):
+                        rollback_folder = os.path.join(
+                            os.path.dirname(folder) or '.',
+                            f'{os.path.basename(folder)}_rollback_{uuid.uuid4().hex}'
+                        )
+                        os.replace(folder, rollback_folder)
+                        photo_state[prefix]['rollback_folder'] = rollback_folder
+                        _logger.info('Moved current %s folder to rollback location: %s',
+                                     prefix, rollback_folder)
+                    os.replace(photo_state[prefix]['new_folder'], folder)
+                    photo_state[prefix]['replaced'] = True
+                    photo_state[prefix]['new_folder'] = None  # уже переименована
+                    any_photo_replaced = True
+                    _logger.info('Atomically replaced %s folder: %s_new_* -> %s',
+                                 prefix, prefix, folder)
                 # Invalidate photo manager cache after photos folder replacement
-                photo_manager.invalidate_photo_cache()
-                _logger.info('Atomically replaced photos folder: %s -> %s',
-                             'photos_new_*', PHOTOS_FOLDER)
+                if any_photo_replaced:
+                    photo_manager.invalidate_photo_cache()
 
             finally:
                 # Убираем временный файл с распакованной БД
@@ -561,19 +639,34 @@ def _apply_backup_zip(zip_path):
                     f'откат к состоянию до восстановления. Причина: {e}'
                 ) from e
 
-        # --- Успех: rollback-точка фото больше не нужна ---
-        if photos_rollback_folder and os.path.exists(photos_rollback_folder):
-            try:
-                shutil.rmtree(photos_rollback_folder, ignore_errors=True)
-                _logger.debug('Removed photos rollback point: %s', photos_rollback_folder)
-            except Exception:
-                _logger.exception('Failed to remove photos rollback point: %s', photos_rollback_folder)
+        # --- Успех: rollback-точки фото-папок больше не нужны ---
+        for prefix, folder in PHOTO_FOLDERS:
+            rb = photo_state[prefix]['rollback_folder']
+            if rb and os.path.exists(rb):
+                try:
+                    shutil.rmtree(rb, ignore_errors=True)
+                    _logger.debug('Removed %s rollback point: %s', prefix, rb)
+                except Exception:
+                    _logger.exception('Failed to remove %s rollback point: %s', prefix, rb)
 
         _logger.info('Restore completed successfully from %s', zip_path)
+        # restored_files — dict с разбивкой по папкам плюс total для
+        # backward-compat со старыми клиентами, которые ждали число.
+        # Снимок счётчиков берём из photo_state[prefix]['count_in_zip'] —
+        # это количество файлов, реально извлечённых в <folder>_new_<uuid>
+        # на шаге 4 (manifest из zip в этой функции не читается).
+        restored_by_prefix = {
+            prefix: photo_state[prefix]['count_in_zip']
+            for prefix, _folder in PHOTO_FOLDERS
+        }
+        restored_total = sum(restored_by_prefix.values())
         return {
             'success': True,
             'message': 'Восстановление завершено успешно',
-            'restored_files': manifest.get('photos_count_files', 0) if 'manifest' in locals() else 0
+            'restored_files': {
+                **restored_by_prefix,
+                'total': restored_total,
+            },
         }
 
     except Exception:
@@ -594,19 +687,24 @@ def _apply_backup_zip(zip_path):
         # были перемещены в rollback-папку (см. шаг 7b), возвращаем их на
         # место вместо того, чтобы оставлять диск с фото из бэкапа при
         # откаченной на старое состояние БД (несогласованность: старые
-        # записи движков + чужие фото).
-        if photos_replaced and photos_rollback_folder and os.path.exists(photos_rollback_folder):
+        # записи движков + чужие фото). Логика симметрична для всех трёх
+        # фото-папок (photos/, PhotoI/, PhotoE/).
+        for prefix, folder in PHOTO_FOLDERS:
+            if not photo_state[prefix]['replaced']:
+                continue
+            rb = photo_state[prefix]['rollback_folder']
+            if not rb or not os.path.exists(rb):
+                continue
             try:
-                if os.path.exists(PHOTOS_FOLDER):
-                    shutil.rmtree(PHOTOS_FOLDER, ignore_errors=True)
-                os.replace(photos_rollback_folder, PHOTOS_FOLDER)
-                _logger.info('Rollback: restored photos from %s to %s',
-                             photos_rollback_folder, PHOTOS_FOLDER)
-                photos_rollback_folder = None  # уже переименована обратно
+                if os.path.exists(folder):
+                    shutil.rmtree(folder, ignore_errors=True)
+                os.replace(rb, folder)
+                _logger.info('Rollback: restored %s from %s to %s', prefix, rb, folder)
+                photo_state[prefix]['rollback_folder'] = None  # уже переименована обратно
             except Exception:
                 _logger.exception(
-                    'CRITICAL: Failed to rollback photos from %s — '
-                    'manual intervention required', photos_rollback_folder
+                    'CRITICAL: Failed to rollback %s from %s — '
+                    'manual intervention required', prefix, rb
                 )
 
         # Очищаем временные файлы/папки, которые могли остаться
@@ -616,21 +714,25 @@ def _apply_backup_zip(zip_path):
             except OSError:
                 _logger.exception('Failed to remove leftover %s', new_db_path)
 
-        if photos_new_folder and os.path.exists(photos_new_folder):
-            try:
-                shutil.rmtree(photos_new_folder, ignore_errors=True)
-            except Exception:
-                _logger.exception('Failed to remove leftover photos folder: %s', photos_new_folder)
+        # Временные <folder>_new_<uuid> для всех трёх фото-папок.
+        for prefix, _folder in PHOTO_FOLDERS:
+            nf = photo_state[prefix]['new_folder']
+            if nf and os.path.exists(nf):
+                try:
+                    shutil.rmtree(nf, ignore_errors=True)
+                except Exception:
+                    _logger.exception('Failed to remove leftover %s folder: %s', prefix, nf)
 
-        # Если фото были заменены, а БД — нет (или наоборот), состояние
-        # может быть несогласованным. В этом случае логируем критическую
-        # ошибку — администратору нужно вручную проверить целостность.
-        # (Теперь это в первую очередь сигнал о том, что откат фото выше
-        # тоже не удался — иначе photos_replaced был бы уже неактуален.)
-        if photos_replaced and not db_replaced:
+        # Если хотя бы одна фото-папка была заменена, а БД — нет (или
+        # наоборот), состояние может быть несогласованным. Логируем
+        # критическую ошибку — администратору нужно вручную проверить
+        # целостность. (Это в первую очередь сигнал о том, что откат фото
+        # выше тоже не удался — иначе replaced-флаги были бы уже неактуальны.)
+        replaced_prefixes = [p for p, _ in PHOTO_FOLDERS if photo_state[p]['replaced']]
+        if replaced_prefixes and not db_replaced:
             _logger.critical(
-                'Photos were replaced but DB was not — manual intervention required. '
-                'DB rollback from %s may be needed.', rollback_db_path
+                'Photo folders %s were replaced but DB was not — manual intervention required. '
+                'DB rollback from %s may be needed.', replaced_prefixes, rollback_db_path
             )
 
         raise  # пробрасываем исключение наверх
@@ -741,7 +843,9 @@ def restore_backup(zip_path):
     """Атомарно восстанавливает engine_data.db и photos/ из zip.
 
     Использует rollback point + файловый lock.
-    Возвращает dict: {'success': bool, 'message': str, 'restored_files': int}
+    Возвращает dict: {'success': bool, 'message': str,
+                      'restored_files': dict с разбивкой по папкам
+                      ({'photos': N, 'PhotoI': M, 'PhotoE': K, 'total': N+M+K})}
     """
     return _apply_backup_zip(zip_path)
 

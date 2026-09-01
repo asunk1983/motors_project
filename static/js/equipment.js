@@ -924,6 +924,16 @@ function clearEquipmentForm() {
     equipmentExistingPhotos = [];
     renderEquipmentPendingPhotos();
     renderEquipmentExistingPhotos();
+
+    // Места — тот же повод переинициализировать пикер, что и у
+    // equipmentFormLocationPicker чуть выше: форма/модалка переоткрывается
+    // на одном и том же DOM, старый инстанс пикера (если форма добавления
+    // места была открыта в прошлый раз) нужно снять явно.
+    if (equipmentPlacementFormPicker && equipmentPlacementFormPicker.destroy) {
+        equipmentPlacementFormPicker.destroy();
+        equipmentPlacementFormPicker = null;
+    }
+    equipmentPlacements = [];
 }
 
 function renderEquipmentPendingPhotos() {
@@ -1037,6 +1047,18 @@ document.addEventListener('keydown', function (e) {
 let equipmentDetailData = null;   // кэш последнего открытого item — для переключения view->edit без повторного fetch
 let equipmentDetailMode = 'view'; // 'view' | 'edit' | 'create'
 
+// ===== Места установки (equipment_placement) =====
+// НЕ путать с item.location_node_id/equipmentFormLocationPicker выше —
+// то "основное" место записи (дерево слева, фильтр списка), не меняется.
+// Это дополнительная детализация: одно оборудование может стоять в
+// нескольких местах, а в пределах одного места — несколько экземпляров
+// с разными схемными обозначениями (шкаф +E021: КМ1, КМ2, КМ3).
+// Управляется сразу против API (как фото — apiFetch на add/delete),
+// не через основную форму/submitEquipment, доступно только для уже
+// сохранённой записи (в режиме 'create' equipment_id ещё не существует).
+let equipmentPlacements = [];
+let equipmentPlacementFormPicker = null;
+
 async function openEquipmentModal(id, startInEdit = false) {
     clearEquipmentForm();
     const titleEl = document.getElementById('equipmentModalTitle');
@@ -1065,6 +1087,10 @@ async function openEquipmentModal(id, startInEdit = false) {
         const photosResp = await apiFetch(`/api/equipment/${id}/photos`);
         equipmentExistingPhotos = await parseJsonResponse(photosResp);
         if (!Array.isArray(equipmentExistingPhotos)) equipmentExistingPhotos = [];
+
+        const placementsResp = await apiFetch(`/api/equipment/${id}/placements`);
+        equipmentPlacements = await parseJsonResponse(placementsResp);
+        if (!Array.isArray(equipmentPlacements)) equipmentPlacements = [];
 
         document.getElementById('equipmentModal').classList.add('active');
 
@@ -1250,9 +1276,148 @@ async function renderEquipmentDetailView(item) {
         <div class="detail-subsection-header"><h4><span class="icon icon-photo-camera"></span> Фото${equipmentExistingPhotos.length ? ' (' + equipmentExistingPhotos.length + ')' : ''}</h4></div>
         ${photosHtml}
 
+        <div class="detail-subsection-header">
+            <h4><span class="icon icon-location"></span> Места установки${equipmentPlacements.length ? ' (' + equipmentPlacements.length + ')' : ''}</h4>
+            <button type="button" class="write-action" onclick="showEquipmentPlacementAddForm()"><span class="icon icon-add"></span> Добавить место</button>
+        </div>
+        <div id="equipmentPlacementsTable">${_renderEquipmentPlacementsTable()}</div>
+        <div id="equipmentPlacementAddForm" class="detail-item-edit" style="display:none">
+            <label>Место</label>
+            <input type="text" id="equipmentPlacementLocationInput" placeholder="Начните вводить название места...">
+            <label style="margin-top:8px">Схемные обозначения (через запятую, необязательно)</label>
+            <input type="text" id="equipmentPlacementDesignationsInput" placeholder="КМ1, КМ2, КМ3">
+            <div style="margin-top:8px">
+                <button type="button" class="write-action" onclick="submitEquipmentPlacementAdd()">Сохранить</button>
+                <button type="button" onclick="hideEquipmentPlacementAddForm()">Отмена</button>
+            </div>
+        </div>
+
         <div class="detail-subsection-header"><h4>Примечание</h4></div>
         <div class="detail-item-edit"><div class="value">${escapeHtml(item.note) || '—'}</div></div>
     `;
+
+    // Пикер места для формы добавления — переинициализируем на каждый
+    // рендер карточки (тот же повод, что и у equipmentFormLocationPicker):
+    // container.innerHTML только что пересоздал #equipmentPlacementLocationInput,
+    // старый инстанс пикера (если был) уже держит ссылку на удалённый узел
+    // DOM и не среагирует на клики.
+    if (equipmentPlacementFormPicker && equipmentPlacementFormPicker.destroy) {
+        equipmentPlacementFormPicker.destroy();
+    }
+    const placementLocationInput = document.getElementById('equipmentPlacementLocationInput');
+    if (placementLocationInput) {
+        equipmentPlacementFormPicker = attachLocationPicker(placementLocationInput, {});
+    }
+}
+
+// Группируем плоский список placements по месту — одно место с
+// несколькими designation превращается в одну строку таблицы с
+// несколькими чипами (визуально это ровно пример из ТЗ: шкаф +E021 —
+// одна строка, чипы КМ1/КМ2/КМ3 внутри неё).
+function _renderEquipmentPlacementsTable() {
+    if (!equipmentPlacements.length) {
+        return '<div class="no-data">Мест установки пока нет</div>';
+    }
+    const byLocation = new Map();
+    equipmentPlacements.forEach(p => {
+        if (!byLocation.has(p.location_node_id)) {
+            byLocation.set(p.location_node_id, { path: p.location_path, items: [] });
+        }
+        byLocation.get(p.location_node_id).items.push(p);
+    });
+    let rows = '';
+    byLocation.forEach((group, locationNodeId) => {
+        const chips = group.items.map(p => `
+            <span class="chip">
+                ${p.designation ? escapeHtml(p.designation) : '<em>без обозначения</em>'}
+                <button type="button" class="chip-remove" title="Удалить" onclick="deleteEquipmentPlacementRow(${p.id})">&times;</button>
+            </span>
+        `).join('');
+        rows += `
+            <div class="placement-row">
+                <span class="placement-location">${escapeHtml(group.path)}</span>
+                <span class="placement-chips">${chips}</span>
+                <button type="button" class="tree-add-btn write-action" title="Добавить ещё обозначение в это место"
+                        onclick="showEquipmentPlacementAddForm(${locationNodeId}, '${escapeAttr(group.path)}')">+</button>
+            </div>`;
+    });
+    return rows;
+}
+
+function showEquipmentPlacementAddForm(prefillLocationId, prefillLabel) {
+    const form = document.getElementById('equipmentPlacementAddForm');
+    if (!form) return;
+    form.style.display = '';
+    document.getElementById('equipmentPlacementDesignationsInput').value = '';
+    if (prefillLocationId && equipmentPlacementFormPicker) {
+        equipmentPlacementFormPicker.setValue(prefillLocationId, prefillLabel || '');
+    } else if (equipmentPlacementFormPicker) {
+        equipmentPlacementFormPicker.setValue(null, '');
+    }
+    form.scrollIntoView({ block: 'nearest' });
+}
+
+function hideEquipmentPlacementAddForm() {
+    const form = document.getElementById('equipmentPlacementAddForm');
+    if (form) form.style.display = 'none';
+}
+
+async function submitEquipmentPlacementAdd() {
+    if (!equipmentDetailData) return;
+    const locationValue = equipmentPlacementFormPicker ? equipmentPlacementFormPicker.getValue() : null;
+    if (!locationValue) {
+        showToast('Выберите место', 'error');
+        return;
+    }
+    const designations = document.getElementById('equipmentPlacementDesignationsInput').value.trim();
+    try {
+        const resp = await apiFetch(`/api/equipment/${equipmentDetailData.id}/placements`, {
+            method: 'POST',
+            body: JSON.stringify({ location_node_id: locationValue.id, designations })
+        });
+        const data = await parseJsonResponse(resp);
+        if (!resp.ok) {
+            showToast(data.error || 'Ошибка сохранения места', 'error');
+            return;
+        }
+        equipmentPlacements = Array.isArray(data.placements) ? data.placements : equipmentPlacements;
+        // Частичный успех (часть обозначений уже занята в этом месте) —
+        // созданное не откатывается, только сообщаем, что именно не
+        // прошло, тем же способом, что и предупреждение о фото
+        // (showToast('warning'), см. uploadPendingEquipmentPhotos).
+        if (data.errors && data.errors.length) {
+            showToast(data.errors.join('; '), 'warning', 'icon-warning');
+        } else {
+            showToast('Место добавлено', 'success');
+        }
+        hideEquipmentPlacementAddForm();
+        document.getElementById('equipmentPlacementsTable').innerHTML = _renderEquipmentPlacementsTable();
+        // Заголовок секции со счётчиком не обновится сам без полного
+        // рендера — проще перерисовать всю карточку целиком (тот же приём,
+        // что renderEquipmentDetailView(equipmentDetailData) после удаления
+        // фото выше).
+        renderEquipmentDetailView(equipmentDetailData);
+    } catch (e) {
+        showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
+    }
+}
+
+async function deleteEquipmentPlacementRow(placementId) {
+    if (!equipmentDetailData) return;
+    if (!confirm('Удалить это место установки?')) return;
+    try {
+        const resp = await apiFetch(`/api/equipment/${equipmentDetailData.id}/placements/${placementId}`, { method: 'DELETE' });
+        const data = await parseJsonResponse(resp);
+        if (!resp.ok) {
+            showToast(data.error || 'Ошибка удаления', 'error');
+            return;
+        }
+        equipmentPlacements = equipmentPlacements.filter(p => p.id !== placementId);
+        showToast('Место удалено', 'success', 'icon-delete');
+        renderEquipmentDetailView(equipmentDetailData);
+    } catch (e) {
+        showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
+    }
 }
 
 function printEquipment(id) {

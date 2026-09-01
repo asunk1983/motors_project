@@ -275,6 +275,52 @@ def init_db(conn=None):
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_type ON equipment(equipment_type_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_workshop ON equipment(workshop)')
 
+        # equipment_placement — экземпляры оборудования по местам со схемными
+        # обозначениями (ТЗ "Место"). НЕ путать с equipment.location_node_id
+        # (единственное "основное" место записи, используется деревом слева
+        # и /api/equipment?location_node_id= для навигации/фильтра — эта
+        # логика не меняется). equipment_placement — дополнительная, более
+        # детальная раскладка: одна карточка оборудования (например, "Пускатель
+        # КМ", модель/артикул) физически стоит в НЕСКОЛЬКИХ местах, а в
+        # пределах одного места может быть несколько экземпляров с разными
+        # схемными обозначениями (пример из ТЗ: шкаф +E021, КМ1/КМ2/КМ3 —
+        # 3 строки в этой таблице с одним и тем же location_node_id).
+        #
+        # Схемные обозначения НЕ становятся узлами location_node — их будет
+        # на порядки больше, чем реальных мест, это раздуло бы общее дерево
+        # (используется тремя вкладками — 17.2/16.7 в снимке проекта).
+        # designation хранится как обычный атрибут связи.
+        #
+        # ON DELETE CASCADE у equipment_id — при удалении оборудования его
+        # места удаляются вместе с ним (аналог того, как удаляются фото —
+        # equipment_manager.delete_equipment_photos_from_disk). Без CASCADE
+        # у location_node_id (как и у equipment.location_node_id) — узел
+        # дерева нельзя удалить, если на него ссылается placement (см.
+        # location_repo.is_referenced, дополняется ниже).
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS equipment_placement (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                equipment_id INTEGER NOT NULL REFERENCES equipment(id) ON DELETE CASCADE,
+                location_node_id INTEGER NOT NULL REFERENCES location_node(id),
+                designation TEXT,
+                note TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_placement_equipment ON equipment_placement(equipment_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_placement_location ON equipment_placement(location_node_id)')
+        # Схемное обозначение уникально В ПРЕДЕЛАХ одного места (ТЗ) — но
+        # НЕ глобально (КМ1 может стоять и в +E021, и в +E022). Частичный
+        # уникальный индекс: WHERE designation IS NOT NULL — в SQLite NULL
+        # никогда не равен NULL, поэтому без этого условия несколько строк
+        # с designation=NULL в одном месте всё равно не конфликтовали бы
+        # между собой, условие здесь для ясности замысла, а не по необходимости.
+        cursor.execute('''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_equipment_placement_unique_designation
+            ON equipment_placement(location_node_id, designation)
+            WHERE designation IS NOT NULL
+        ''')
+
         # --- Заявки -> Отказы -> Работы -------------------------------
         # ticket ≠ failure: заявка — сырое обращение, не каждая станет
         # подтверждённым отказом. equipment_work существует только через

@@ -171,15 +171,22 @@ def is_referenced(conn: sqlite3.Connection, node_id: int) -> bool:
 
     incident_ticket.location_node_id — с шага "Инциденты".
     equipment.location_node_id — с шага 6 (миграция Оборудования на
-    общее дерево мест). Обе проверки нужны ОДНОВРЕМЕННО: FK-колонки
-    объявлены без ON DELETE CASCADE/SET NULL, и SQLite не enforce-ит
-    FK-constraints без явного PRAGMA foreign_keys=ON — без этой
-    проверки удаление узла молча оставило бы оборудование или заявку
-    ссылающимися на несуществующее место."""
+    общее дерево мест). equipment_placement.location_node_id — с
+    доработки "Место" (несколько экземпляров/схемных обозначений на
+    одно оборудование). Все проверки нужны ОДНОВРЕМЕННО: FK-колонки
+    объявлены без ON DELETE CASCADE/SET NULL (кроме equipment_id внутри
+    equipment_placement — там CASCADE, но это про удаление ОБОРУДОВАНИЯ,
+    не места), и SQLite не enforce-ит FK-constraints без явного PRAGMA
+    foreign_keys=ON — без этой проверки удаление узла молча оставило бы
+    оборудование, заявку или placement ссылающимися на несуществующее
+    место."""
     cur = conn.execute('SELECT 1 FROM incident_ticket WHERE location_node_id = ? LIMIT 1', (node_id,))
     if cur.fetchone() is not None:
         return True
     cur = conn.execute('SELECT 1 FROM equipment WHERE location_node_id = ? LIMIT 1', (node_id,))
+    if cur.fetchone() is not None:
+        return True
+    cur = conn.execute('SELECT 1 FROM equipment_placement WHERE location_node_id = ? LIMIT 1', (node_id,))
     if cur.fetchone() is not None:
         return True
     return False

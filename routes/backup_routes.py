@@ -105,7 +105,7 @@ def restore_backup(filename):
         return jsonify({
             'success': True,
             'message': 'Восстановление завершено успешно',
-            'restored_files': (restore_result or {}).get('restored_files', 0),
+            'restored_files': (restore_result or {}).get('restored_files', {}),
         })
     except RuntimeError as e:
         # Ошибка лока (другой restore уже выполняется)
@@ -157,7 +157,7 @@ def confirm_restore_uploaded_backup():
         return jsonify({
             'success': True,
             'message': 'Восстановление завершено успешно',
-            'restored_files': (restore_result or {}).get('restored_files', 0),
+            'restored_files': (restore_result or {}).get('restored_files', {}),
         })
     except RuntimeError as e:
         return jsonify({'error': str(e)}), 409

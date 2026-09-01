@@ -33,6 +33,7 @@ from repositories.equipment_repo import (
     get_stock_summary, update_equipment_type_min_stock_qty,
     equipment_referenced_by_incidents,
 )
+from repositories import equipment_placement_repo, location_repo
 from schemas.equipment_schema import (
     validate_equipment_type_payload, sanitize_equipment_type_data,
     validate_attribute_definition_payload, sanitize_attribute_definition_data,
@@ -388,6 +389,87 @@ def delete_equipment_route(equipment_id):
         return jsonify({'success': True, 'message': 'Оборудование удалено'})
     except Exception as e:
         logger.exception('delete_equipment_route failed')
+        return jsonify({'error': str(e)}), 500
+
+
+# ---------------------------------------------------------------------
+# Места оборудования (equipment_placement) — ТЗ "Место": одна карточка
+# оборудования может физически стоять в нескольких местах, а в пределах
+# одного места — несколько экземпляров с разными схемными обозначениями
+# (шкаф +E021: КМ1, КМ2, КМ3). НЕ путать с equipment.location_node_id —
+# "основным" местом записи, которым по-прежнему занимаются
+# create_equipment_route/update_equipment_route выше и дерево слева
+# (equipment/location-counts) — эта логика не меняется.
+# ---------------------------------------------------------------------
+
+@equipment_bp.route('/equipment/<int:equipment_id>/placements', methods=['GET'])
+def get_equipment_placements_route(equipment_id):
+    try:
+        with db_connection() as conn:
+            if not get_equipment_by_id(conn, equipment_id):
+                return jsonify({'error': 'Оборудование не найдено'}), 404
+            placements = equipment_placement_repo.list_by_equipment(conn, equipment_id)
+        return jsonify(placements)
+    except Exception as e:
+        logger.exception('get_equipment_placements_route failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@equipment_bp.route('/equipment/<int:equipment_id>/placements', methods=['POST'])
+def create_equipment_placements_route(equipment_id):
+    """Body: {location_node_id, designations: "КМ1, КМ2, КМ3", note}.
+    designations — необязательная строка через запятую (по ТЗ). Пустая
+    строка/отсутствие поля создаёт ОДНУ запись с designation=NULL — само
+    место без детализации по обозначению (например, единичный прибор без
+    маркировки на схеме). Частично успешный bulk (часть обозначений уже
+    занята в этом месте) — не откатывается целиком: создаём то, что
+    свободно, и возвращаем errors по остальным, чтобы пользователь не
+    перепечатывал уже принятые строки заново (тот же принцип частичного
+    успеха, что и в upload_equipment_photos_route для группы файлов)."""
+    try:
+        data = request.json or {}
+        location_node_id = data.get('location_node_id')
+        if not location_node_id:
+            return jsonify({'error': 'Место обязательно'}), 400
+        with db_connection() as conn:
+            if not get_equipment_by_id(conn, equipment_id):
+                return jsonify({'error': 'Оборудование не найдено'}), 404
+            if not location_repo.get_by_id(conn, location_node_id):
+                return jsonify({'error': 'Указанное место не найдено'}), 400
+
+            raw = data.get('designations') or ''
+            designations = [d.strip() for d in raw.split(',') if d.strip()]
+            if not designations:
+                designations = [None]
+
+            created, errors = [], []
+            for designation in designations:
+                if equipment_placement_repo.designation_exists_in_location(conn, location_node_id, designation):
+                    errors.append(f'Обозначение "{designation}" уже занято в этом месте')
+                    continue
+                placement_id = equipment_placement_repo.create(
+                    conn, equipment_id, location_node_id, designation, data.get('note')
+                )
+                created.append(placement_id)
+
+            placements = equipment_placement_repo.list_by_equipment(conn, equipment_id)
+        return jsonify({'success': True, 'created': created, 'errors': errors, 'placements': placements})
+    except Exception as e:
+        logger.exception('create_equipment_placements_route failed')
+        return jsonify({'error': str(e)}), 500
+
+
+@equipment_bp.route('/equipment/<int:equipment_id>/placements/<int:placement_id>', methods=['DELETE'])
+def delete_equipment_placement_route(equipment_id, placement_id):
+    try:
+        with db_connection() as conn:
+            placement = equipment_placement_repo.get_by_id(conn, placement_id)
+            if not placement or placement['equipment_id'] != equipment_id:
+                return jsonify({'error': 'Место не найдено'}), 404
+            equipment_placement_repo.delete(conn, placement_id)
+        return jsonify({'success': True, 'message': 'Место удалено'})
+    except Exception as e:
+        logger.exception('delete_equipment_placement_route failed')
         return jsonify({'error': str(e)}), 500
 
 
