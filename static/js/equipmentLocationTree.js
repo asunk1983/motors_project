@@ -86,18 +86,27 @@ function renderEquipmentLocationTree() {
     }
 
     const roots = childrenByParent.get(null) || [];
-    // Оборудование без места (location_node_id = null) не входит ни в один
-    // узел дерева и раньше не учитывалось нигде — backend теперь отдаёт
+    // Оборудование без места (ни одного placement, ни legacy
+    // location_node_id) не входит ни в один узел дерева — backend отдаёт
     // его отдельным ключом 'unassigned' (см. get_equipment_location_counts,
-    // equipment_repo.py). Без него итог "Все объекты" был занижен и не
-    // совпадал с реальным числом записей в номенклатуре.
+    // equipment_repo.py). Бэкенд отдельно валит клик в equipment_routes.py
+    // через явный флаг unassigned=1 (а не через location_node_id='unassigned',
+    // который Flask при type=int молча проглатывает до None — отдельный
+    // баг, который в этой реализации обходится с самого начала). Показываем
+    // ВСЕГДА, даже при 0 — чтобы пункт не прыгал в списке при каждом
+    // добавлении/удалении места (решение по ТЗ).
     const unassignedCount = equipmentLocationCounts['unassigned'] || 0;
     const totalCount = roots.reduce((sum, r) => sum + subtreeCount(r.id), 0) + unassignedCount;
     const isRootActive = equipmentActiveLocationId === null;
+    const isUnassignedActive = equipmentActiveLocationId === 'unassigned';
     let html = `
         <div class="tree-root ${isRootActive ? 'active' : ''}" onclick="resetEquipmentLocationFilter()">
             <span class="tree-workshop-label">Все объекты</span>
             <span class="tree-count-chip">${totalCount}</span>
+        </div>
+        <div class="tree-location tree-location-unassigned ${isUnassignedActive ? 'active' : ''}" onclick="selectEquipmentLocation('unassigned')">
+            <span class="tree-workshop-label"><em>Без места</em></span>
+            <span class="tree-count-chip">${unassignedCount}</span>
         </div>`;
 
     if (roots.length === 0) {
@@ -181,11 +190,15 @@ function selectEquipmentLocation(nodeId) {
     // узла, а не только по шеврону — та же логика, что и в
     // toggleEquipmentLocationNode() (шеврон по-прежнему работает сам по
     // себе отдельно, с event.stopPropagation() — переключает раскрытие
-    // без смены текущего фильтра).
-    if (equipmentCollapsedLocationIds.has(nodeId)) {
-        equipmentCollapsedLocationIds.delete(nodeId);
-    } else {
-        equipmentCollapsedLocationIds.add(nodeId);
+    // без смены текущего фильтра). Псевдо-узел 'unassigned' ("Без места")
+    // не участвует в дереве и не имеет детей/шеврона — сворачивать
+    // нечего, пропускаем эту часть для него.
+    if (nodeId !== 'unassigned') {
+        if (equipmentCollapsedLocationIds.has(nodeId)) {
+            equipmentCollapsedLocationIds.delete(nodeId);
+        } else {
+            equipmentCollapsedLocationIds.add(nodeId);
+        }
     }
     if (typeof loadEquipmentList === 'function') loadEquipmentList();
     renderEquipmentLocationTree();

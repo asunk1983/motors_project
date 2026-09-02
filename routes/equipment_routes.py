@@ -256,7 +256,17 @@ def get_equipment_list():
     try:
         equipment_type_id = request.args.get('type', type=int)
         search = request.args.get('search', '')
-        location_node_id = request.args.get('location_node_id', type=int)
+        # unassigned=1 — отдельный флаг для псевдо-узла "Без места" в
+        # дереве слева (ТЗ), несовместим с location_node_id по смыслу
+        # (см. list_equipment: это ветка "куда угодно" по определению,
+        # число прочих узлов дерева тут ни при чём). Раньше "Без места"
+        # приходил тем же параметром location_node_id со значением строки
+        # 'unassigned' — request.args.get(..., type=int) на такое значение
+        # молча возвращает None (Flask не бросает ошибку на несовпадение
+        # типа), и фильтр просто пропадал — клик по "Без места" показывал
+        # ВСЁ оборудование, а не непривязанное.
+        unassigned = request.args.get('unassigned') in ('1', 'true', 'True')
+        location_node_id = None if unassigned else request.args.get('location_node_id', type=int)
         sort = request.args.get('sort')
         order = request.args.get('order', 'desc')
 
@@ -279,8 +289,8 @@ def get_equipment_list():
         with db_connection() as conn:
             items = list_equipment(
                 conn, equipment_type_id=equipment_type_id, search=search,
-                location_node_id=location_node_id, sort=sort, order=order,
-                attr_filters=attr_filters,
+                location_node_id=location_node_id, unassigned=unassigned,
+                sort=sort, order=order, attr_filters=attr_filters,
             )
         return jsonify(items)
     except Exception as e:

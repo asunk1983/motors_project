@@ -471,7 +471,15 @@ async function loadEquipmentList() {
         if (typeFilter) params.set('type', typeFilter);
         if (search) params.set('search', search);
         if (typeof equipmentActiveLocationId !== 'undefined' && equipmentActiveLocationId !== null) {
-            params.set('location_node_id', equipmentActiveLocationId);
+            // Псевдо-узел "Без места" шлём отдельным флагом unassigned=1, а
+            // НЕ через location_node_id='unassigned' — Flask при type=int
+            // молча проглатывает строку до None, и фильтр теряется
+            // (та же проблема, что зафиксирована в incoming-реализации).
+            if (equipmentActiveLocationId === 'unassigned') {
+                params.set('unassigned', '1');
+            } else {
+                params.set('location_node_id', equipmentActiveLocationId);
+            }
         }
         if (equipmentCurrentSort.field) {
             params.set('sort', equipmentCurrentSort.field);
@@ -564,11 +572,20 @@ function renderEquipmentTable() {
     const pageData = allEquipment.slice(start, end);
 
     body.innerHTML = pageData.map(e => {
-        // location_name — из нового location_node (ТЗ 3.1); если запись
-        // ещё не смигрирована (location_node_id пуст), показываем старые
-        // текстовые workshop/location — переходный период, обе колонки
-        // не показываются одновременно, чтобы не дублировать смысл.
-        const locationDisplay = e.location_name || [e.workshop, e.location].filter(Boolean).join(' / ') || '—';
+        // Место в таблице списка — сначала placements (equipment_placement,
+        // ТЗ "Места установки"), только если их нет вообще — старое
+        // legacy location_name/workshop/location (переходный период, обе
+        // колонки не показываются одновременно, чтобы не дублировать
+        // смысл). placement_count/placement_location_name — из
+        // list_equipment (equipment_repo.py), первое место + "+N", если
+        // мест несколько (полный список — в самой карточке).
+        let locationDisplay = '—';
+        if (e.placement_count > 0) {
+            locationDisplay = escapeHtml(e.placement_location_name || '—') +
+                (e.placement_count > 1 ? ` <span class="placement-count-badge">+${e.placement_count - 1}</span>` : '');
+        } else {
+            locationDisplay = escapeHtml(e.location_name || [e.workshop, e.location].filter(Boolean).join(' / ') || '—');
+        }
         let dynamicCells = '';
         equipmentShowInListAttrs.forEach(a => {
             const val = e.specs && e.specs[a.key] !== undefined && e.specs[a.key] !== '' ? e.specs[a.key] : null;
@@ -580,7 +597,7 @@ function renderEquipmentTable() {
                 <td>${escapeHtml(e.name)}</td>
                 <td>${escapeHtml(e.equipment_type_name || '—')}</td>
                 <td>${escapeHtml(e.article || '—')}</td>
-                <td>${escapeHtml(locationDisplay)}</td>
+                <td>${locationDisplay}</td>
                 ${dynamicCells}
                 <td>${e.criticality ? '●'.repeat(e.criticality) + '○'.repeat(5 - e.criticality) : '—'}</td>
                 <td class="col-actions" onclick="event.stopPropagation()">
