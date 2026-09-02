@@ -10,7 +10,9 @@
 import sqlite3
 from datetime import datetime
 
-from repositories import location_repo, crew_repo, incident_ticket_repo, incident_equipment_repo
+from repositories import (
+    location_repo, crew_repo, equipment_repo, incident_ticket_repo, incident_equipment_repo,
+)
 
 VALID_PRIORITIES = {'low', 'medium', 'high'}
 VALID_STATUSES = {'in_progress', 'resolved', 'rejected'}
@@ -132,6 +134,13 @@ def delete_ticket(conn: sqlite3.Connection, ticket_id: int) -> tuple[bool, str |
 def add_equipment_link(conn: sqlite3.Connection, ticket_id: int, equipment_id: int) -> tuple[bool, str | None]:
     if incident_ticket_repo.get_by_id(conn, ticket_id) is None:
         return False, 'Заявка не найдена'
+    if equipment_repo.get_equipment_by_id(conn, equipment_id) is None:
+        # Превращаем гонку "оборудование удалили, пока форма была открыта" из
+        # голой sqlite3.IntegrityError (FK на incident_ticket_equipment.
+        # equipment_id → equipment.id) в понятное сообщение пользователю.
+        # Тот же паттерн, что в create_ticket для location/crew: get_by_id
+        # в репозитории, проверка is None → возврат (False, текст).
+        return False, f'Оборудование с id={equipment_id} не найдено — возможно, было удалено. Обновите форму и попробуйте снова.'
     incident_equipment_repo.add_relation(conn, ticket_id, equipment_id)
     return True, None
 
