@@ -1078,6 +1078,83 @@ mark.search-highlight {
 .photo-thumb-crop:hover { background: var(--color-secondary); }
 
 /* =====================================================================
+   МЕСТА УСТАНОВКИ ОБОРУДОВАНИЯ (equipment_placement) — карточка
+   оборудования, секция "Места установки". Одна строка — одно место
+   (location_node_id), внутри неё — чипы схемных обозначений (пример из
+   ТЗ: шкаф +E021, чипы КМ1/КМ2/КМ3). Токены/радиусы — те же, что у
+   .tree-count-chip и .photo-thumb-remove, отдельного нового языка стилей
+   не вводим.
+   ===================================================================== */
+.placement-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    background: var(--color-bg-main);
+    border-left: 3px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+}
+.placement-location {
+    font-size: var(--text-sm);
+    color: var(--color-text-dark);
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-right: var(--space-2);
+}
+.placement-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    flex: 1;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: var(--text-xs);
+    color: var(--color-text-muted);
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    padding: 2px var(--space-1) 2px var(--space-2);
+    border-radius: var(--radius-full);
+}
+.chip em { font-style: normal; color: var(--color-text-muted); } /* "без обозначения" — не курсивом, просто приглушённым цветом, курсив на кириллице в мелком кегле читается хуже */
+.chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    line-height: 1;
+    font-size: var(--text-sm);
+    padding: 0;
+}
+.chip-remove:hover { background: var(--color-danger); color: #fff; }
+.placement-add-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--radius-sm);
+    border: none;
+    background: var(--color-bg-card);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    line-height: 1;
+}
+.placement-add-btn:hover { background: var(--color-row-hover-accent); color: var(--color-accent); }
+
+/* =====================================================================
    ОБРЕЗКА ФОТО (photoCropModal)
    ===================================================================== */
 .crop-stage {

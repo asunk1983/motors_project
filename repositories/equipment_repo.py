@@ -412,7 +412,20 @@ def get_stock_summary(conn):
     min_stock_qty, но без единиц в базе, выпали бы из сводки. Ровно один
     склад — соглашение, не enforced constraint (см. ТЗ): если случайно
     помечено НЕСКОЛЬКО узлов node_type='warehouse', суммируем поддеревья
-    всех, не падаем и не выбираем "первый попавшийся"."""
+    всех, не падаем и не выбираем "первый попавшийся".
+
+    Единица подсчёта — не строка equipment, а физический экземпляр.
+    С появлением equipment_placement (ТЗ "Место") одна строка equipment
+    может представлять несколько физических единиц: шкаф +E021 с
+    обозначениями КМ1/КМ2/КМ3 — это 3 экземпляра одного типа, а не один.
+    Поэтому для записи оборудования, у которой ЕСТЬ строки в
+    equipment_placement, количество единиц = число этих строк (каждая
+    строка placement — один физический экземпляр, вне зависимости от
+    того, задано у неё designation или нет). Для записи БЕЗ единого
+    placement (ещё не размещена ни в одном месте вообще) — считаем как
+    1 единицу по старому equipment.location_node_id (обратная
+    совместимость с записями, заведёнными до появления "Мест", и просто
+    удобство для склад-item без детализации по месту)."""
     warehouse_rows = conn.execute(
         "SELECT id FROM location_node WHERE node_type = 'warehouse'"
     ).fetchall()
@@ -426,23 +439,35 @@ def get_stock_summary(conn):
 
     result = []
     for t in types:
-        total = conn.execute(
-            'SELECT COUNT(*) AS c FROM equipment WHERE equipment_type_id = ?', (t['id'],)
-        ).fetchone()['c']
-        unlocated = conn.execute(
-            'SELECT COUNT(*) AS c FROM equipment WHERE equipment_type_id = ? AND location_node_id IS NULL',
-            (t['id'],)
-        ).fetchone()['c']
+        # Один запрос на тип: строка оборудования + все её placements
+        # (LEFT JOIN — для записей без единого placement ep.id будет NULL,
+        # это и есть сигнал "считать по старому location_node_id").
+        rows = conn.execute('''
+            SELECT e.id AS equipment_id, e.location_node_id AS equip_loc,
+                   ep.id AS placement_id, ep.location_node_id AS placement_loc
+            FROM equipment e
+            LEFT JOIN equipment_placement ep ON ep.equipment_id = e.id
+            WHERE e.equipment_type_id = ?
+        ''', (t['id'],)).fetchall()
 
-        if warehouse_subtree_ids:
-            placeholders = ','.join('?' * len(warehouse_subtree_ids))
-            in_stock = conn.execute(
-                f'SELECT COUNT(*) AS c FROM equipment WHERE equipment_type_id = ? '
-                f'AND location_node_id IN ({placeholders})',
-                [t['id']] + list(warehouse_subtree_ids)
-            ).fetchone()['c']
-        else:
-            in_stock = 0
+        by_equipment = {}
+        for r in rows:
+            by_equipment.setdefault(r['equipment_id'], []).append(r)
+
+        # Разворачиваем каждую запись оборудования в список локаций ЕЁ
+        # физических единиц: несколько placements -> несколько единиц,
+        # ни одного placement -> одна единица по legacy-полю.
+        unit_locations = []
+        for eq_id, group in by_equipment.items():
+            placement_rows = [g for g in group if g['placement_id'] is not None]
+            if placement_rows:
+                unit_locations.extend(g['placement_loc'] for g in placement_rows)
+            else:
+                unit_locations.append(group[0]['equip_loc'])
+
+        total = len(unit_locations)
+        unlocated = sum(1 for loc in unit_locations if loc is None)
+        in_stock = sum(1 for loc in unit_locations if loc is not None and loc in warehouse_subtree_ids)
 
         # in_use — остаток, а не отдельный COUNT: unlocated (место не
         # указано) НЕ должно молча попадать в "в эксплуатации" — иначе

@@ -934,6 +934,14 @@ function clearEquipmentForm() {
         equipmentPlacementFormPicker = null;
     }
     equipmentPlacements = [];
+    // Секцию мест целиком убираем из DOM здесь, а не просто чистим
+    // innerHTML — при открытии "Новое оборудование" (create-режим)
+    // _fillEquipmentEditFields() вообще не вызывается (equipment_id ещё
+    // нет), значит секция без этого продолжала бы висеть в форме с
+    // данными ПРЕДЫДУЩЕЙ открытой карточки до следующего edit существующей
+    // записи.
+    const placementsMount = document.getElementById('equipmentPlacementsSection');
+    if (placementsMount) placementsMount.remove();
 }
 
 function renderEquipmentPendingPhotos() {
@@ -1211,6 +1219,7 @@ async function _fillEquipmentEditFields(item) {
     }
     await onEquipmentTypeChange(item.specs || {});
     renderEquipmentExistingPhotos();
+    _renderEquipmentPlacementsSection();
 }
 
 // ===== Режим просмотра (ТЗ 3.5) =====
@@ -1276,38 +1285,9 @@ async function renderEquipmentDetailView(item) {
         <div class="detail-subsection-header"><h4><span class="icon icon-photo-camera"></span> Фото${equipmentExistingPhotos.length ? ' (' + equipmentExistingPhotos.length + ')' : ''}</h4></div>
         ${photosHtml}
 
-        <div class="detail-subsection-header">
-            <h4><span class="icon icon-location"></span> Места установки${equipmentPlacements.length ? ' (' + equipmentPlacements.length + ')' : ''}</h4>
-            <button type="button" class="write-action" onclick="showEquipmentPlacementAddForm()"><span class="icon icon-add"></span> Добавить место</button>
-        </div>
-        <div id="equipmentPlacementsTable">${_renderEquipmentPlacementsTable()}</div>
-        <div id="equipmentPlacementAddForm" class="detail-item-edit" style="display:none">
-            <label>Место</label>
-            <input type="text" id="equipmentPlacementLocationInput" placeholder="Начните вводить название места...">
-            <label style="margin-top:8px">Схемные обозначения (через запятую, необязательно)</label>
-            <input type="text" id="equipmentPlacementDesignationsInput" placeholder="КМ1, КМ2, КМ3">
-            <div style="margin-top:8px">
-                <button type="button" class="write-action" onclick="submitEquipmentPlacementAdd()">Сохранить</button>
-                <button type="button" onclick="hideEquipmentPlacementAddForm()">Отмена</button>
-            </div>
-        </div>
-
         <div class="detail-subsection-header"><h4>Примечание</h4></div>
         <div class="detail-item-edit"><div class="value">${escapeHtml(item.note) || '—'}</div></div>
     `;
-
-    // Пикер места для формы добавления — переинициализируем на каждый
-    // рендер карточки (тот же повод, что и у equipmentFormLocationPicker):
-    // container.innerHTML только что пересоздал #equipmentPlacementLocationInput,
-    // старый инстанс пикера (если был) уже держит ссылку на удалённый узел
-    // DOM и не среагирует на клики.
-    if (equipmentPlacementFormPicker && equipmentPlacementFormPicker.destroy) {
-        equipmentPlacementFormPicker.destroy();
-    }
-    const placementLocationInput = document.getElementById('equipmentPlacementLocationInput');
-    if (placementLocationInput) {
-        equipmentPlacementFormPicker = attachLocationPicker(placementLocationInput, {});
-    }
 }
 
 // Группируем плоский список placements по месту — одно место с
@@ -1337,11 +1317,66 @@ function _renderEquipmentPlacementsTable() {
             <div class="placement-row">
                 <span class="placement-location">${escapeHtml(group.path)}</span>
                 <span class="placement-chips">${chips}</span>
-                <button type="button" class="tree-add-btn write-action" title="Добавить ещё обозначение в это место"
+                <button type="button" class="placement-add-btn write-action" title="Добавить ещё обозначение в это место"
                         onclick="showEquipmentPlacementAddForm(${locationNodeId}, '${escapeAttr(group.path)}')">+</button>
             </div>`;
     });
     return rows;
+}
+
+// Секция "Места установки" — живёт ТОЛЬКО в форме редактирования
+// (#equipmentEditFields), не в режиме просмотра: место — это то, что
+// заполняется/правится, а не витрина карточки, и физически equipment_id
+// уже должен существовать (при создании оборудования секция не нужна —
+// _fillEquipmentEditFields вызывается только для уже сохранённой записи,
+// см. openEquipmentModal/switchEquipmentToEdit; ветка "создать новое" в
+// openEquipmentModal её не вызывает).
+//
+// #equipmentEditFields — статичная форма из HTML-шаблона (id полей типа
+// equipmentName и т.д. уже существуют в разметке), а не то, что JS
+// рисует с нуля. Секцию мест примонтировать некуда заранее, поэтому
+// mount-контейнер с фиксированным id создаём здесь же при первом
+// рендере и переиспользуем при последующих — идемпотентно, без
+// накопления дублей при повторном входе в edit одной и той же карточки.
+function _renderEquipmentPlacementsSection() {
+    const editFields = document.getElementById('equipmentEditFields');
+    if (!editFields) return;
+    let mount = document.getElementById('equipmentPlacementsSection');
+    if (!mount) {
+        mount = document.createElement('div');
+        mount.id = 'equipmentPlacementsSection';
+        editFields.appendChild(mount);
+    }
+    mount.innerHTML = `
+        <div class="detail-subsection-header">
+            <h4><span class="icon icon-folder-open"></span> Места установки${equipmentPlacements.length ? ' (' + equipmentPlacements.length + ')' : ''}</h4>
+            <button type="button" class="btn btn-secondary btn-sm write-action" onclick="showEquipmentPlacementAddForm()"><span class="icon icon-add"></span> Добавить место</button>
+        </div>
+        <div id="equipmentPlacementsTable">${_renderEquipmentPlacementsTable()}</div>
+        <div id="equipmentPlacementAddForm" class="detail-item-edit" style="display:none">
+            <label>Место</label>
+            <input type="text" id="equipmentPlacementLocationInput" placeholder="Начните вводить название места...">
+            <label style="margin-top:8px">Схемные обозначения (через запятую, необязательно)</label>
+            <input type="text" id="equipmentPlacementDesignationsInput" placeholder="КМ1, КМ2, КМ3">
+            <div style="margin-top:8px">
+                <button type="button" class="btn btn-primary btn-sm write-action" onclick="submitEquipmentPlacementAdd()">Сохранить</button>
+                <button type="button" class="btn btn-secondary btn-sm" onclick="hideEquipmentPlacementAddForm()">Отмена</button>
+            </div>
+        </div>
+    `;
+
+    // Пикер места для формы добавления — переинициализируем на каждый
+    // рендер секции (тот же повод, что и у equipmentFormLocationPicker):
+    // mount.innerHTML только что пересоздал #equipmentPlacementLocationInput,
+    // старый инстанс пикера (если был) уже держит ссылку на удалённый узел
+    // DOM и не среагирует на клики.
+    if (equipmentPlacementFormPicker && equipmentPlacementFormPicker.destroy) {
+        equipmentPlacementFormPicker.destroy();
+    }
+    const placementLocationInput = document.getElementById('equipmentPlacementLocationInput');
+    if (placementLocationInput) {
+        equipmentPlacementFormPicker = attachLocationPicker(placementLocationInput, {});
+    }
 }
 
 function showEquipmentPlacementAddForm(prefillLocationId, prefillLabel) {
@@ -1391,12 +1426,13 @@ async function submitEquipmentPlacementAdd() {
             showToast('Место добавлено', 'success');
         }
         hideEquipmentPlacementAddForm();
-        document.getElementById('equipmentPlacementsTable').innerHTML = _renderEquipmentPlacementsTable();
-        // Заголовок секции со счётчиком не обновится сам без полного
-        // рендера — проще перерисовать всю карточку целиком (тот же приём,
-        // что renderEquipmentDetailView(equipmentDetailData) после удаления
-        // фото выше).
-        renderEquipmentDetailView(equipmentDetailData);
+        // Число новых physical-единиц могло измениться (каждое designation
+        // — отдельный экземпляр, см. equipment_repo.get_stock_summary) —
+        // если открыта вкладка ЗИП/сводки, её счётчики устареют до
+        // следующей загрузки; здесь не трогаем (сводка не в этой же
+        // модалке), но полный ре-рендер секции ниже как минимум обновляет
+        // заголовок с количеством мест в самой карточке.
+        _renderEquipmentPlacementsSection();
     } catch (e) {
         showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
     }
@@ -1414,7 +1450,7 @@ async function deleteEquipmentPlacementRow(placementId) {
         }
         equipmentPlacements = equipmentPlacements.filter(p => p.id !== placementId);
         showToast('Место удалено', 'success', 'icon-delete');
-        renderEquipmentDetailView(equipmentDetailData);
+        _renderEquipmentPlacementsSection();
     } catch (e) {
         showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
     }
