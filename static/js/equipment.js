@@ -1298,6 +1298,9 @@ async function renderEquipmentDetailView(item) {
             ${attrsHtml}
         </div>
 
+        <div class="detail-subsection-header"><h4><span class="icon icon-folder-open"></span> Места установки${equipmentPlacements.length ? ' (' + equipmentPlacements.length + ')' : ''}</h4></div>
+        ${_renderEquipmentPlacementsReadonlyTable()}
+
         <div class="detail-subsection-header"><h4><span class="icon icon-photo-camera"></span> Фото${equipmentExistingPhotos.length ? ' (' + equipmentExistingPhotos.length + ')' : ''}</h4></div>
         ${photosHtml}
 
@@ -1335,6 +1338,45 @@ function _renderEquipmentPlacementsTable() {
                 <span class="placement-chips">${chips}</span>
                 <button type="button" class="placement-add-btn write-action" title="Добавить ещё обозначение в это место"
                         onclick="showEquipmentPlacementAddForm(${locationNodeId}, '${escapeAttr(group.path)}')">+</button>
+            </div>`;
+    });
+    return rows;
+}
+
+// Read-only вариант той же таблицы — для режима просмотра карточки
+// (renderEquipmentDetailView). Тот же набор данных
+// (equipment_placement — место + designation + note), та же группировка
+// по месту, те же CSS-классы (.placement-row / .placement-location /
+// .placement-chips / .chip) — но БЕЗ кнопок удаления чипов (chip-remove)
+// и без кнопки «+» (placement-add-btn). Чип остаётся визуально тот же,
+// просто внутри только текст/designation, никаких onclick'ов.
+//
+// Шкафа с одним NULL-designation (placement без схемного обозначения)
+// быть не может в read-only тоже — placement создаётся в edit-режиме
+// и сохраняется на сервере, в read-only мы просто показываем то, что
+// пришло из БД.
+function _renderEquipmentPlacementsReadonlyTable() {
+    if (!equipmentPlacements.length) {
+        return '<div class="no-data">Мест установки пока нет</div>';
+    }
+    const byLocation = new Map();
+    equipmentPlacements.forEach(p => {
+        if (!byLocation.has(p.location_node_id)) {
+            byLocation.set(p.location_node_id, { path: p.location_path, items: [] });
+        }
+        byLocation.get(p.location_node_id).items.push(p);
+    });
+    let rows = '';
+    byLocation.forEach((group) => {
+        const chips = group.items.map(p => `
+            <span class="chip">
+                ${p.designation ? escapeHtml(p.designation) : '<em>без обозначения</em>'}
+            </span>
+        `).join('');
+        rows += `
+            <div class="placement-row">
+                <span class="placement-location">${escapeHtml(group.path)}</span>
+                <span class="placement-chips">${chips}</span>
             </div>`;
     });
     return rows;

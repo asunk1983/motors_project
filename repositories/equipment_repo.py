@@ -335,20 +335,27 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
 
 
 def get_equipment_location_counts(conn) -> dict:
-    """{location_node_id: count} — только СОБСТВЕННЫЕ счётчики узлов
-    (сколько оборудования привязано ИМЕННО к этому узлу), без
-    суммирования по поддереву — суммирование вверх по дереву делает
-    фронтенд (equipmentLocationTree.js::_equipmentSubtreeCount), т.к.
-    дерево уже загружено там целиком и пересчитывать на каждый клик
-    дешевле в памяти браузера, чем гонять рекурсивный SQL на каждый
-    рендер дерева.
+    """{location_node_id: count} — счётчики узлов из equipment_placement.
+
+    Считаем НЕ по equipment.location_node_id (старое «основное» место
+    записи, теперь read-only в UI), а по equipment_placement.location_node_id
+    — каждое схемное обозначение = одна строка = одна единица счёта
+    (одна карточка оборудования в шкафу +E021 с тремя обозначениями КМ1,
+    КМ2, КМ3 даёт +3 к счётчику узла «+E021», а не +1).
+
+    Без суммирования по поддереву — суммирование вверх по дереву делает
+    фронтенд (equipmentLocationTree.js::subtreeCount), т.к. дерево уже
+    загружено там целиком и пересчитывать на каждый клик дешевле в памяти
+    браузера, чем гонять рекурсивный SQL на каждый рендер дерева.
 
     Отдельно добавляем ключ 'unassigned' — количество оборудования БЕЗ
-    места (location_node_id IS NULL). Раньше такое оборудование вообще не
-    попадало в выборку (WHERE location_node_id IS NOT NULL), из-за чего
-    итог "Все объекты" в боковом дереве (сумма по всем узлам-корням) был
-    занижен ровно на количество непривязанного оборудования и не совпадал
-    с реальным числом записей в номенклатуре.
+    единого placement (NOT EXISTS в equipment_placement). Это новая
+    семантика для счётчика: «нет ни в одном месте установки». Прежняя
+    формула (equipment.location_node_id IS NULL) больше не подходит —
+    location_node_id теперь read-only и может расходиться с фактом
+    наличия placement'ов; счётчик должен отражать то, что показывает
+    пользователю UI-секция «Места установки», а не устаревшее legacy-поле.
+
     Ключи возвращаемого словаря — ВСЕ строки (str(location_node_id) и
     'unassigned'), а не int. Иначе Flask's jsonify (sort_keys=True по
     умолчанию) при сортировке ключей перед сериализацией падает:
@@ -359,18 +366,34 @@ def get_equipment_location_counts(conn) -> dict:
     само приводит nodeId к строке при доступе.
     """
     cur = conn.cursor()
+    # Основные счётчики — COUNT(*) по строкам equipment_placement.
+    # Каждая строка placement = одно физическое размещение (место +
+    # схемное обозначение), независимо от того, задано ли designation
+    # (NULL-обозначения — это «шкаф без конкретного КМ», но экземпляр
+    # всё равно один и учитывается в счётчике узла).
     cur.execute(
-        'SELECT location_node_id, COUNT(*) as cnt FROM equipment '
+        'SELECT location_node_id, COUNT(*) as cnt FROM equipment_placement '
         'GROUP BY location_node_id'
     )
     result = {}
-    unassigned = 0
     for row in cur.fetchall():
+        # location_node_id в equipment_placement NOT NULL (см. db.py),
+        # NULL-ветка осталась бы только ради безопасности.
         if row['location_node_id'] is None:
-            unassigned = row['cnt']
-        else:
-            result[str(row['location_node_id'])] = row['cnt']
-    result['unassigned'] = unassigned
+            continue
+        result[str(row['location_node_id'])] = row['cnt']
+
+    # «Без места» — оборудование, у которого нет ни одной строки placement.
+    # NOT EXISTS корректно отрабатывает случай, когда у equipment_id
+    # действительно нет ни одного placement (legacy-записи, новые до
+    # первого сохранения, и т.д.).
+    unassigned_row = conn.execute(
+        'SELECT COUNT(*) AS cnt FROM equipment e '
+        'WHERE NOT EXISTS ('
+        '  SELECT 1 FROM equipment_placement p WHERE p.equipment_id = e.id'
+        ')'
+    ).fetchone()
+    result['unassigned'] = unassigned_row['cnt'] if unassigned_row else 0
     return result
 
 
