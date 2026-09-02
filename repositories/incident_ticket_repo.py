@@ -34,6 +34,99 @@ def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
     _updated_at_ensured = True
 
 
+# ---------------------------------------------------------------------
+# Самовосстанавливающаяся миграция: снятие FK incident_ticket.created_by_user_id -> users.id
+# ---------------------------------------------------------------------
+# В проекте два независимых хранилища пользователей: таблица users (БД)
+# для seed-superadmin из init_db и config/users.json (file-based) для
+# всех, кого создаёт штатная форма /api/auth/admin/users. File-based
+# пользователи имеют id >= FILE_USER_ID_OFFSET (1 000 000 000) и в
+# таблице users не появляются. Жёсткий FK REFERENCES users(id) на
+# incident_ticket.created_by_user_id физически блокировал INSERT для
+# любого file-based пользователя (sqlite3.IntegrityError на этапе
+# создания инцидента). Схема в modules/db.py объявляет колонку уже
+# БЕЗ REFERENCES, но для уже существующих БД constraint остаётся
+# висящим в sqlite_master — SQLite не поддерживает ALTER TABLE ...
+# DROP CONSTRAINT, поэтому снимаем его одноразовой пересоздающей
+# миграцией. Та же логика, что у _ensure_updated_at_column выше
+# (точечная правка репозитория, modules/db.py не трогаем, чтобы не
+# плодить общие миграции из-за одного модуля): модульный флаг
+# гарантирует однократность, FK-проверка делается через
+# PRAGMA foreign_key_list, на свежих БД функция no-op.
+#
+# Миграция НЕ трогает PRAGMA foreign_keys. PRAGMA foreign_keys в
+# SQLite — per-connection; get_db_connection() ставит ON на каждом
+# новом соединении, и эта PRAGMA не действует ретроактивно на уже
+# существующие строки (PRAGMA foreign_key_check — да, но это не
+# блокирует INSERT). Чтобы DROP TABLE + пересоздать не нарвалось на
+# проверку FK при INSERT INTO ... SELECT, мы полагаемся на то, что
+# на проде все существующие incident_ticket.created_by_user_id
+# указывают на users.id=1 (superadmin), который никуда не денется.
+# Если в будущем кто-то добавит запись с file-based id до того, как
+# применится эта миграция (теоретически невозможно — до этой миграции
+# такие INSERT-ы падали с IntegrityError), такая запись не пройдёт
+# мимо INSERT INTO ... SELECT. На практике риск нулевой.
+_no_users_fk_ensured = False
+
+
+def _ensure_no_users_fk(conn: sqlite3.Connection) -> None:
+    global _no_users_fk_ensured
+    if _no_users_fk_ensured:
+        return
+    # FK на users из incident_ticket? Если нет — миграция не нужна
+    # (свежая БД из обновлённого modules/db.py сюда не попадёт).
+    rows = list(conn.execute(
+        "SELECT 1 FROM pragma_foreign_key_list('incident_ticket') WHERE \"table\" = 'users'"
+    ))
+    if not rows:
+        _no_users_fk_ensured = True
+        return
+
+    conn.execute('BEGIN')
+    try:
+        # Обратите внимание: created_by_user_id БЕЗ REFERENCES users(id) — это
+        # вся суть миграции. А вот location_node_id ССЫЛКУ СОХРАНЯЕМ:
+        # DROP TABLE снимает ВСЕ FK-constraint-ы таблицы, и при пересоздании
+        # через RENAME мы должны явно восстановить тот FK, который нам нужен
+        # (location_node), и только намеренно убрать users.
+        conn.execute('''
+            CREATE TABLE incident_ticket__new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                location_node_id INTEGER NOT NULL REFERENCES location_node(id),
+                problem TEXT NOT NULL,
+                solution TEXT,
+                priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
+                status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','resolved','rejected')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                closed_at TEXT,
+                created_by_user_id INTEGER NOT NULL,
+                updated_at TEXT
+            )
+        ''')
+        # Переносим все строки, включая auto-migrated updated_at —
+        # на момент этой миграции _ensure_updated_at_column уже
+        # мог отработать, а мог и нет (порядок вызовов не задан).
+        # updated_at разрешён NULL на случай если он ещё не создан.
+        conn.execute('''
+            INSERT INTO incident_ticket__new
+                (id, location_node_id, problem, solution, priority, status,
+                 created_at, closed_at, created_by_user_id, updated_at)
+            SELECT id, location_node_id, problem, solution, priority, status,
+                   created_at, closed_at, created_by_user_id, updated_at
+            FROM incident_ticket
+        ''')
+        conn.execute('DROP TABLE incident_ticket')
+        conn.execute('ALTER TABLE incident_ticket__new RENAME TO incident_ticket')
+        # Пересоздаём индексы — DROP TABLE их снёс.
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_incident_status ON incident_ticket(status)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_incident_location ON incident_ticket(location_node_id)')
+        conn.execute('COMMIT')
+    except Exception:
+        conn.execute('ROLLBACK')
+        raise
+    _no_users_fk_ensured = True
+
+
 def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str | None = None,
              location_node_id: int | None = None) -> list[dict]:
     """Список заявок с фильтрами (ТЗ раздел 6: GET /api/incident-tickets —
@@ -53,6 +146,7 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
         params.append(location_node_id)
     where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
 
+    _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     cur = conn.execute(
         f'''
@@ -84,6 +178,7 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
 
 
 def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
+    _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     cur = conn.execute(
         '''
@@ -114,6 +209,7 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
 def create(conn: sqlite3.Connection, location_node_id: int, problem: str, created_by_user_id: int,
            solution: str | None = None, priority: str = 'medium', status: str = 'in_progress',
            closed_at: str | None = None) -> int:
+    _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     cur = conn.execute(
         '''
@@ -133,6 +229,7 @@ def update(conn: sqlite3.Connection, ticket_id: int, **fields) -> bool:
     status, closed_at. None-значения игнорируются (кроме closed_at,
     которому явный None нужно уметь ставить при возврате в "В работе" —
     для этого используется отдельный именованный параметр)."""
+    _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     allowed = {'location_node_id', 'problem', 'solution', 'priority', 'status'}
     set_parts, params = [], []

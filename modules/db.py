@@ -445,7 +445,18 @@ def init_db(conn=None):
                 status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','resolved','rejected')),
                 created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 closed_at TEXT,
-                created_by_user_id INTEGER NOT NULL REFERENCES users(id)
+                -- FK на users(id) намеренно НЕ объявлена: в проекте
+                -- есть ДВА независимых хранилища пользователей —
+                -- таблица users (БД) для seed-superadmin из init_db
+                -- и config/users.json (file-based) для всех, кого
+                -- создаёт штатная форма /api/auth/admin/users. File-based
+                -- пользователи имеют id >= FILE_USER_ID_OFFSET
+                -- (1000000000) и в users не попадают, поэтому
+                -- REFERENCES users(id) физически блокировал бы создание
+                -- инцидентов любым пользователем, кроме seed-superadmin.
+                -- Идемпотентная миграция для уже существующих БД — в
+                -- repositories/incident_ticket_repo.py::_ensure_no_users_fk
+                created_by_user_id INTEGER NOT NULL
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_status ON incident_ticket(status)')
