@@ -686,10 +686,15 @@
                             <label>Производитель</label>
                             <input type="text" id="equipmentManufacturer">
                         </div>
-                        <div class="form-group">
-                            <label>Место</label>
-                            <input type="text" id="equipmentLocationInput" placeholder="Начните вводить название места...">
-                        </div>
+                        <!-- Блок «Места установки» (#equipmentPlacementsSection) теперь
+                             рендерится JS-ом (_renderEquipmentPlacementsSection) именно
+                             здесь — на месте бывшего одиночного поля «Место». Единичное
+                             поле «основного» места (equipmentLocationInput) в этой форме
+                             больше не показывается: location_node_id продолжает
+                             использоваться на бэкенде (фильтр/дерево слева, breadcrumb
+                             в карточке просмотра), но больше не редактируется через
+                             эту конкретную модалку — см. submitEquipment.
+                             Подробнее — комментарий в equipment.js::_renderEquipmentPlacementsSection. -->
                         <div class="form-group">
                             <label>Критичность (1–5)</label>
                             <input type="number" id="equipmentCriticality" min="1" max="5">

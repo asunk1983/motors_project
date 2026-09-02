@@ -898,14 +898,20 @@ async function onEquipmentTypeChange(existingSpecs) {
 // ---------------------------------------------------------------------
 
 // Кнопка "+" у узла в боковом дереве мест (equipmentLocationTree.js) —
-// тот же принцип, что createAndOpenEngine в locationTree.js для каталога
-// двигателей: открыть форму создания сразу с предзаполненным местом,
-// без необходимости искать место повторно через пикер внутри модалки.
+// открыть форму создания сразу с предзаполненным «основным» местом.
+//
+// До правки: предзаполнение через пикер equipmentLocationInput (setValue).
+// После правки: пикер на одиночном поле удалён, setValue стал no-op.
+// Поведение сохранено косвенно: selectEquipmentLocation (дерево) уже
+// выставил equipmentActiveLocationId = nodeId к моменту клика «+», а
+// submitEquipment для новой записи берёт location_node_id именно оттуда
+// (см. submitEquipment). То есть «+» у узла X по-прежнему приводит к
+// созданию записи с location_node_id = X. Явная передача label здесь
+// больше не нужна — она никуда не записывается.
 function createEquipmentAtLocation(nodeId, label) {
     openEquipmentModal(null).then(() => {
-        if (equipmentFormLocationPicker) {
-            equipmentFormLocationPicker.setValue(nodeId, label);
-        }
+        // no-op: пикера нет, location_node_id возьмётся из
+        // equipmentActiveLocationId в submitEquipment.
     });
 }
 
@@ -920,21 +926,16 @@ function clearEquipmentForm() {
     document.getElementById('equipmentNote').value = '';
     renderDynamicSpecsFields([], {});
 
-    // Пикер места (ТЗ 3.1) — переинициализируем при каждом открытии формы,
-    // тот же паттерн, что и incidentLocationPicker в incidents.js.
-    const locationInput = document.getElementById('equipmentLocationInput');
-    if (locationInput) {
-        // Форма переиспользует один и тот же <input> при каждом открытии
-        // модалки — если не снять слушатели/DOM-обёртку предыдущего
-        // пикера, они накапливаются на inputEl (см. фикс в
-        // attachEntitySuggest/attachLocationPicker), и клик по пункту
-        // списка приходится повторять по многу раз, пока не попадёшь по
-        // актуальному "живому" слою.
-        if (equipmentFormLocationPicker && equipmentFormLocationPicker.destroy) {
-            equipmentFormLocationPicker.destroy();
-        }
-        locationInput.value = '';
-        equipmentFormLocationPicker = attachLocationPicker(locationInput, {});
+    // Пикер места (ТЗ 3.1) — больше НЕ создаём на старом одиночном поле
+    // «Место» (input#equipmentLocationInput удалён из HTML; location_node_id
+    // теперь формируется в submitEquipment из equipmentActiveLocationId —
+    // см. комментарий там же). Если по какой-то причине старый инстанс
+    // пикера ещё жив (например, форма открывалась до этой правки), снимаем
+    // с него слушатели/DOM-обёртку и забываем — чтобы destroy() в incidents
+    // и пр. случайно не дёрнули обработчики удалённого inputEl.
+    if (equipmentFormLocationPicker && equipmentFormLocationPicker.destroy) {
+        equipmentFormLocationPicker.destroy();
+        equipmentFormLocationPicker = null;
     }
 
     equipmentPendingPhotoFiles = [];
@@ -1226,14 +1227,12 @@ async function _fillEquipmentEditFields(item) {
     document.getElementById('equipmentCriticality').value = item.criticality || '';
     document.getElementById('equipmentNote').value = item.note || '';
     document.getElementById('equipmentTypeSelect').value = item.equipment_type_id;
-    // location_node_id — новый способ (ТЗ 3.1). Запись может быть
-    // ещё не смигрирована (location_node_id пуст) — тогда просто
-    // оставляем пикер пустым, старые workshop/location по-прежнему
-    // хранятся на бэкенде и никуда не пропадают, просто больше не
-    // редактируются этой формой (переходный период).
-    if (item.location_node_id) {
-        equipmentFormLocationPicker.setValue(item.location_node_id, item.location_name || '');
-    }
+    // location_node_id: поле «Место» (equipmentLocationInput) удалено из
+    // модалки — «основное» место записи больше не редактируется через эту
+    // форму. При сохранении (submitEquipment) location_node_id переотправляется
+    // с ПРЕЖНИМ значением (из equipmentDetailData) при редактировании, чтобы
+    // бэкенд не записал NULL; при создании берётся из
+    // equipmentActiveLocationId. См. submitEquipment.
     await onEquipmentTypeChange(item.specs || {});
     renderEquipmentExistingPhotos();
     _renderEquipmentPlacementsSection();
@@ -1362,7 +1361,22 @@ function _renderEquipmentPlacementsSection() {
     if (!mount) {
         mount = document.createElement('div');
         mount.id = 'equipmentPlacementsSection';
-        editFields.appendChild(mount);
+        // Точка монтирования секции «Места установки» — на месте бывшего
+        // одиночного поля «Место» (equipmentLocationInput, удалён из HTML):
+        // между «Производитель» и «Критичность». Якорь — ближайший общий
+        // предок (.form-group с #equipmentCriticality), вставляемся ПЕРЕД ним.
+        // Раньше секция добавлялась в конец editFields (editFields.appendChild),
+        // из-за чего блок визуально оказывался ПОСЛЕ всех полей и кнопок
+        // действий — что и исправляем этой правкой.
+        const criticalityGroup = document.getElementById('equipmentCriticality')
+            ? document.getElementById('equipmentCriticality').closest('.form-group')
+            : null;
+        if (criticalityGroup && criticalityGroup.parentNode === editFields) {
+            editFields.insertBefore(mount, criticalityGroup);
+        } else {
+            // fallback на случай, если разметка изменилась: ведём себя как раньше
+            editFields.appendChild(mount);
+        }
     }
     mount.innerHTML = `
         <div class="detail-subsection-header">
@@ -1499,17 +1513,46 @@ async function submitEquipment() {
     }
 
     const criticalityRaw = document.getElementById('equipmentCriticality').value;
-    const locationValue = equipmentFormLocationPicker ? equipmentFormLocationPicker.getValue() : null;
     const payload = {
         equipment_type_id: Number(equipment_type_id),
         name,
         article: document.getElementById('equipmentArticle').value.trim(),
         manufacturer: document.getElementById('equipmentManufacturer').value.trim(),
-        location_node_id: locationValue ? locationValue.id : null,
         criticality: criticalityRaw ? Number(criticalityRaw) : null,
         note: document.getElementById('equipmentNote').value.trim(),
         specs: collectSpecsFromForm(),
     };
+
+    // location_node_id: единичное поле «Место» (equipmentLocationInput) в этой
+    // форме больше не редактируется — пользователь работает с множественными
+    // «местами установки» (equipment_placement) ниже. Бэкенд-поле
+    // location_node_id остаётся «основным» местом записи (используется в
+    // дереве слева, фильтре списка, breadcrumb в карточке просмотра), но
+    // через эту модалку больше не меняется.
+    //
+    // Правила:
+    // - При редактировании (id !== ''): переотправляем location_node_id равным
+    //   ПРЕЖНЕМУ значению (берём из кэша equipmentDetailData). Это нужно,
+    //   потому что бэкенд (update_equipment) делает UPDATE по всем полям и
+    //   запишет NULL, если ключа location_node_id нет в payload — а нам
+    //   нужно сохранить прежнее «основное» место как есть.
+    // - При создании (id === ''): берём location_node_id из текущего узла
+    //   дерева слева (equipmentActiveLocationId). Если фильтр снят
+    //   (null) или выбран псевдо-узел «Без места» ('unassigned' — см.
+    //   комментарий в loadEquipmentList про отдельный флаг unassigned=1) —
+    //   отправляем null. Это совпадает с поведением кнопки «+» у узла
+    //   дерева (createEquipmentAtLocation): «+» обычно нажимают на
+    //   активном узле, поэтому location_node_id подставится корректно.
+    if (id) {
+        payload.location_node_id = equipmentDetailData ? equipmentDetailData.location_node_id : null;
+    } else {
+        const activeId = (typeof equipmentActiveLocationId !== 'undefined')
+            ? equipmentActiveLocationId
+            : null;
+        payload.location_node_id = (activeId && activeId !== 'unassigned')
+            ? activeId
+            : null;
+    }
 
     try {
         const resp = id
