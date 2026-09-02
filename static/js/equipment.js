@@ -572,18 +572,39 @@ function renderEquipmentTable() {
     const pageData = allEquipment.slice(start, end);
 
     body.innerHTML = pageData.map(e => {
-        // Место в таблице списка — сначала placements (equipment_placement,
-        // ТЗ "Места установки"), только если их нет вообще — старое
-        // legacy location_name/workshop/location (переходный период, обе
-        // колонки не показываются одновременно, чтобы не дублировать
-        // смысл). placement_count/placement_location_name — из
-        // list_equipment (equipment_repo.py), первое место + "+N", если
-        // мест несколько (полный список — в самой карточке).
+        // Место в таблице списка — два режима:
+        //
+        // 1) С активным фильтром по узлу (location_node_id задан на бэкенде):
+        //    placement_count_in_node / placement_location_names_in_node
+        //    приходят непустыми. Показываем названия узлов, в которых эта
+        //    equipment размещена В ПОДДЕРЕВЕ выбранного узла, и количество
+        //    «xN» (placement_count_in_node) — сколько placement-строк
+        //    именно в этом узле. Сумма количеств по всем строкам списка
+        //    сходится с бейджем узла в дереве (placement_count_in_node
+        //    считается в том же поддереве, что и счётчик узла).
+        //
+        // 2) Без фильтра (или unassigned): показываем ПЕРВОЕ место +
+        //    «+N-1» если есть ещё размещения (общий placement_count по
+        //    всем узлам) — старое поведение, не сломалось.
+        //
+        // Для записей без единого placement (placement_count === 0) в обоих
+        // режимах — fallback на legacy location_name / workshop / location,
+        // чтобы не показывать «—» для записей, у которых всё-таки есть
+        // хоть какая-то привязка.
         let locationDisplay = '—';
-        if (e.placement_count > 0) {
+        if (e.placement_count_in_node !== null && e.placement_count_in_node !== undefined) {
+            // Режим фильтра по узлу
+            const names = Array.isArray(e.placement_location_names_in_node) ? e.placement_location_names_in_node : [];
+            const nameText = names.length
+                ? names.map(n => escapeHtml(n)).join(', ')
+                : '—';
+            locationDisplay = `${nameText} <span class="placement-count-badge">×${e.placement_count_in_node}</span>`;
+        } else if (e.placement_count > 0) {
+            // Режим без фильтра
             locationDisplay = escapeHtml(e.placement_location_name || '—') +
                 (e.placement_count > 1 ? ` <span class="placement-count-badge">+${e.placement_count - 1}</span>` : '');
         } else {
+            // Legacy fallback для записей без единого placement
             locationDisplay = escapeHtml(e.location_name || [e.workshop, e.location].filter(Boolean).join(' / ') || '—');
         }
         let dynamicCells = '';
@@ -1242,21 +1263,6 @@ async function _fillEquipmentEditFields(item) {
 async function renderEquipmentDetailView(item) {
     const container = document.getElementById('equipmentDetailView');
 
-    // Полный breadcrumb места (не только последний узел, как в списке) —
-    // тот же уровень детализации, что и в пикере при выборе места.
-    let locationText = '—';
-    if (item.location_node_id) {
-        try {
-            const bcResp = await apiFetch(`/api/locations/${item.location_node_id}/breadcrumb`);
-            const bc = await parseJsonResponse(bcResp);
-            if (Array.isArray(bc) && bc.length) locationText = bc.map(n => n.name).join(' → ');
-        } catch (e) {
-            locationText = item.location_name || '—';
-        }
-    } else if (item.workshop || item.location) {
-        locationText = [item.workshop, item.location].filter(Boolean).join(' / ');
-    }
-
     // Атрибуты типа (с наследованием) — те же labels/units, что форма
     // редактирования использует для полей ввода (GET .../attributes).
     let attrsHtml = '';
@@ -1287,13 +1293,21 @@ async function renderEquipmentDetailView(item) {
         `).join('') + '</div>';
     }
 
+    // Legacy-блок «Место» (breadcrumb из equipment.location_node_id) здесь
+    // больше НЕ рендерится: «основное» место записи больше не редактируется
+    // через модалку (см. commit про удаление equipmentLocationInput), и
+    // секция «Места установки» (_renderEquipmentPlacementsReadonlyTable)
+    // теперь является единственным источником информации о местах в
+    // карточке. equipment.location_node_id при этом остаётся в данных и
+    // на бэкенде (используется в legacy-фильтрах, миграции и т.д.) — мы
+    // убираем только ВИЗУАЛЬНЫЙ блок.
+
     container.innerHTML = `
         <div class="detail-subsection-header"><h4><span class="icon icon-table-chart"></span> Характеристики</h4></div>
         <div class="detail-grid">
             <div class="detail-item"><label>Тип</label><div class="value">${escapeHtml(item.equipment_type_name || '—')}</div></div>
             <div class="detail-item"><label>Артикул</label><div class="value">${escapeHtml(item.article) || '—'}</div></div>
             <div class="detail-item"><label>Производитель</label><div class="value">${escapeHtml(item.manufacturer) || '—'}</div></div>
-            <div class="detail-item"><label>Место</label><div class="value">${escapeHtml(locationText)}</div></div>
             <div class="detail-item"><label>Критичность</label><div class="value">${item.criticality ? '●'.repeat(item.criticality) + '○'.repeat(5 - item.criticality) : '—'}</div></div>
             ${attrsHtml}
         </div>

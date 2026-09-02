@@ -238,14 +238,25 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
     (установках/секциях/зонах), не только привязанное буквально к самому
     цеху.
 
-    С доработкой "Места" (equipment_placement, ТЗ) запись оборудования
-    может физически стоять в НЕСКОЛЬКИХ местах — единственного
-    equipment.location_node_id для фильтрации уже недостаточно. Условие
-    ниже: запись попадает под фильтр, если ЛИБО у неё есть хотя бы один
-    placement в найденном поддереве, ЛИБО (если у записи вообще НЕТ ни
-    одного placement) её старое legacy location_node_id попадает в
-    поддерево — обратная совместимость с записями, заведёнными до
-    появления "Мест", и складскими позициями без детализации.
+    С доработкой "Места" (equipment_placement, ТЗ) фильтр по узлу
+    строится ИСКЛЮЧИТЕЛЬНО по строкам equipment_placement: запись попадает
+    в список, если у неё есть хотя бы один placement в найденном
+    поддереве. Legacy-ветка (equipment.location_node_id попадает в
+    поддерево, а placements нет) здесь НАМЕРЕННО не учитывается —
+    legacy-поле остаётся в данных для совместимости, но в UX-фильтр
+    больше не входит: иначе в списке шкафа появились бы позиции, которые
+    на самом деле там физически НЕ размещены, что ломает ожидание
+    "сумма количеств по строкам = счётчик узла в дереве".
+
+    Помимо фильтра, для каждой equipment вычисляются два новых поля,
+    нужных фронту для колонки «Место» и счётчика «xN»:
+      - placement_count_in_node — сколько placement-строк у этой
+        equipment в поддереве выбранного узла (NULL без фильтра по
+        узлу — фронт использует общий placement_count);
+      - placement_location_names_in_node — JSON-массив уникальных
+        названий узлов (location_node.name) в поддереве, где у этой
+        equipment есть placements; для UI колонки «Место» при
+        фильтрации по узлу.
 
     unassigned=True — отдельная ветка (несовместимая с location_node_id,
     вызывающий выбирает одно из двух): показывает записи БЕЗ единого
@@ -274,6 +285,9 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
     cur = conn.cursor()
     conditions = []
     params = []
+    # subtree_ids нужен дальше для подзапросов placement_count_in_node /
+    # placement_location_names_in_node — вычислим один раз здесь.
+    subtree_ids = None
     if equipment_type_id:
         conditions.append('e.equipment_type_id = ?')
         params.append(equipment_type_id)
@@ -290,14 +304,12 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
         if not subtree_ids:
             return []
         placeholders = ','.join('?' * len(subtree_ids))
-        conditions.append(f'''(
-            EXISTS (SELECT 1 FROM equipment_placement ep WHERE ep.equipment_id = e.id AND ep.location_node_id IN ({placeholders}))
-            OR (
-                NOT EXISTS (SELECT 1 FROM equipment_placement ep2 WHERE ep2.equipment_id = e.id)
-                AND e.location_node_id IN ({placeholders})
-            )
-        )''')
-        params += subtree_ids + subtree_ids
+        # Только placements-условие — никаких legacy-фолбэков (см. docstring).
+        conditions.append(
+            f'EXISTS (SELECT 1 FROM equipment_placement ep '
+            f'WHERE ep.equipment_id = e.id AND ep.location_node_id IN ({placeholders}))'
+        )
+        params += subtree_ids
     for key, value in (attr_filters or {}).items():
         conditions.append("json_extract(e.specs_json, '$.' || ?) = ?")
         params += [key, value]
@@ -309,27 +321,70 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
     else:
         order_clause = 'ORDER BY e.updated_at DESC'
 
-    # placement_count/placement_location_name — для колонки "Место" в
-    # таблице списка (ТЗ 3.2): показывает первое место установки + сколько
-    # их всего (карточка сама даёт полный список через "Места установки").
-    # Легаси location_name оставлен для записей без единого placement —
-    # см. локальный фолбэк в equipment.js::renderEquipmentTable.
+    # Колонка «Место» в списке и «xN» счётчик в строке:
+    #   - placement_count/placement_location_name — ОБЩИЕ по всем placements
+    #     (используются без фильтра по узлу; «первое место + +N»);
+    #   - placement_count_in_node / placement_location_names_in_node — ТОЛЬКО
+    #     по placements в поддереве выбранного узла (NULL без фильтра,
+    #     фронт в этом случае показывает общий placement_count).
+    # placement_location_names_in_node агрегируется в JSON-массив строк
+    # через json_group_array(DISTINCT name) — формат стабильный и
+    # json.loads() на фронте даёт массив строк без дополнительной обработки.
+    if subtree_ids is not None:
+        sub_ph = ','.join('?' * len(subtree_ids))
+        in_node_sql = f'''(
+            SELECT COUNT(*) FROM equipment_placement ep_c
+            WHERE ep_c.equipment_id = e.id AND ep_c.location_node_id IN ({sub_ph})
+        )'''
+        names_in_node_sql = f'''(
+            SELECT json_group_array(DISTINCT ln_c.name)
+            FROM equipment_placement ep_n
+            JOIN location_node ln_c ON ln_c.id = ep_n.location_node_id
+            WHERE ep_n.equipment_id = e.id AND ep_n.location_node_id IN ({sub_ph})
+        )'''
+    else:
+        in_node_sql = 'NULL'
+        names_in_node_sql = 'NULL'
+
+    # Параметры для подзапросов placement_count_in_node /
+    # placement_location_names_in_node — те же subtree_ids, что и для
+    # WHERE-условия выше. Передаются ОТДЕЛЬНО от основного списка params,
+    # потому что в f-строках подзапросов свои `{sub_ph}` placeholder'ы,
+    # которые не учтены в `params` (там только привязки для WHERE+ORDER).
+    # Каждый из двух подзапросов (in_node_sql и names_in_node_sql) ждёт
+    # полный список subtree_ids, поэтому передаём его дважды.
+    in_node_params = list(subtree_ids) * 2 if subtree_ids is not None else []
+
     cur.execute(f'''
         SELECT e.*, et.name AS equipment_type_name, ln.name AS location_name,
             (SELECT COUNT(*) FROM equipment_placement ep3 WHERE ep3.equipment_id = e.id) AS placement_count,
             (SELECT ln3.name FROM equipment_placement ep4
                 JOIN location_node ln3 ON ln3.id = ep4.location_node_id
-                WHERE ep4.equipment_id = e.id ORDER BY ep4.id LIMIT 1) AS placement_location_name
+                WHERE ep4.equipment_id = e.id ORDER BY ep4.id LIMIT 1) AS placement_location_name,
+            {in_node_sql} AS placement_count_in_node,
+            {names_in_node_sql} AS placement_location_names_in_node
         FROM equipment e
         JOIN equipment_type et ON et.id = e.equipment_type_id
         LEFT JOIN location_node ln ON ln.id = e.location_node_id
         {where_clause}
         {order_clause}
-    ''', params)
+    ''', params + in_node_params)
     result = []
     for row in cur.fetchall():
         d = _row_to_dict(row)
         d['specs'] = json.loads(d['specs_json']) if d.get('specs_json') else {}
+        # placement_location_names_in_node приходит как JSON-строка
+        # (json_group_array) либо NULL — приводим к list / None на уровне
+        # Python, чтобы фронту не нужно было парсить.
+        names_json = d.get('placement_location_names_in_node')
+        if names_json:
+            try:
+                parsed = json.loads(names_json)
+                d['placement_location_names_in_node'] = [n for n in parsed if n]
+            except (TypeError, ValueError):
+                d['placement_location_names_in_node'] = []
+        else:
+            d['placement_location_names_in_node'] = None
         result.append(d)
     return result
 
