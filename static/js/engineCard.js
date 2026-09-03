@@ -105,19 +105,17 @@ function renderDetailContent() {
            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); printEngineCard()"><span class="icon icon-print"></span> Печать</button>
            <button class="btn btn-danger btn-sm write-action" onclick="event.stopPropagation(); deleteCurrentEngine()"><span class="icon icon-delete"></span> Удалить</button>`;
 
-    // Переключатель статуса — доступен и в режиме просмотра, и в режиме
-    // редактирования (это не поле характеристик, меняется отдельным
-    // PATCH-запросом сразу по клику, не дожидаясь "Сохранить"). Для новой
-    // ещё не созданной карточки (isPendingNew) скрыт — engine_id ещё
-    // не подтверждён на сервере.
-    const statusHtml = isPendingNew ? '' : `
-        <div class="engine-status-switch" role="group" aria-label="Статус двигателя">
-            ${['work', 'reserve', 'repair'].map(s => `
-                <button type="button"
-                    class="engine-status-switch-btn engine-status-${s} ${data.status === s || (!data.status && s === 'work') ? 'active' : ''}"
-                    onclick="event.stopPropagation(); setEngineStatus('${s}')">${ENGINE_STATUS_LABELS[s]}</button>
-            `).join('')}
-        </div>`;
+    // Статус двигателя — теперь чисто отображаемое поле (read-only бейдж).
+    // Значение берётся НЕ из engines.status, а из поля status ПОСЛЕДНЕЙ
+    // записи в maintenance_works для этого двигателя (см. getEngineStatusFromWorks
+    // ниже). Если работ нет — показываем "В резерве" по дефолту.
+    // Для новой, ещё не сохранённой карточки (isPendingNew) работ на
+    // сервере тоже нет — бейдж всё равно рисуется, он будет "В резерве".
+    const engineStatusKey = getEngineStatusFromWorks(data);
+    const statusHtml = `
+        <span class="engine-status-display" title="Эксплуатационный статус (по последней записи ТО)">
+            <span class="engine-status-badge engine-status-${engineStatusKey}">${ENGINE_STATUS_LABELS[engineStatusKey]}</span>
+        </span>`;
 
     toolbar.innerHTML = `<div class="detail-toolbar">
         <div class="detail-toolbar-info">${infoHtml}${statusHtml}</div>
@@ -410,30 +408,45 @@ function removeWorkRowInline(idx) {
 // см. комментарий у works ниже). Теперь один detailMode('view'|'edit') на
 // всю карточку и одна кнопка "<span class="icon icon-save"></span> Сохранить" в шапке (см. renderDetailContent).
 
-// ===== СТАТУС ДВИГАТЕЛЯ =====
-// ENGINE_STATUS_LABELS определён в catalog.js (переиспользуется и для
-// бейджа в таблице каталога, и для подписей кнопок переключателя здесь).
-function setEngineStatus(status) {
-    if (!currentEngineId || currentEngineId === pendingNewEngineId) return;
-    if (currentEngineData && currentEngineData.status === status) return;
+// ===== СТАТУС ДВИГАТЕЛЯ (read-only) =====
+// ENGINE_STATUS_LABELS определён в catalog.js — переиспользуется и для
+// бейджа в таблице каталога, и для подписей этого read-only бейджа.
+// Словарь единый на всё приложение, плодить дубль здесь не нужно.
+//
+// "Последняя запись" в maintenance_works определяется явно по максимальному
+// `id`, а не по порядку элементов в массиве — чтобы быть устойчивым к
+// возможным будущим изменениям сортировки в work_repo.get_all (сейчас там
+// `ORDER BY id`, но это не наш контракт; id autoincrement — порядок
+// вставки совпадает с максимальным id).
+//
+// Возвращает ключ статуса: 'work' | 'reserve' | 'repair'. Если записей
+// нет / статус пустой / мусорный — возвращает 'reserve' (ТЗ: дефолт
+// для двигателя без работ — "В резерве").
+function getEngineStatusFromWorks(data) {
+    const DEFAULT_STATUS = 'reserve';
+    if (!data) return DEFAULT_STATUS;
 
-    apiFetch(`/api/engine/${currentEngineId}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-    })
-    .then(r => r.json())
-    .then(result => {
-        if (result.error) {
-            showToast(result.error, 'error', 'icon-cancel');
-            return;
+    const works = data.works;
+    if (!Array.isArray(works) || works.length === 0) return DEFAULT_STATUS;
+
+    // Запись с максимальным id — это и есть "последняя" по логике
+    // autoincrement + порядка вставки.
+    let latest = null;
+    let latestId = -Infinity;
+    for (const w of works) {
+        if (!w || typeof w !== 'object') continue;
+        const idNum = Number(w.id);
+        if (Number.isFinite(idNum) && idNum > latestId) {
+            latestId = idNum;
+            latest = w;
         }
-        currentEngineData.status = status;
-        renderDetailContent();
-        loadEngines();
-        showToast('Статус обновлён', 'success', 'icon-check-circle');
-    })
-    .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
+    }
+    if (!latest) return DEFAULT_STATUS;
+
+    const s = latest.status;
+    if (typeof s !== 'string' || s.length === 0) return DEFAULT_STATUS;
+    if (!Object.prototype.hasOwnProperty.call(ENGINE_STATUS_LABELS, s)) return DEFAULT_STATUS;
+    return s;
 }
 
 function enterEditMode() {
