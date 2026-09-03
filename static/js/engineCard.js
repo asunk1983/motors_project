@@ -413,11 +413,11 @@ function removeWorkRowInline(idx) {
 // бейджа в таблице каталога, и для подписей этого read-only бейджа.
 // Словарь единый на всё приложение, плодить дубль здесь не нужно.
 //
-// "Последняя запись" в maintenance_works определяется явно по максимальному
-// `id`, а не по порядку элементов в массиве — чтобы быть устойчивым к
-// возможным будущим изменениям сортировки в work_repo.get_all (сейчас там
-// `ORDER BY id`, но это не наш контракт; id autoincrement — порядок
-// вставки совпадает с максимальным id).
+// "Последняя запись" в maintenance_works = последний элемент массива works,
+// потому что work_repo.get_all сортирует их `ORDER BY date, id` (сначала
+// по хронологии, id как tie-breaker). Это совпадает с CTE в
+// engine_repo.get_all, которым каталог вычисляет тот же статус —
+// гарантирует одинаковое значение и в каталоге, и в карточке.
 //
 // Возвращает ключ статуса: 'work' | 'reserve' | 'repair'. Если записей
 // нет / статус пустой / мусорный — возвращает 'reserve' (ТЗ: дефолт
@@ -429,21 +429,15 @@ function getEngineStatusFromWorks(data) {
     const works = data.works;
     if (!Array.isArray(works) || works.length === 0) return DEFAULT_STATUS;
 
-    // Запись с максимальным id — это и есть "последняя" по логике
-    // autoincrement + порядка вставки.
-    let latest = null;
-    let latestId = -Infinity;
-    for (const w of works) {
-        if (!w || typeof w !== 'object') continue;
-        const idNum = Number(w.id);
-        if (Number.isFinite(idNum) && idNum > latestId) {
-            latestId = idNum;
-            latest = w;
-        }
-    }
-    if (!latest) return DEFAULT_STATUS;
+    // work_repo.get_all возвращает массив, уже отсортированный
+    // ORDER BY date, id — последний элемент = хронологически последняя
+    // запись. Дополнительной защиты на null/undefined элементы массива
+    // не требуется: бэкенд всегда отдаёт плоский список dict'ов, но
+    // проверим всё же — иначе упадём с TypeError на .status.
+    const last = works[works.length - 1];
+    if (!last || typeof last !== 'object') return DEFAULT_STATUS;
 
-    const s = latest.status;
+    const s = last.status;
     if (typeof s !== 'string' || s.length === 0) return DEFAULT_STATUS;
     if (!Object.prototype.hasOwnProperty.call(ENGINE_STATUS_LABELS, s)) return DEFAULT_STATUS;
     return s;

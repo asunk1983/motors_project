@@ -215,6 +215,12 @@ const ENGINE_STATUS_LABELS = {
 };
 
 function engineStatusBadgeHtml(status) {
+    // status здесь приходит из бэкенда уже пересчитанным:
+    // engine_repo.get_all делает LEFT JOIN на CTE last_work и подменяет
+    // engines.status на COALESCE(последняя работа по (date, id), 'reserve').
+    // Это тот же источник, что и в карточке (engineCard.js::
+    // getEngineStatusFromWorks берёт status последней записи works).
+    // Fallback на 'work' — защита от мусорных значений (NULL, '', 'lol').
     const key = ENGINE_STATUS_LABELS[status] ? status : 'work';
     return `<span class="engine-status-badge engine-status-${key}">${ENGINE_STATUS_LABELS[key]}</span>`;
 }

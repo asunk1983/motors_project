@@ -14,10 +14,18 @@ def _row_to_dict(row):
 
 
 def get_all(conn, engine_id: int):
-    """Получить все произведённые работы для двигателя."""
+    """Получить все произведённые работы для двигателя.
+
+    Сортировка: ORDER BY date, id — сначала по дате (хронологический
+    порядок), затем по id как tie-breaker (для записей с одинаковой датой,
+    в т.ч. NULL/пустой). Это контракт для карточки двигателя: последний
+    элемент массива = «последняя запись по хронологии». Совпадает с
+    логикой вычисления статуса в engine_repo.get_all (тот же критерий).
+    """
     cur = conn.cursor()
     cur.execute(
-        'SELECT * FROM maintenance_works WHERE engine_id = ? ORDER BY id',
+        'SELECT * FROM maintenance_works WHERE engine_id = ? '
+        'ORDER BY date, id',
         (engine_id,)
     )
     return [_row_to_dict(row) for row in cur.fetchall()]

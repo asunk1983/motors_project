@@ -55,7 +55,16 @@ def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
     Пустая строка '' означает "без цеха"/"без места установки" (NULL или '').
 
     status — точный фильтр по эксплуатационному состоянию
-    ('work'/'reserve'/'repair'). None — фильтр не активен (все статусы).
+    ('work'/'reserve'/'repair'). Фильтр работает по вычисляемому полю
+    last_work_status (= статус последней записи maintenance_works по
+    (date, id), см. CTE ниже), а не по устаревшему engines.status.
+    None — фильтр не активен (все статусы).
+
+    Поле `status` в возвращаемых dict'ах = COALESCE(last_work_status,
+    'reserve'). Если у движка нет ни одной записи в maintenance_works —
+    используется дефолт 'reserve'. engines.status остаётся в SELECT как
+    engines_status для обратной совместимости, но в JSON для фронта
+    отдаётся именно пересчитанный status (см. SELECT-list).
     """
     sort_map = {
         'location_asc': 'location ASC',
@@ -102,17 +111,66 @@ def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
             conditions.append('location = ?')
             params.append(location)
 
+    # Фильтр по статусу — по вычисляемому last_work_status, а не по
+    # устаревшему engines.status. SQLite НЕ разрешает алиас CTE в WHERE,
+    # поэтому дублируем выражение подзапроса прямо здесь. Корректность
+    # гарантирована тем, что выражение полностью совпадает с CTE ниже
+    # (тот же ORDER BY date DESC, id DESC, LIMIT 1, тот же COALESCE с
+    # дефолтом 'reserve').
     if status:
-        conditions.append('status = ?')
+        conditions.append(
+            "COALESCE((SELECT status FROM maintenance_works w "
+            "WHERE w.engine_id = e.id "
+            "ORDER BY w.date DESC, w.id DESC LIMIT 1), 'reserve') = ?"
+        )
         params.append(status)
 
     where_clause = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
 
+    # CTE: для каждого engine_id берём ровно одну запись maintenance_works
+    # — ту, что максимальна по паре (date, id). ROW_NUMBER() + PARTITION BY
+    # делает это явно. NULL date сортируется ниже валидной ISO-даты в DESC,
+    # поэтому запись с реальной датой всегда выигрывает; tie-breaker по
+    # id DESC для записей с одинаковой датой.
+    #
+    # Колонка CTE названа `last_work_status` (а не просто `status`) —
+    # чтобы избежать неоднозначности с колонкой `status` таблицы
+    # maintenance_works и с алиасом `status` в основном SELECT-list:
+    # в SQLite при наличии нескольких источников с одинаковым именем
+    # колонки в разных scope (CTE + основная таблица + алиас результата)
+    # разрешение имени в ORDER BY/WHERE может стать неоднозначным и
+    # приводить к `no such column: status` в некоторых версиях SQLite.
+    # Явное переименование делает каждое обращение квалифицированным.
+    #
+    # В основном SELECT engines.status алиасится на COALESCE(...,'reserve')
+    # и отдаётся под ключом 'status' — фронт (catalog.js) ничего не знает
+    # о переименовании и продолжает читать e.status.
+    sql = f'''
+        WITH last_work AS (
+            SELECT engine_id, status AS last_work_status,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY engine_id
+                       ORDER BY date DESC, id DESC
+                   ) AS rn
+            FROM maintenance_works
+        )
+        SELECT e.id, e.filename, e.purpose, e.workshop, e.location,
+               e.engine_type, e.manufacturer, e.serial_number,
+               e.bearing_front, e.bearing_rear, e.shaft_diameter,
+               e.protection_class, e.mounting_type, e.temp_sensor,
+               e.encoder, e.cooling, e.note, e.photo_count,
+               e.created_at, e.updated_at,
+               COALESCE(lw.last_work_status, 'reserve') AS status,
+               e.status AS engines_status
+        FROM engines e
+        LEFT JOIN last_work lw ON lw.engine_id = e.id AND lw.rn = 1
+        {where_clause}
+        ORDER BY {order_by}
+        LIMIT ? OFFSET ?
+    '''
+
     cur = conn.cursor()
-    cur.execute(
-        f'SELECT * FROM engines {where_clause} ORDER BY {order_by} LIMIT ? OFFSET ?',
-        params + [limit, offset]
-    )
+    cur.execute(sql, params + [limit, offset])
     return [_row_to_dict(row) for row in cur.fetchall()]
 
 
