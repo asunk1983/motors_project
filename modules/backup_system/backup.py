@@ -564,6 +564,18 @@ def _apply_backup_zip(zip_path):
                 if any_photo_replaced:
                     photo_manager.invalidate_photo_cache()
 
+                # --- 7c. Актуализируем схему восстановленной БД ---
+                # После атомарной замены файла engine_data.db вызываем
+                # init_db() — она создаст недостающие таблицы/колонки/индексы
+                # через CREATE TABLE IF NOT EXISTS и _ensure_column(), если
+                # восстановленный бэкап старше текущей версии кода. Это
+                # избавляет от требования перезапускать Flask/gunicorn после
+                # restore, чтобы новая схема подхватилась. Вызов идёт ПОСЛЕ
+                # замены БД и фото, но ДО шага 8 (где открывается отдельное
+                # соединение к DB_PATH) — если init_db бросит, исключение
+                # попадёт в общий except ниже и сработает rollback БД/фото.
+                db_module.init_db()
+
             finally:
                 # Убираем временный файл с распакованной БД
                 if os.path.exists(tmp_db_path):
