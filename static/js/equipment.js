@@ -67,6 +67,17 @@ function switchEquipmentSubtab(name) {
     // может остаться со старым/некорректным pageSize до следующего
     // F5 или ухода на другую вкладку.
     if (name === 'list') {
+        // Боковое дерево мест держит свой снэпшот /api/locations в памяти
+        // (см. equipmentLocationTree.js::loadEquipmentLocationTree).
+        // loadEquipmentTab() грузит его при ПЕРВОМ заходе на вкладку
+        // "Оборудование", но при переключении подвкладок внутри
+        // "Оборудования" (Список ↔ Конструктор ↔ ЗИП) — никакого
+        // обновления не происходит, и после правки справочника мест на
+        // подвкладке "Справочники" инцидентов или на другой машине —
+        // дерево остаётся со старым списком до F5. Поэтому при каждом
+        // заходе на "Список" заново вызываем загрузку — render внутри
+        // неё перерисует DOM из свежих данных.
+        if (typeof loadEquipmentLocationTree === 'function') loadEquipmentLocationTree();
         renderEquipmentTable();
         applyDynamicEquipmentPageSize();
     }
