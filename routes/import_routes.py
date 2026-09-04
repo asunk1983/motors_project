@@ -4,17 +4,22 @@
 (функции parse_file_fast, extract_images_from_excel) и утилиту логирования
 из utils/logging.py.
 """
+import logging
 import os
 import glob
 import time
+import sqlite3
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from flask import Blueprint, request, jsonify
 
 from modules.db import db_connection, PHOTOS_FOLDER, MOTORS_FOLDER
+from modules import db as db_module
 from modules.engine_parser.parser import parse_file_fast, extract_images_from_excel
 from utils.logging import log_message
 from config.settings import MAX_WORKERS
+
+logger = logging.getLogger(__name__)
 
 import_bp = Blueprint('import', __name__, url_prefix='/api')
 
@@ -214,40 +219,204 @@ def import_folder():
 
 @import_bp.route('/clear', methods=['POST'])
 def clear_database():
-    """Очистить БД: удалить все двигатели, режимы, работы и фото.
-    Пользователи и токены сохраняются (чтобы админ мог снова зайти).
+    """Полная очистка БД и всех фото-папок.
 
-    ИСПРАВЛЕНО: раньше после DELETE файл engine_data.db не уменьшался —
-    SQLite помечает страницы удалённых строк как свободные (freelist),
-    но не отдаёт их обратно файловой системе, пока не выполнен VACUUM.
-    На реальной БД проекта это давало ~36% файла "мёртвого" места после
-    очистки. Плюс сбрасываем sqlite_sequence для очищенных таблиц, чтобы
-    после полной очистки ID снова начинались с 1, а не продолжали расти
-    от последнего значения AUTOINCREMENT (это нормальное поведение SQLite
-    вне очистки, но при полном "СТИРАТЬ" разумно обнулить и счётчик)."""
+    Пересоздаёт файл engine_data.db с нуля через db_module.init_db() —
+    это автоматически подхватывает новые таблицы, добавляемые в схему со
+    временем (раньше clear_database() хардкодил DELETE FROM engines/
+    operating_modes/maintenance_works и при добавлении новой таблицы эту
+    функцию приходилось дополнять вручную — повторяет ту же историю, что
+    и с restore в backup.py). Справочники (failure_mode, failure_cause,
+    maintenance_action_type, equipment_type, attribute_definition,
+    equipment_type_attribute) досеиваются init_db() автоматически.
+
+    Сохраняются и возвращаются обратно:
+      - users, tokens             — чтобы админ мог снова войти
+      - changelog_entries         — история изменений
+      - wishlist_items            — пожелания/идеи
+
+    Теряются безвозвратно: engines, operating_modes, maintenance_works,
+    вся подсистема инцидентов (incident_ticket* и связанные), номенклатура
+    оборудования (equipment*), crew, location_node, knowledge_article*,
+    failure, ticket, equipment_work.
+    """
     try:
-        with db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('DELETE FROM operating_modes')
-            cursor.execute('DELETE FROM maintenance_works')
-            cursor.execute('DELETE FROM engines')
-            # Сброс автоинкремента только для очищенных таблиц —
-            # changelog/wishlist/users/tokens не трогаем.
-            cursor.execute(
-                "DELETE FROM sqlite_sequence WHERE name IN "
-                "('engines', 'operating_modes', 'maintenance_works')"
-            )
-            conn.commit()
-            # WAL: обычный VACUUM не всегда достаточно освобождает место,
-            # пока не сброшен write-ahead log в основной файл.
-            conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')
-            conn.execute('VACUUM')
+        # --- 1. Сохраняем данные, которые нужно вернуть в новую БД ---
+        preserved_users = []
+        preserved_tokens = []
+        preserved_changelog = []
+        preserved_wishlist = []
+        if os.path.exists(db_module.DB_PATH):
+            try:
+                conn = sqlite3.connect(db_module.DB_PATH)
+                try:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        'SELECT id, username, password_hash, role, created_at, '
+                        'last_login, last_edit FROM users'
+                    )
+                    preserved_users = [tuple(row) for row in cursor.fetchall()]
+                    cursor.execute(
+                        'SELECT id, user_id, token_hash, created_at, expires_at '
+                        'FROM tokens'
+                    )
+                    preserved_tokens = [tuple(row) for row in cursor.fetchall()]
+                    # Весь контент как есть, включая seed-данные, если они
+                    # там ещё есть. Если таблица уже пуста — после очистки
+                    # она останется пустой (это ожидаемо).
+                    cursor.execute(
+                        'SELECT id, entry_date, text, created_at '
+                        'FROM changelog_entries'
+                    )
+                    preserved_changelog = [tuple(row) for row in cursor.fetchall()]
+                    cursor.execute(
+                        'SELECT id, text, done, created_at FROM wishlist_items'
+                    )
+                    preserved_wishlist = [tuple(row) for row in cursor.fetchall()]
+                finally:
+                    conn.close()
+                logger.info(
+                    'Preserved before clear: %d users, %d tokens, '
+                    '%d changelog, %d wishlist',
+                    len(preserved_users), len(preserved_tokens),
+                    len(preserved_changelog), len(preserved_wishlist),
+                )
+            except Exception:
+                # Не угадываем — лучше упасть сразу, чем продолжить очистку
+                # и потерять данные молча (та же история, что исправляли в
+                # _apply_backup_zip для users/tokens).
+                logger.exception('Failed to read preserved data before DB reset')
+                return jsonify({
+                    'success': False,
+                    'error': 'Не удалось прочитать сохраняемые данные перед '
+                             'очисткой БД. БД НЕ изменена.'
+                }), 500
 
-        # Удаляем все фотографии с диска
-        if os.path.exists(PHOTOS_FOLDER):
-            shutil.rmtree(PHOTOS_FOLDER, ignore_errors=True)
-        os.makedirs(PHOTOS_FOLDER, exist_ok=True)
+        # --- 2. Удаляем файл БД (с retry на Windows для PermissionError) ---
+        db_path = db_module.DB_PATH
+        for suffix in ('', '-wal', '-shm'):
+            path = db_path + suffix
+            if not os.path.exists(path):
+                continue
+            for attempt in range(5):
+                try:
+                    os.remove(path)
+                    break
+                except PermissionError:
+                    if attempt < 4:
+                        time.sleep(0.3)
+                    else:
+                        logger.exception('Cannot remove %s (file locked)', path)
+                        return jsonify({
+                            'success': False,
+                            'error': 'Не удалось удалить ' + path +
+                                     ' — файл занят другим процессом. '
+                                     'Закройте приложения, использующие БД, '
+                                     'и повторите.'
+                        }), 500
 
+        # --- 3. Пересоздаём схему БД через init_db() ---
+        # init_db() создаст ВСЕ таблицы (CREATE TABLE IF NOT EXISTS) и
+        # досеет справочники (failure_mode, failure_cause и т.п.), но
+        # пустые. Для changelog — 5 дефолтных записей про обновления.
+        db_module.init_db()
+
+        # --- 4. Возвращаем preserved_* в новую БД ---
+        try:
+            conn = sqlite3.connect(db_path)
+            try:
+                cursor = conn.cursor()
+                # На случай если init_db() по какой-то причине не создал
+                # нужные таблицы (теоретически не должно случиться, но
+                # CREATE TABLE IF NOT EXISTS стоит копейки).
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        username TEXT UNIQUE NOT NULL,
+                        password_hash TEXT NOT NULL,
+                        role TEXT NOT NULL DEFAULT 'user',
+                        created_at TEXT NOT NULL,
+                        last_login TEXT,
+                        last_edit TEXT
+                    )
+                ''')
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS tokens (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NOT NULL,
+                        token_hash TEXT UNIQUE NOT NULL,
+                        created_at TEXT NOT NULL,
+                        expires_at TEXT,
+                        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                    )
+                ''')
+                # init_db() уже создаёт changelog_entries/wishlist_items,
+                # но для changelog досеивает 5 строк — стираем их перед
+                # вставкой сохранённых. Если preserved_changelog пуст —
+                # таблица останется пустой (по требованию).
+                cursor.execute('DELETE FROM tokens')
+                cursor.execute('DELETE FROM users')
+                cursor.execute('DELETE FROM changelog_entries')
+                cursor.execute('DELETE FROM wishlist_items')
+                if preserved_users:
+                    cursor.executemany(
+                        'INSERT INTO users (id, username, password_hash, role, '
+                        'created_at, last_login, last_edit) VALUES '
+                        '(?, ?, ?, ?, ?, ?, ?)',
+                        preserved_users,
+                    )
+                if preserved_tokens:
+                    cursor.executemany(
+                        'INSERT INTO tokens (id, user_id, token_hash, '
+                        'created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
+                        preserved_tokens,
+                    )
+                if preserved_changelog:
+                    cursor.executemany(
+                        'INSERT INTO changelog_entries (id, entry_date, text, '
+                        'created_at) VALUES (?, ?, ?, ?)',
+                        preserved_changelog,
+                    )
+                if preserved_wishlist:
+                    cursor.executemany(
+                        'INSERT INTO wishlist_items (id, text, done, '
+                        'created_at) VALUES (?, ?, ?, ?)',
+                        preserved_wishlist,
+                    )
+                conn.commit()
+            finally:
+                conn.close()
+            logger.info('Restored preserved data into fresh DB')
+        except Exception:
+            logger.exception('Failed to restore preserved data after DB reset')
+            return jsonify({
+                'success': False,
+                'error': 'БД пересоздана, но не удалось вернуть сохранённых '
+                         'пользователей/историю. Проверьте логи.'
+            }), 500
+
+        # --- 5. Очищаем все три фото-папки ---
+        # Список импортируется из backup.py, чтобы не дублировать
+        # константы. Локальный импорт — паттерн проекта (см.
+        # modules/photo_manager/equipment_manager.py:42).
+        from modules.backup_system.backup import PHOTO_FOLDERS
+        for _prefix, folder_path in PHOTO_FOLDERS:
+            if os.path.exists(folder_path):
+                shutil.rmtree(folder_path, ignore_errors=True)
+            os.makedirs(folder_path, exist_ok=True)
+
+        # Сброс кеша фото-менеджеров, чтобы они пересканировали диск.
+        try:
+            from modules.photo_manager import manager as photo_manager
+            photo_manager.invalidate_photo_cache()
+        except Exception:
+            logger.exception('Failed to invalidate photo manager cache')
+
+        logger.info('Database and all photo folders cleared')
         return jsonify({'success': True, 'message': 'База данных и фото очищены'})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    except Exception:
+        logger.exception('clear_database failed')
+        return jsonify({
+            'success': False,
+            'error': 'Внутренняя ошибка при очистке. Подробности в логах.'
+        }), 500
