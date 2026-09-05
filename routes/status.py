@@ -5,6 +5,7 @@ import os
 import sys
 import glob
 import sqlite3
+import subprocess
 import flask
 from flask import Blueprint, jsonify
 
@@ -14,7 +15,41 @@ from modules.photo_manager import equipment_manager, incident_manager
 
 status_bp = Blueprint('status', __name__, url_prefix='/api')
 
-APP_VERSION = '2.0'
+
+# Читаем версию из version.txt в корне проекта (один раз при старте модуля)
+_VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'version.txt')
+
+def _read_app_version() -> str:
+    """Возвращает версию из version.txt или fallback."""
+    try:
+        with open(_VERSION_FILE, 'r', encoding='utf-8') as f:
+            v = f.read().strip()
+            return v if v else 'unknown'
+    except Exception:
+        return 'unknown'
+
+
+def _read_git_commit() -> str | None:
+    """Возвращает короткий хэш текущего коммита или None, если git недоступен."""
+    try:
+        # cwd = корень проекта (родительская директория routes/)
+        repo_root = os.path.dirname(os.path.dirname(__file__))
+        result = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip() or None
+    except Exception:
+        pass
+    return None
+
+
+APP_VERSION = _read_app_version()
+GIT_COMMIT = _read_git_commit()
 
 
 @status_bp.route('/status', methods=['GET'])
@@ -24,6 +59,7 @@ def get_status():
         'python_version': sys.version.split()[0],
         'flask_version': flask.__version__,
         'sqlite_version': sqlite3.sqlite_version,
+        'git_commit': GIT_COMMIT,
     }
     try:
         with db_connection() as conn:
