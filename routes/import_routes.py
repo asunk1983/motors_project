@@ -232,7 +232,6 @@ def clear_database():
 
     Сохраняются и возвращаются обратно:
       - users, tokens             — чтобы админ мог снова войти
-      - changelog_entries         — история изменений
       - wishlist_items            — пожелания/идеи
 
     Теряются безвозвратно: engines, operating_modes, maintenance_works,
@@ -244,7 +243,6 @@ def clear_database():
         # --- 1. Сохраняем данные, которые нужно вернуть в новую БД ---
         preserved_users = []
         preserved_tokens = []
-        preserved_changelog = []
         preserved_wishlist = []
         if os.path.exists(db_module.DB_PATH):
             try:
@@ -265,11 +263,6 @@ def clear_database():
                     # там ещё есть. Если таблица уже пуста — после очистки
                     # она останется пустой (это ожидаемо).
                     cursor.execute(
-                        'SELECT id, entry_date, text, created_at '
-                        'FROM changelog_entries'
-                    )
-                    preserved_changelog = [tuple(row) for row in cursor.fetchall()]
-                    cursor.execute(
                         'SELECT id, text, done, created_at FROM wishlist_items'
                     )
                     preserved_wishlist = [tuple(row) for row in cursor.fetchall()]
@@ -277,9 +270,9 @@ def clear_database():
                     conn.close()
                 logger.info(
                     'Preserved before clear: %d users, %d tokens, '
-                    '%d changelog, %d wishlist',
+                    '%d wishlist',
                     len(preserved_users), len(preserved_tokens),
-                    len(preserved_changelog), len(preserved_wishlist),
+                    len(preserved_wishlist),
                 )
             except Exception:
                 # Не угадываем — лучше упасть сразу, чем продолжить очистку
@@ -318,7 +311,7 @@ def clear_database():
         # --- 3. Пересоздаём схему БД через init_db() ---
         # init_db() создаст ВСЕ таблицы (CREATE TABLE IF NOT EXISTS) и
         # досеет справочники (failure_mode, failure_cause и т.п.), но
-        # пустые. Для changelog — 5 дефолтных записей про обновления.
+        # пустые.
         db_module.init_db()
 
         # --- 4. Возвращаем preserved_* в новую БД ---
@@ -350,13 +343,8 @@ def clear_database():
                         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                     )
                 ''')
-                # init_db() уже создаёт changelog_entries/wishlist_items,
-                # но для changelog досеивает 5 строк — стираем их перед
-                # вставкой сохранённых. Если preserved_changelog пуст —
-                # таблица останется пустой (по требованию).
                 cursor.execute('DELETE FROM tokens')
                 cursor.execute('DELETE FROM users')
-                cursor.execute('DELETE FROM changelog_entries')
                 cursor.execute('DELETE FROM wishlist_items')
                 if preserved_users:
                     cursor.executemany(
@@ -370,12 +358,6 @@ def clear_database():
                         'INSERT INTO tokens (id, user_id, token_hash, '
                         'created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
                         preserved_tokens,
-                    )
-                if preserved_changelog:
-                    cursor.executemany(
-                        'INSERT INTO changelog_entries (id, entry_date, text, '
-                        'created_at) VALUES (?, ?, ?, ?)',
-                        preserved_changelog,
                     )
                 if preserved_wishlist:
                     cursor.executemany(
