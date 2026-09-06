@@ -1,64 +1,69 @@
 """Маршруты changelog и wishlist (вкладка «Инфо»).
 
 Вынесено из app.py.
+
+История изменений (changelog) теперь хранится в data/changelog.json
+(см. scripts/migrate_changelog_to_json.py). Запись/удаление через API больше
+не поддерживаются — POST /api/changelog и DELETE /api/changelog/<id> удалены.
 """
-import re
+import logging
 from datetime import datetime
+from pathlib import Path
+
 from flask import Blueprint, request, jsonify
 
+from config.settings import BASE_DIR
 from modules.db import db_connection
 
+logger = logging.getLogger(__name__)
+
 changelog_bp = Blueprint('changelog', __name__, url_prefix='/api')
+
+CHANGELOG_JSON_PATH = Path(BASE_DIR) / 'data' / 'changelog.json'
 
 
 @changelog_bp.route('/changelog', methods=['GET'])
 def get_changelog():
+    """Отдаёт записи лога изменений из data/changelog.json.
+
+    Файл уже отсортирован entry_date DESC, id DESC на этапе миграции —
+    пересортировка здесь не нужна. Маппим ключи {"date": ..., "text": ...}
+    на {"entry_date": ..., "text": ...}, чтобы фронт (backupManager.js
+    использует e.entry_date при группировке по дате) продолжал работать
+    без изменений.
+    """
+    if not CHANGELOG_JSON_PATH.exists():
+        # Миграция ещё не запущена или файл удалён — это не ошибка для
+        # пользователя, просто пустой лог.
+        logger.warning(
+            'Файл лога изменений не найден: %s. Вернён пустой массив.',
+            CHANGELOG_JSON_PATH,
+        )
+        return jsonify([])
+
     try:
-        with db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM changelog_entries ORDER BY entry_date DESC, id DESC')
-            entries = [dict(row) for row in cursor.fetchall()]
-        return jsonify(entries)
-    except Exception as e:
+        import json
+        with open(CHANGELOG_JSON_PATH, encoding='utf-8') as f:
+            raw = json.load(f)
+    except (OSError, ValueError) as e:
+        logger.exception('Не удалось прочитать %s', CHANGELOG_JSON_PATH)
         return jsonify({'error': str(e)}), 500
 
+    if not isinstance(raw, list):
+        logger.error(
+            'Неожиданный формат %s: ожидался JSON-массив, получен %s',
+            CHANGELOG_JSON_PATH,
+            type(raw).__name__,
+        )
+        return jsonify({'error': 'Некорректный формат файла лога изменений'}), 500
 
-@changelog_bp.route('/changelog', methods=['POST'])
-def create_changelog_entry():
-    try:
-        data = request.json or {}
-        text = (data.get('text') or '').strip()
-        if not text:
-            return jsonify({'error': 'Текст записи не может быть пустым'}), 400
-        entry_date = (data.get('date') or '').strip() or datetime.now().strftime('%Y-%m-%d')
-        if not re.match(r'^\d{4}-\d{2}-\d{2}$', entry_date):
-            return jsonify({'error': 'Дата должна быть в формате ГГГГ-ММ-ДД'}), 400
-        with db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                'INSERT INTO changelog_entries (entry_date, text, created_at) VALUES (?, ?, ?)',
-                (entry_date, text, datetime.now().isoformat())
-            )
-            conn.commit()
-            entry_id = cursor.lastrowid
-        return jsonify({'success': True, 'id': entry_id})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-
-@changelog_bp.route('/changelog/<int:entry_id>', methods=['DELETE'])
-def delete_changelog_entry(entry_id):
-    try:
-        with db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT id FROM changelog_entries WHERE id = ?', (entry_id,))
-            if not cursor.fetchone():
-                return jsonify({'error': 'Запись не найдена'}), 404
-            cursor.execute('DELETE FROM changelog_entries WHERE id = ?', (entry_id,))
-            conn.commit()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    # Маппинг ключей: фронт ожидает "entry_date" (см. backupManager.js).
+    entries = [
+        {'entry_date': item.get('date'), 'text': item.get('text')}
+        for item in raw
+        if isinstance(item, dict)
+    ]
+    return jsonify(entries)
 
 
 @changelog_bp.route('/wishlist', methods=['GET'])

@@ -207,10 +207,6 @@ function switchInfoSubtab(name) {
 }
 
 function loadInfoTab() {
-    const dateInput = document.getElementById('changelogDateInput');
-    if (dateInput && !dateInput.value) {
-        dateInput.value = new Date().toISOString().slice(0, 10);
-    }
     loadChangelog();
     loadWishlist();
     loadSystemInfo();
@@ -269,53 +265,11 @@ function renderChangelog() {
                 ${g.items.map(e => `
                     <li class="changelog-item">
                         <span class="changelog-text">${escapeHtml(e.text)}</span>
-                        <button type="button" class="link-btn changelog-delete" title="Удалить запись" onclick="deleteChangelogEntry(${e.id})"><span class="icon icon-close"></span></button>
                     </li>
                 `).join('')}
             </ul>
         </div>
     `).join('');
-}
-
-function addChangelogEntry() {
-    const dateInput = document.getElementById('changelogDateInput');
-    const textInput = document.getElementById('changelogTextInput');
-    const text = textInput.value.trim();
-    if (!text) {
-        showToast('Введите текст записи', 'warning', 'icon-warning');
-        return;
-    }
-    const date = dateInput.value || new Date().toISOString().slice(0, 10);
-    apiFetch('/api/changelog', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, text })
-    })
-        .then(r => r.json())
-        .then(result => {
-            if (result.error) {
-                showToast(result.error, 'error', 'icon-cancel');
-                return;
-            }
-            textInput.value = '';
-            loadChangelog();
-            showToast('Запись добавлена в лог изменений', 'success', 'icon-check-circle');
-        })
-        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
-}
-
-function deleteChangelogEntry(id) {
-    if (!confirm('Удалить эту запись из лога изменений?')) return;
-    apiFetch(`/api/changelog/${id}`, { method: 'DELETE' })
-        .then(r => r.json())
-        .then(result => {
-            if (result.error) {
-                showToast(result.error, 'error', 'icon-cancel');
-                return;
-            }
-            loadChangelog();
-        })
-        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
 }
 
 // ---- Пожелания ----
@@ -405,6 +359,5 @@ function deleteWishlistItem(id) {
 
 document.addEventListener('keydown', function(e) {
     if (e.key !== 'Enter') return;
-    if (e.target && e.target.id === 'changelogTextInput') { e.preventDefault(); addChangelogEntry(); }
     if (e.target && e.target.id === 'wishlistTextInput') { e.preventDefault(); addWishlistItem(); }
 });
