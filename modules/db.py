@@ -121,14 +121,6 @@ def init_db(conn=None):
             )
         ''')
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS changelog_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                entry_date TEXT NOT NULL,
-                text TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-        ''')
-        cursor.execute('''
             CREATE TABLE IF NOT EXISTS wishlist_items (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 text TEXT NOT NULL,
@@ -206,7 +198,6 @@ def init_db(conn=None):
 
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_modes_engine ON operating_modes(engine_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_works_engine ON maintenance_works(engine_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_changelog_date ON changelog_entries(entry_date)')
         for col in ('location', 'engine_type', 'manufacturer', 'serial_number', 'workshop', 'purpose'):
             cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_engines_{col} ON engines({col})')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_tokens_hash ON tokens(token_hash)')
@@ -572,22 +563,6 @@ def init_db(conn=None):
             from modules.auth import auth as auth_module
             auth_module.create_user(conn, 'admin', 'admin123', role='admin')
             logger.warning('Создан пользователь admin (роль: admin). Смените пароль!')
-
-        cursor.execute('SELECT COUNT(*) FROM changelog_entries')
-        if cursor.fetchone()[0] == 0:
-            seed_date = datetime.now().strftime('%Y-%m-%d')
-            seed_ts = datetime.now().isoformat()
-            changelog_seed = [
-                'Автодополнение полей (карточка, форма добавления, расширенный поиск) переведено с нативного <input list>/datalist на свой выпадающий список — подсказки открываются сразу по клику, без треугольника-индикатора браузера.',
-                'Добавлена обрезка фото при добавлении (ещё не загруженные файлы) — модалка с canvas и перетаскиваемой рамкой выделения, свободные пропорции.',
-                'Обрезка распространена на уже загруженные фото прямо в карточке (кнопка "✂️" рядом с фото в режиме редактирования) — обрезанный вариант заменяет оригинал на диске.',
-                'Режимы работы двигателя теперь редактируются прямо в карточке (все строки сразу редактируемые в режиме редактирования), без отдельной модалки.',
-                'Добавлена вкладка "Инфо": лог изменений (эта запись как раз оттуда) и список пожеланий с чекбоксами "внедрено".',
-            ]
-            cursor.executemany(
-                'INSERT INTO changelog_entries (entry_date, text, created_at) VALUES (?, ?, ?)',
-                [(seed_date, text, seed_ts) for text in changelog_seed]
-            )
 
         cursor.execute('SELECT COUNT(*) FROM failure_mode')
         if cursor.fetchone()[0] == 0:
