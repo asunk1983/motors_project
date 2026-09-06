@@ -294,6 +294,7 @@ function renderWishlist() {
         <li class="wishlist-item${item.done ? ' done' : ''}">
             <input type="checkbox" ${item.done ? 'checked' : ''} onchange="toggleWishlistItem(${item.id}, this.checked)">
             <span class="wishlist-text">${escapeHtml(item.text)}</span>
+            <span class="wishlist-meta">${_formatBackupDate(item.created_at)} — ${escapeHtml(item.author || 'неизвестно')}</span>
             <button type="button" class="link-btn wishlist-delete" title="Удалить пожелание" onclick="deleteWishlistItem(${item.id})"><span class="icon icon-close"></span></button>
         </li>
     `).join('')}</ul>`;
