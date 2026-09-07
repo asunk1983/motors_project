@@ -496,12 +496,6 @@ async function loadEquipmentList() {
             params.set('sort', equipmentCurrentSort.field);
             params.set('order', equipmentCurrentSort.order.toLowerCase());
         }
-        // Фильтры по атрибутам (ТЗ 3.4) — только когда выбран конкретный
-        // тип (см. onEquipmentTypeFilterChange, которая и рендерит поля).
-        if (typeFilter) {
-            const attrFilters = collectEquipmentAttrFilters();
-            Object.keys(attrFilters).forEach(key => params.set(`attr_${key}`, attrFilters[key]));
-        }
         const resp = await apiFetch('/api/equipment' + (params.toString() ? '?' + params.toString() : ''));
         const items = await parseJsonResponse(resp);
         if (!resp.ok) {
@@ -845,56 +839,12 @@ function renderDynamicSpecsFields(attrs, values, containerId = 'equipmentSpecsFi
     container.innerHTML = html;
 }
 
-// ===== Фильтры по значениям атрибутов (ТЗ 3.4) =====
-// Отдельный класс equipment-filter-field (НЕ equipment-spec-field) — оба
-// набора полей могут одновременно присутствовать в DOM (тулбар списка +
-// скрытая модалка формы), и collectSpecsFromForm() ниже перебирает ИМЕННО
-// .equipment-spec-field через querySelectorAll БЕЗ скоупа на модалку —
-// общий класс подхватил бы и поля фильтра тоже.
+// Смена типа в фильтре над таблицей оборудования — просто перезагрузить
+// список (show-in-list-attributes колонки в renderEquipmentTableHeaders
+// подтянутся уже внутри loadEquipmentList). Раньше тут же рендерились
+// поля фильтров по значениям атрибутов (ТЗ 3.4) — этот блок убран.
 function onEquipmentTypeFilterChange() {
-    const typeId = document.getElementById('equipmentTypeFilter').value;
-    if (!typeId) {
-        renderDynamicSpecsFields([], {}, 'equipmentAttrFiltersContainer', 'equipment-filter-field');
-        loadEquipmentList();
-        return;
-    }
-    apiFetch(`/api/equipment-types/${typeId}/attributes`)
-        .then(r => r.json())
-        .then(attrs => {
-            renderDynamicSpecsFields(Array.isArray(attrs) ? attrs : [], {}, 'equipmentAttrFiltersContainer', 'equipment-filter-field');
-            _wireEquipmentAttrFilterListeners();
-            loadEquipmentList();
-        })
-        .catch(() => loadEquipmentList());
-}
-
-// Живые обработчики на только что отрисованные поля фильтра — без этого
-// значения применялись бы только при следующей смене типа/поиска, а не
-// сразу при вводе (та же debounce-логика, что и у обычного поискового
-// инпута ниже).
-function _wireEquipmentAttrFilterListeners() {
-    const debouncedReload = typeof debounce === 'function' ? debounce(loadEquipmentList, 350) : loadEquipmentList;
-    document.querySelectorAll('#equipmentAttrFiltersContainer .equipment-filter-field').forEach(field => {
-        const eventName = (field.tagName === 'SELECT' || field.dataset.type === 'boolean') ? 'change' : 'input';
-        field.addEventListener(eventName, debouncedReload);
-    });
-}
-
-function collectEquipmentAttrFilters() {
-    const filters = {};
-    document.querySelectorAll('#equipmentAttrFiltersContainer .equipment-filter-field').forEach(field => {
-        const key = field.dataset.key;
-        let value;
-        if (field.dataset.type === 'boolean') {
-            value = field.checked ? 'true' : '';
-        } else {
-            value = field.value;
-        }
-        if (value !== '' && value !== undefined && value !== null) {
-            filters[key] = value;
-        }
-    });
-    return filters;
+    loadEquipmentList();
 }
 
 function collectSpecsFromForm() {

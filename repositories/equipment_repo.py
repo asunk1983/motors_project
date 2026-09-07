@@ -229,8 +229,7 @@ EQUIPMENT_SORT_COLUMNS = {
 
 
 def list_equipment(conn, equipment_type_id=None, search: str = '', location_node_id=None,
-                    unassigned: bool = False, sort: str = None, order: str = 'desc',
-                    attr_filters: dict = None):
+                    unassigned: bool = False, sort: str = None, order: str = 'desc'):
     """location_node_id — фильтр "этот узел дерева мест и всё, что ниже"
     (ТЗ раздел 3.1): разворачиваем в список id через
     location_repo.get_subtree_ids() и фильтруем, а не точным совпадением —
@@ -269,19 +268,7 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
     со списком разрешённых). Намеренно НЕТ сортировки по месту
     (workshop/location_node.name) — см. комментарий в ТЗ: workshop
     переходное поле, не гарантированно заполнено у новых записей, а
-    навигация по месту уже полностью закрыта деревом слева (3.1).
-
-    attr_filters — ТЗ раздел 3.4: {attribute_key: value}, ключи должны
-    быть УЖЕ провалидированы ВЫЗЫВАЮЩИМ (routes-слой, сверка против
-    get_effective_attributes(type_id)) до передачи сюда — этот
-    репозиторий сам ничего не валидирует (по конвенции проекта —
-    репозитории только SQL). json_extract() второй аргумент (путь)
-    строится через конкатенацию `'$.' || ?` — это ОБЫЧНОЕ выражение
-    SQLite, значение пути передаётся как параметризованный bind (не
-    склеено вручную в SQL-строку), инъекция через сам ключ невозможна
-    даже без валидации на уровне routes; валидация нужна для другого —
-    не пускать в фильтр атрибуты, которые вообще не принадлежат этому
-    типу (семантическая, а не security-защита)."""
+    навигация по месту уже полностью закрыта деревом слева (3.1)."""
     cur = conn.cursor()
     conditions = []
     params = []
@@ -310,9 +297,6 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
             f'WHERE ep.equipment_id = e.id AND ep.location_node_id IN ({placeholders}))'
         )
         params += subtree_ids
-    for key, value in (attr_filters or {}).items():
-        conditions.append("json_extract(e.specs_json, '$.' || ?) = ?")
-        params += [key, value]
     where_clause = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
 
     if sort in EQUIPMENT_SORT_COLUMNS:

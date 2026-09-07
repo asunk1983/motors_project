@@ -270,27 +270,11 @@ def get_equipment_list():
         sort = request.args.get('sort')
         order = request.args.get('order', 'desc')
 
-        # ТЗ раздел 3.4: attr_<key>=<value> в query — только когда выбран
-        # конкретный тип; ключи ОБЯЗАТЕЛЬНО сверяются с
-        # get_effective_attributes(type_id) до попадания в SQL — не
-        # семантика "нельзя, инъекция" (json_extract и так параметризован,
-        # см. docstring list_equipment), а "нельзя фильтровать по
-        # атрибуту, которого у этого типа вообще нет".
-        attr_filters = {}
-        if equipment_type_id:
-            with db_connection() as conn:
-                valid_keys = {a['key'] for a in get_effective_attributes(conn, equipment_type_id)}
-            for param_name, value in request.args.items():
-                if param_name.startswith('attr_') and value:
-                    key = param_name[len('attr_'):]
-                    if key in valid_keys:
-                        attr_filters[key] = value
-
         with db_connection() as conn:
             items = list_equipment(
                 conn, equipment_type_id=equipment_type_id, search=search,
                 location_node_id=location_node_id, unassigned=unassigned,
-                sort=sort, order=order, attr_filters=attr_filters,
+                sort=sort, order=order,
             )
         return jsonify(items)
     except Exception as e:

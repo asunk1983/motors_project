@@ -10,8 +10,7 @@
 
 Стиль — как в location_repo.py/engine_repo.py. Только SQL, без
 бизнес-логики/Flask; бизнес-валидация (bulk-разбор строки обозначений,
-проверка занятости) — в routes-слое, по конвенции этого проекта
-(см. equipment_repo.py::list_equipment, комментарий про attr_filters).
+проверка занятости) — в routes-слое, по конвенции этого проекта.
 """
 import sqlite3
 
