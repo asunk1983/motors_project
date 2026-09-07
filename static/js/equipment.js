@@ -502,8 +502,9 @@ async function loadEquipmentList() {
 
     // При выбранном типе колонка "Тип" в заголовке скрыта (см.
     // renderEquipmentTableHeaders) — colspan тоже минус 1, иначе столбцы
-    // в строке "Загрузка..." разъедутся с заголовком.
-    const loadingColspan = 7 - (typeFilter ? 1 : 0);
+    // в строке "Загрузка..." разъедутся с заголовком. После удаления
+    // колонки "Действия" из таблицы — минус ещё 1 от прежнего значения 7.
+    const loadingColspan = 6 - (typeFilter ? 1 : 0);
     body.innerHTML = `<tr><td colspan="${loadingColspan}" class="no-data">Загрузка...</td></tr>`;
     try {
         const params = new URLSearchParams();
@@ -531,7 +532,7 @@ async function loadEquipmentList() {
             // типе минус 1 (нет колонки "Тип"). Эта ветка срабатывает до
             // загрузки динамических колонок, поэтому используем локальный
             // typeFilter (видим в catch через замыкание функции).
-            const errColspan = 7 - (typeFilter ? 1 : 0);
+            const errColspan = 6 - (typeFilter ? 1 : 0);
             body.innerHTML = `<tr><td colspan="${errColspan}" class="no-data">${escapeHtml(items.error || 'Ошибка')}</td></tr>`;
             return;
         }
@@ -560,7 +561,7 @@ async function loadEquipmentList() {
     } catch (e) {
         // typeFilter виден через замыкание loadEquipmentList; см. пояснение
         // к errColspan в ветке !resp.ok.
-        const catchColspan = 7 - (typeFilter ? 1 : 0);
+        const catchColspan = 6 - (typeFilter ? 1 : 0);
         body.innerHTML = `<tr><td colspan="${catchColspan}" class="no-data">${escapeHtml(e && e.message ? e.message : 'Сетевая ошибка')}</td></tr>`;
     }
     // Re-observe в любом исходе (успех или ошибка) — после финального
@@ -610,7 +611,6 @@ function renderEquipmentTableHeaders() {
     });
     html += `
         <th class="sortable" onclick="sortEquipmentTable('criticality')">Критичность${_equipmentSortArrow('criticality')}</th>
-        <th class="col-actions">Действия</th>
     `;
     theadRow.innerHTML = html;
 }
@@ -625,10 +625,12 @@ function renderEquipmentTable() {
     if (!body) return;
     // Синхронизировано с renderEquipmentTableHeaders: при выбранном типе
     // колонка "Тип" скрыта, динамических — equipmentDisplayAttrs.length.
-    // 7 = базовые колонки (чекбокс + Наименование + Тип + Артикул + Место
-    // + Критичность + Действия); минус 1 для "Тип" если тип выбран.
+    // 6 = базовые колонки (чекбокс + Наименование + Тип + Артикул + Место
+    // + Критичность); минус 1 для "Тип" если тип выбран. Колонка
+    // "Действия" в таблице больше не показывается (правки/удаления —
+    // через открытую карточку).
     const typeSelected = equipmentDisplayAttrs.length > 0;
-    const baseColCount = 7 - (typeSelected ? 1 : 0);
+    const baseColCount = 6 - (typeSelected ? 1 : 0);
     if (!allEquipment.length) {
         const colspan = baseColCount + equipmentDisplayAttrs.length;
         body.innerHTML = `<tr><td colspan="${colspan}" class="no-data">Оборудования пока нет</td></tr>`;
@@ -691,14 +693,6 @@ function renderEquipmentTable() {
                 <td>${locationDisplay}</td>
                 ${dynamicCells}
                 <td>${e.criticality ? '●'.repeat(e.criticality) + '○'.repeat(5 - e.criticality) : '—'}</td>
-                <td class="col-actions" onclick="event.stopPropagation()">
-                    <button class="btn btn-secondary btn-sm" onclick="openEquipmentModal(${e.id}, true)" title="Редактировать">
-                        <span class="icon icon-edit"></span>
-                    </button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteEquipmentEntry(${e.id})" title="Удалить">
-                        <span class="icon icon-delete"></span>
-                    </button>
-                </td>
             </tr>
         `;
     }).join('');
