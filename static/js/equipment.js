@@ -19,7 +19,11 @@ let allEquipment = [];
 let equipmentCurrentSort = { field: null, order: 'DESC' }; // field=null -> backend сам берёт updated_at DESC
 let equipmentCurrentPage = 1;
 let equipmentPageSize = 20; // пересчитывается динамически, см. applyDynamicEquipmentPageSize
-let equipmentShowInListAttrs = []; // [] когда фильтр "Тип" = "Все типы"
+// Динамические колонки таблицы: при выбранном конкретном типе —
+// effective-атрибуты этого типа (тот же источник, что и форма
+// добавления/редактирования), при "Все типы" — пустой массив
+// (колонки не рисуются, колонка "Тип" показывается).
+let equipmentDisplayAttrs = [];
 
 // ===== Фото (ТЗ 3.3) =====
 // pendingPhotoFiles — тот же паттерн, что exportManager.js для двигателей:
@@ -476,7 +480,11 @@ async function loadEquipmentList() {
     const typeFilter = document.getElementById('equipmentTypeFilter').value;
     const search = document.getElementById('equipmentSearchInput').value.trim();
 
-    body.innerHTML = '<tr><td colspan="7" class="no-data">Загрузка...</td></tr>';
+    // При выбранном типе колонка "Тип" в заголовке скрыта (см.
+    // renderEquipmentTableHeaders) — colspan тоже минус 1, иначе столбцы
+    // в строке "Загрузка..." разъедутся с заголовком.
+    const loadingColspan = 7 - (typeFilter ? 1 : 0);
+    body.innerHTML = `<tr><td colspan="${loadingColspan}" class="no-data">Загрузка...</td></tr>`;
     try {
         const params = new URLSearchParams();
         if (typeFilter) params.set('type', typeFilter);
@@ -499,19 +507,30 @@ async function loadEquipmentList() {
         const resp = await apiFetch('/api/equipment' + (params.toString() ? '?' + params.toString() : ''));
         const items = await parseJsonResponse(resp);
         if (!resp.ok) {
-            body.innerHTML = `<tr><td colspan="7" class="no-data">${escapeHtml(items.error || 'Ошибка')}</td></tr>`;
+            // Синхронизировано с colspan в loadingColspan выше: при выбранном
+            // типе минус 1 (нет колонки "Тип"). Эта ветка срабатывает до
+            // загрузки динамических колонок, поэтому используем локальный
+            // typeFilter (видим в catch через замыкание функции).
+            const errColspan = 7 - (typeFilter ? 1 : 0);
+            body.innerHTML = `<tr><td colspan="${errColspan}" class="no-data">${escapeHtml(items.error || 'Ошибка')}</td></tr>`;
             return;
         }
         allEquipment = Array.isArray(items) ? items : [];
 
         // Динамические колонки (ТЗ 3.2) — только когда выбран КОНКРЕТНЫЙ
         // тип (список однороден); "Все типы" -> обычные 5 колонок.
+        // Берём effective-набор (тот же эндпоинт, что у формы создания
+        // оборудования — get_type_attributes), а не только show_in_list:
+        // при выбранном типе колонка "Тип" скрыта, и каждая запись и так
+        // принадлежит этому типу, поэтому имеет смысл показать ВСЕ
+        // атрибуты (а не только 2-3 помеченных), чтобы пользователь
+        // видел, чем отличаются записи внутри одного типа.
         if (typeFilter) {
-            const attrsResp = await apiFetch(`/api/equipment-types/${typeFilter}/show-in-list-attributes`);
+            const attrsResp = await apiFetch(`/api/equipment-types/${typeFilter}/attributes`);
             const attrs = await parseJsonResponse(attrsResp);
-            equipmentShowInListAttrs = attrsResp.ok && Array.isArray(attrs) ? attrs : [];
+            equipmentDisplayAttrs = attrsResp.ok && Array.isArray(attrs) ? attrs : [];
         } else {
-            equipmentShowInListAttrs = [];
+            equipmentDisplayAttrs = [];
         }
 
         equipmentCurrentPage = 1;
@@ -519,7 +538,10 @@ async function loadEquipmentList() {
         renderEquipmentTable();
         applyDynamicEquipmentPageSize();
     } catch (e) {
-        body.innerHTML = `<tr><td colspan="7" class="no-data">${escapeHtml(e && e.message ? e.message : 'Сетевая ошибка')}</td></tr>`;
+        // typeFilter виден через замыкание loadEquipmentList; см. пояснение
+        // к errColspan в ветке !resp.ok.
+        const catchColspan = 7 - (typeFilter ? 1 : 0);
+        body.innerHTML = `<tr><td colspan="${catchColspan}" class="no-data">${escapeHtml(e && e.message ? e.message : 'Сетевая ошибка')}</td></tr>`;
     }
 }
 
@@ -536,17 +558,24 @@ function sortEquipmentTable(field) {
 function renderEquipmentTableHeaders() {
     const theadRow = document.querySelector('#equipmentTableWrapper thead tr');
     if (!theadRow) return;
+    // Признак "выбран конкретный тип" — непустой equipmentDisplayAttrs
+    // (переменная заполняется в loadEquipmentList в одной ветке с typeFilter,
+    // см. там комментарий). Эта же проверка определяет, рисовать ли
+    // колонку "Тип": при выбранном типе она дублирует фильтр и только
+    // тратит ширину, при "Все типы" — нужна, чтобы видеть, к какому типу
+    // относится запись.
+    const typeSelected = equipmentDisplayAttrs.length > 0;
     // Место — намеренно НЕ sortable (ТЗ 3.2): workshop — переходное текстовое
     // поле, не гарантированно заполнено у новых записей; навигация по месту
     // уже полностью закрыта деревом слева (equipmentLocationTree.js).
     let html = `
         <th class="col-checkbox"><input type="checkbox" id="equipmentSelectAllCheckbox" onchange="toggleEquipmentSelectAll(this.checked)"></th>
         <th class="sortable" onclick="sortEquipmentTable('name')">Наименование${_equipmentSortArrow('name')}</th>
-        <th class="sortable" onclick="sortEquipmentTable('equipment_type_name')">Тип${_equipmentSortArrow('equipment_type_name')}</th>
+        ${typeSelected ? '' : `<th class="sortable" onclick="sortEquipmentTable('equipment_type_name')">Тип${_equipmentSortArrow('equipment_type_name')}</th>`}
         <th class="sortable" onclick="sortEquipmentTable('article')">Артикул${_equipmentSortArrow('article')}</th>
         <th>Место</th>
     `;
-    equipmentShowInListAttrs.forEach(a => {
+    equipmentDisplayAttrs.forEach(a => {
         html += `<th>${escapeHtml(a.label)}${a.unit ? ` (${escapeHtml(a.unit)})` : ''}</th>`;
     });
     html += `
@@ -564,8 +593,14 @@ function _equipmentSortArrow(field) {
 function renderEquipmentTable() {
     const body = document.getElementById('equipmentListBody');
     if (!body) return;
+    // Синхронизировано с renderEquipmentTableHeaders: при выбранном типе
+    // колонка "Тип" скрыта, динамических — equipmentDisplayAttrs.length.
+    // 7 = базовые колонки (чекбокс + Наименование + Тип + Артикул + Место
+    // + Критичность + Действия); минус 1 для "Тип" если тип выбран.
+    const typeSelected = equipmentDisplayAttrs.length > 0;
+    const baseColCount = 7 - (typeSelected ? 1 : 0);
     if (!allEquipment.length) {
-        const colspan = 7 + equipmentShowInListAttrs.length;
+        const colspan = baseColCount + equipmentDisplayAttrs.length;
         body.innerHTML = `<tr><td colspan="${colspan}" class="no-data">Оборудования пока нет</td></tr>`;
         const pageInfoEmpty = document.getElementById('equipmentPageInfo');
         if (pageInfoEmpty) pageInfoEmpty.textContent = 'Показано 0 из 0';
@@ -613,7 +648,7 @@ function renderEquipmentTable() {
             locationDisplay = escapeHtml(e.location_name || [e.workshop, e.location].filter(Boolean).join(' / ') || '—');
         }
         let dynamicCells = '';
-        equipmentShowInListAttrs.forEach(a => {
+        equipmentDisplayAttrs.forEach(a => {
             const val = e.specs && e.specs[a.key] !== undefined && e.specs[a.key] !== '' ? e.specs[a.key] : null;
             dynamicCells += `<td>${val !== null ? escapeHtml(String(val)) + (a.unit ? ' ' + escapeHtml(a.unit) : '') : '—'}</td>`;
         });
@@ -621,7 +656,7 @@ function renderEquipmentTable() {
             <tr class="clickable-row" data-id="${e.id}" onclick="openEquipmentModal(${e.id})">
                 <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="equipment-row-checkbox" ${equipmentSelectedExportIds.has(e.id) ? 'checked' : ''} onchange="toggleEquipmentSelection(${e.id}, this.checked)"></td>
                 <td>${escapeHtml(e.name)}</td>
-                <td>${escapeHtml(e.equipment_type_name || '—')}</td>
+                ${typeSelected ? '' : `<td>${escapeHtml(e.equipment_type_name || '—')}</td>`}
                 <td>${escapeHtml(e.article || '—')}</td>
                 <td>${locationDisplay}</td>
                 ${dynamicCells}
