@@ -232,7 +232,6 @@ def clear_database():
 
     Сохраняются и возвращаются обратно:
       - users, tokens             — чтобы админ мог снова войти
-      - wishlist_items            — пожелания/идеи
 
     Теряются безвозвратно: engines, operating_modes, maintenance_works,
     вся подсистема инцидентов (incident_ticket* и связанные), номенклатура
@@ -243,7 +242,6 @@ def clear_database():
         # --- 1. Сохраняем данные, которые нужно вернуть в новую БД ---
         preserved_users = []
         preserved_tokens = []
-        preserved_wishlist = []
         if os.path.exists(db_module.DB_PATH):
             try:
                 conn = sqlite3.connect(db_module.DB_PATH)
@@ -259,20 +257,11 @@ def clear_database():
                         'FROM tokens'
                     )
                     preserved_tokens = [tuple(row) for row in cursor.fetchall()]
-                    # Весь контент как есть, включая seed-данные, если они
-                    # там ещё есть. Если таблица уже пуста — после очистки
-                    # она останется пустой (это ожидаемо).
-                    cursor.execute(
-                        'SELECT id, text, done, created_at FROM wishlist_items'
-                    )
-                    preserved_wishlist = [tuple(row) for row in cursor.fetchall()]
                 finally:
                     conn.close()
                 logger.info(
-                    'Preserved before clear: %d users, %d tokens, '
-                    '%d wishlist',
+                    'Preserved before clear: %d users, %d tokens',
                     len(preserved_users), len(preserved_tokens),
-                    len(preserved_wishlist),
                 )
             except Exception:
                 # Не угадываем — лучше упасть сразу, чем продолжить очистку
@@ -345,7 +334,6 @@ def clear_database():
                 ''')
                 cursor.execute('DELETE FROM tokens')
                 cursor.execute('DELETE FROM users')
-                cursor.execute('DELETE FROM wishlist_items')
                 if preserved_users:
                     cursor.executemany(
                         'INSERT INTO users (id, username, password_hash, role, '
@@ -358,12 +346,6 @@ def clear_database():
                         'INSERT INTO tokens (id, user_id, token_hash, '
                         'created_at, expires_at) VALUES (?, ?, ?, ?, ?)',
                         preserved_tokens,
-                    )
-                if preserved_wishlist:
-                    cursor.executemany(
-                        'INSERT INTO wishlist_items (id, text, done, '
-                        'created_at) VALUES (?, ?, ?, ?)',
-                        preserved_wishlist,
                     )
                 conn.commit()
             finally:
