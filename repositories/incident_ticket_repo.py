@@ -133,7 +133,21 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
     список с фильтрами). Каждая строка сразу дополнена breadcrumb места
     и списками ФИО инициаторов/исполнителей — тот же паттерн, что уже
     даёт /api/tickets в существующем ticket_routes (equipment_name и т.п.),
-    чтобы фронту не нужно было делать N+1 запросов на список."""
+    чтобы фронту не нужно было делать N+1 запросов на список.
+
+    location_node_id — фильтр "этот узел дерева мест и всё, что ниже"
+    (ТЗ раздел 3.1): разворачиваем в список id через
+    location_repo.get_subtree_ids() и фильтруем через IN (...), а НЕ
+    точным совпадением — клик по цеху должен находить заявки во ВСЕХ
+    вложенных узлах (установках/секциях/зонах), не только привязанные
+    буквально к самому цеху. Это симметрично поведению счётчика
+    'subtreeCount' на фронте (incidentLocationTree.js) — без этого
+    согласования чип в дереве и список по клику расходились бы: чип
+    показывал бы N заявок в поддереве, а список был бы пуст для
+    родительских узлов, у которых нет собственных заявок (все они
+    висят на дочерних узлах). См. тот же паттерн в
+    equipment_repo.list_equipment (строки ~233-248) — там
+    subtree-фильтрация сделана раньше и стала эталоном."""
     where, params = [], []
     if status:
         where.append('t.status = ?')
@@ -142,8 +156,18 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
         where.append('t.priority = ?')
         params.append(priority)
     if location_node_id is not None:
-        where.append('t.location_node_id = ?')
-        params.append(location_node_id)
+        # Разворот в поддерево (тот же паттерн, что в
+        # equipment_repo.list_equipment) — клик по цеху/установке
+        # находит заявки во ВСЕХ вложенных узлах, не только привязанные
+        # буквально к самому узлу. Без этого счётчик subtreeCount на
+        # фронте и список по клику расходились бы для родительских
+        # узлов (чип > 0, список = []).
+        subtree_ids = location_repo.get_subtree_ids(conn, location_node_id)
+        if not subtree_ids:
+            return []
+        placeholders = ','.join('?' * len(subtree_ids))
+        where.append(f't.location_node_id IN ({placeholders})')
+        params += subtree_ids
     where_sql = ('WHERE ' + ' AND '.join(where)) if where else ''
 
     _ensure_no_users_fk(conn)
