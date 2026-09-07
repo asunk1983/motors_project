@@ -6,7 +6,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-from config.settings import DB_PATH, MOTORS_FOLDER, PHOTOS_FOLDER, INCIDENT_PHOTOS_FOLDER, EQUIPMENT_PHOTOS_FOLDER, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER, ALLOWED_PHOTO_EXT
+from config.settings import DB_PATH, MOTORS_FOLDER, PHOTOS_FOLDER, INCIDENT_PHOTOS_FOLDER, EQUIPMENT_PHOTOS_FOLDER, PHOTO_FOLDERS, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER, ALLOWED_PHOTO_EXT
 
 ENGINE_COLUMNS_ORDERED = [
     'id', 'filename', 'purpose', 'workshop', 'location', 'engine_type',

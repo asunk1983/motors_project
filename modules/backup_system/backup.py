@@ -40,15 +40,11 @@ BACKUPS_FOLDER = db_module.BACKUPS_FOLDER
 BACKUP_STAGING_FOLDER = db_module.BACKUP_STAGING_FOLDER
 MAX_BACKUPS_KEPT = 3
 
-# Список фото-папок, которые участвуют в backup/restore. Префикс — это
-# имя каталога верхнего уровня внутри zip-архива (и совпадает с именем
-# самой папки на диске). Логика для всех трёх папок идентична:
-# атомарная замена через rollback+replace (как и раньше для photos/).
-PHOTO_FOLDERS = [
-    ('photos', PHOTOS_FOLDER),
-    ('PhotoI', INCIDENT_PHOTOS_FOLDER),
-    ('PhotoE', EQUIPMENT_PHOTOS_FOLDER),
-]
+# Список фото-папок, которые участвуют в backup/restore — перенесён в
+# config/settings.py (единственный источник правды для путей и их
+# группировок), здесь только реэкспорт через db_module, как и остальные
+# константы выше.
+PHOTO_FOLDERS = db_module.PHOTO_FOLDERS
 
 # Настройка логгера для операций бэкапа/восстановления. Пишем в
 # BACKUPS_FOLDER/backup_restore.log, чтобы иметь отдельный файл для

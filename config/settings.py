@@ -18,6 +18,27 @@ INCIDENT_PHOTOS_FOLDER = str(BASE_DIR / 'PhotoI')
 # Фото номенклатуры оборудования (ТЗ "Инциденты + Оборудование", раздел 3.3) —
 # та же логика обособления, что и у PhotoI.
 EQUIPMENT_PHOTOS_FOLDER = str(BASE_DIR / 'PhotoE')
+
+# Список фото-папок, которые участвуют в backup/restore/clear_database.
+# Перенесено сюда из modules/backup_system/backup.py — раньше жило только
+# там, что противоречило конвенции "config/settings.py — единственный
+# источник правды" (см. докстринг файла выше) и однажды уже приводило к
+# багу: при добавлении EQUIPMENT_PHOTOS_FOLDER (PhotoE) в 2026-09-01
+# clear_database() из routes/import_routes.py не узнал о новой папке и
+# 5 дней молча не очищал её при сбросе БД (исправлено в 2026-09-04).
+# Префикс — это имя каталога верхнего уровня внутри zip-архива бэкапа
+# (совпадает с именем самой папки на диске).
+#
+# ВАЖНО: при добавлении новой *_PHOTOS_FOLDER константы выше — сразу
+# добавляйте её и сюда, иначе backup/restore её подхватят (они уже
+# устойчивы к этому), а вот clear_database() — нет, если где-то
+# появится второй хардкод-список вместо использования этого.
+PHOTO_FOLDERS = [
+    ('photos', PHOTOS_FOLDER),
+    ('PhotoI', INCIDENT_PHOTOS_FOLDER),
+    ('PhotoE', EQUIPMENT_PHOTOS_FOLDER),
+]
+
 BACKUPS_FOLDER = str(BASE_DIR / 'backups')
 BACKUP_STAGING_FOLDER = str(BASE_DIR / 'backup_staging')
 CONFIG_DIR = str(BASE_DIR / 'config')

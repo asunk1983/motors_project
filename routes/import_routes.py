@@ -360,10 +360,10 @@ def clear_database():
             }), 500
 
         # --- 5. Очищаем все три фото-папки ---
-        # Список импортируется из backup.py, чтобы не дублировать
-        # константы. Локальный импорт — паттерн проекта (см.
-        # modules/photo_manager/equipment_manager.py:42).
-        from modules.backup_system.backup import PHOTO_FOLDERS
+        # Список — из config/settings.py (единственный источник правды
+        # для путей и их группировок). Локальный импорт — паттерн проекта
+        # (см. modules/photo_manager/equipment_manager.py:42).
+        from config.settings import PHOTO_FOLDERS
         for _prefix, folder_path in PHOTO_FOLDERS:
             if os.path.exists(folder_path):
                 shutil.rmtree(folder_path, ignore_errors=True)
