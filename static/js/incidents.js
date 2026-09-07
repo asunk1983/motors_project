@@ -253,7 +253,10 @@ function renderIncidentDetailToolbar() {
     const currentIndex = incidentsList.findIndex(t => t.id === data.id);
     const total = incidentsList.length;
     const currentUser = (typeof getAuthUser === 'function') ? getAuthUser() : {};
-    const canDelete = currentUser.role === 'superadmin';
+    // Физическое удаление заявки — admin или superadmin (синхронно с
+    // бэкендом: routes/incident_ticket_routes.py::delete_ticket_route
+    // использует _require_admin()).
+    const canDelete = currentUser.role === 'superadmin' || currentUser.role === 'admin';
 
     const infoHtml = `
         <span class="detail-toolbar-title"><span class="icon icon-warning"></span> Карточка заявки</span>

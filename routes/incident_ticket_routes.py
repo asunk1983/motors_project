@@ -19,7 +19,7 @@ import io
 from modules.db import db_connection
 from modules.photo_manager import incident_manager
 from repositories import incident_ticket_repo
-from routes.auth import _require_superadmin
+from routes.auth import _require_admin
 from services import incident_service, export_service
 
 incident_ticket_bp = Blueprint('incident_ticket_bp', __name__, url_prefix='/api/incident-tickets')
@@ -124,10 +124,12 @@ def update_ticket_route(ticket_id):
 
 @incident_ticket_bp.route('/<int:ticket_id>', methods=['DELETE'])
 def delete_ticket_route(ticket_id):
-    # ТЗ раздел 2.1.4: физическое удаление — только superadmin. Тот же
-    # helper, что уже используется в routes/knowledge_routes.py — единый
-    # источник правды для проверки роли, а не своя копия условия.
-    denied = _require_superadmin()
+    # ТЗ раздел 2.1.4: физическое удаление заявки — admin или superadmin.
+    # Используем общий _require_admin() (role in ('admin', 'superadmin'),
+    # см. routes/auth.py), а не _require_superadmin() — единый источник
+    # правды для проверки роли, как и в других админ-операциях проекта
+    # (admin_change_password, admin_revoke_user, admin_delete_user и т.п.).
+    denied = _require_admin()
     if denied:
         return denied
 
