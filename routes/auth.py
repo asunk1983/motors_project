@@ -111,13 +111,23 @@ def auth_login():
                 auth_module.update_file_user_last_login(user['id'])
             else:
                 auth_module.update_last_login(conn, user['id'])
+        # Контракт user-объекта в ответе логина зеркалит auth_me (см. ниже):
+        # {id, username, role, crew_id, display_name}. Без password_hash
+        # (он лежит в `user` из auth_module.get_user_by_username, но фронту
+        # его отдавать нельзя). Без этого — сразу после логина шапка
+        # (#userName) показывает логин вместо ФИО, потому что фронт кладёт
+        # этот объект в localStorage и applyRoleUI фолбэчится на username.
+        # authInit (с его /api/auth/me) сам срабатывает только на F5 —
+        # поэтому баг «лечится рефрешем».
         return jsonify({
             'success': True,
             'token': token,
             'user': {
                 'id': user['id'],
                 'username': user['username'],
-                'role': user['role']
+                'role': user['role'],
+                'crew_id': user.get('crew_id'),
+                'display_name': user.get('display_name') or user['username'],
             }
         })
     except Exception as e:

@@ -20,6 +20,8 @@ from pathlib import Path
 from flask import Blueprint, request, jsonify
 
 from config.settings import BASE_DIR
+from modules.db import db_connection
+from modules.auth import auth as auth_module
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +113,25 @@ def get_wishlist():
     # информацию об авторе — показываем "неизвестно", а не пропускаем поле.
     for item in items:
         item.setdefault('author', 'неизвестно')
+
+    # Резолвим display_name автора через auth_module.get_user_by_username
+    # (после 6a1ba46 он всегда возвращает display_name через
+    # modules/auth/db_users._attach_display_name, с fallback на username).
+    # Если логин 'неизвестно' или пользователь удалён — оставляем сам
+    # логин, чтобы не сломать совместимость со старыми записями.
+    with db_connection() as conn:
+        for item in items:
+            author_username = item.get('author')
+            if not author_username or author_username == 'неизвестно':
+                item['author_display_name'] = 'неизвестно'
+                continue
+            user = auth_module.get_user_by_username(conn, author_username)
+            if user and user.get('display_name'):
+                item['author_display_name'] = user['display_name']
+            else:
+                # пользователь удалён, но логин в записи остался —
+                # показываем сам логин, а не пустоту
+                item['author_display_name'] = author_username
 
     items = sorted(items, key=_sort_wishlist_key)
     return jsonify(items)
