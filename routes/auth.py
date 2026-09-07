@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 
 from modules.db import db_connection
 from modules.auth import auth as auth_module
+from repositories import crew_repo
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
@@ -43,6 +44,26 @@ def _require_superadmin():
     if not user or user.get('role') != 'superadmin':
         return jsonify({'error': 'Доступ запрещён (нужна роль superadmin)'}), 403
     return None
+
+
+def _parse_and_validate_crew_id(conn, raw_value):
+    """Единая точка валидации crew_id из тела запроса.
+
+    Возвращает (crew_id_or_None, error_response_or_None). Семантика raw_value:
+      - отсутствует / None / пустая строка → None (отвязать / без привязки);
+      - целое число → проверить существование в crew; если нет — 400.
+    БД-зависимая проверка делается ТОЛЬКО если значение осмысленное, чтобы
+    не открывать лишнюю транзакцию на каждый запрос.
+    """
+    if raw_value is None or raw_value == '':
+        return None, None
+    try:
+        cid = int(raw_value)
+    except (TypeError, ValueError):
+        return None, (jsonify({'error': 'crew_id должен быть целым числом или null'}), 400)
+    if crew_repo.get_by_id(conn, cid) is None:
+        return None, (jsonify({'error': f'Человек с id={cid} не найден в справочнике crew'}), 400)
+    return cid, None
 
 
 # Пути, для которых пишущий (не-GET) запрос не требует ни авторизации, ни
@@ -117,11 +138,18 @@ def auth_me():
     user = getattr(request, 'current_user', None)
     if not user:
         return jsonify({'error': 'Требуется авторизация'}), 401
-    return jsonify({
+    # crew_id и display_name приклеиваются в db_users.get_user_by_id /
+    # get_user_by_username через _attach_display_name; у файловых юзеров —
+    # в file_users._attach_file_display_name (вызывается из тех же точек).
+    # Здесь просто прокидываем всё, что есть, плюс role для UI.
+    out = {
         'id': user['id'],
         'username': user['username'],
-        'role': user['role']
-    })
+        'role': user['role'],
+        'crew_id': user.get('crew_id'),
+        'display_name': user.get('display_name') or user['username'],
+    }
+    return jsonify(out)
 
 
 @auth_bp.route('/admin/users', methods=['GET'])
@@ -175,11 +203,52 @@ def admin_create_user():
         if len(password) < 6:
             return jsonify({'error': 'Пароль должен быть не короче 6 символов'}), 400
         with db_connection() as conn:
+            # crew_id опционален (None = без привязки); если передан — проверить,
+            # что такая запись в справочнике crew реально существует.
+            crew_id, crew_err = _parse_and_validate_crew_id(conn, data.get('crew_id'))
+            if crew_err:
+                return crew_err
             if auth_module.get_user_by_username(conn, username):
                 return jsonify({'error': 'Пользователь с таким логином уже существует'}), 409
             # create as file-based user
-            uid = auth_module.create_file_user(username, password, role=role)
+            uid = auth_module.create_file_user(username, password, role=role, crew_id=crew_id)
         return jsonify({'success': True, 'id': uid})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@auth_bp.route('/admin/users/<int:user_id>', methods=['PATCH'])
+def admin_update_user(user_id):
+    """Частичное обновление пользователя. Сейчас принимает только crew_id
+    (для ФИО в UI). Сделан как PATCH (а не PUT) — на будущее, если добавим
+    ещё редактируемых полей (например, ФИО напрямую), не придётся ломать
+    контракт. Семантика crew_id — null/omit = отвязать.
+
+    Допустимо править crew_id у всех пользователей, включая admin/superadmin:
+    это не меняет их права и не требует супер-админа, в отличие от role.
+    """
+    denied = _require_admin()
+    if denied:
+        return denied
+    try:
+        data = request.json or {}
+        with db_connection() as conn:
+            target_user = auth_module.get_user_by_id(conn, user_id)
+            if not target_user:
+                return jsonify({'error': 'Пользователь не найден'}), 404
+            # crew_id единственное редактируемое поле. Если в теле нет ключа
+            # 'crew_id' вообще — это no-op (PATCH-семантика), возвращаем 200.
+            if 'crew_id' in data:
+                crew_id, crew_err = _parse_and_validate_crew_id(conn, data.get('crew_id'))
+                if crew_err:
+                    return crew_err
+                if target_user.get('source') == 'file':
+                    ok = auth_module.update_file_user_crew_id(user_id, crew_id)
+                else:
+                    ok = auth_module.update_user_crew_id(conn, user_id, crew_id)
+                if not ok:
+                    return jsonify({'error': 'Не удалось обновить crew_id'}), 400
+        return jsonify({'success': True})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

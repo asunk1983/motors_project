@@ -9,6 +9,9 @@ from modules.auth.file_users import (
     FILE_USER_ID_OFFSET, _load_file_users, _load_file_tokens,
     _save_file_tokens,
 )
+# Импорт ниже — ленивый внутри функций, чтобы не плодить циклических
+# зависимостей (db_users ↔ file_users). См. use в get_user_from_token.
+
 
 
 def _row_to_dict(row):
@@ -88,7 +91,12 @@ def get_user_from_token(conn, token):
                 result = _row_to_dict(cur.fetchone())
                 if result:
                     result['source'] = 'db'
-                    return result
+                    # Приклеиваем crew_id + display_name здесь (а не в роуте),
+                    # потому что request.current_user на каждом запросе
+                    # получает именно этот dict — и фронт ожидает увидеть
+                    # display_name в auth.js (#userName, #auth-user-badge).
+                    from modules.auth.db_users import _attach_display_name
+                    return _attach_display_name(conn, result)
     except Exception:
         pass
 
@@ -109,7 +117,9 @@ def get_user_from_token(conn, token):
                 if u.get('username') == username:
                     u2 = dict(u)
                     u2['source'] = 'file'
-                    return u2
+                    # Ленивый импорт — file_users ↔ db_users взаимно зависят.
+                    from modules.auth.file_users import _attach_file_display_name
+                    return _attach_file_display_name(conn, u2)
     return None
 
 

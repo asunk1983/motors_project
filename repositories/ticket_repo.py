@@ -32,12 +32,18 @@ def list_tickets(conn, status: str = '', equipment_id=None):
         conditions.append('t.equipment_id = ?')
         params.append(equipment_id)
     where_clause = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
+    # created_by_display_name — резолвленное «человеческое» имя автора:
+    # если у пользователя есть crew_id и запись в crew существует, берём
+    # crew.full_name, иначе fallback на username. created_by_username
+    # оставлен для обратной совместимости (используется в e2e helpers).
     cur.execute(f'''
         SELECT t.*, e.name AS equipment_name, u.username AS created_by_username,
+               COALESCE(c.full_name, u.username) AS created_by_display_name,
                (SELECT f.id FROM failure f WHERE f.ticket_id = t.id LIMIT 1) AS failure_id
         FROM ticket t
         LEFT JOIN equipment e ON e.id = t.equipment_id
         LEFT JOIN users u ON u.id = t.created_by_user_id
+        LEFT JOIN crew c ON c.id = u.crew_id
         {where_clause}
         ORDER BY t.created_at DESC
     ''', params)
@@ -47,10 +53,12 @@ def list_tickets(conn, status: str = '', equipment_id=None):
 def get_ticket_by_id(conn, ticket_id: int):
     cur = conn.cursor()
     cur.execute('''
-        SELECT t.*, e.name AS equipment_name, u.username AS created_by_username
+        SELECT t.*, e.name AS equipment_name, u.username AS created_by_username,
+               COALESCE(c.full_name, u.username) AS created_by_display_name
         FROM ticket t
         LEFT JOIN equipment e ON e.id = t.equipment_id
         LEFT JOIN users u ON u.id = t.created_by_user_id
+        LEFT JOIN crew c ON c.id = u.crew_id
         WHERE t.id = ?
     ''', (ticket_id,))
     ticket = _row_to_dict(cur.fetchone())

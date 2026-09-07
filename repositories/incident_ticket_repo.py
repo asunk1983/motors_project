@@ -172,15 +172,21 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
 
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
+    # created_by_display_name — резолвленное «человеческое» имя автора:
+    # если у пользователя есть crew_id и запись в crew существует, берём
+    # crew.full_name, иначе fallback на username. created_by_username
+    # оставлен для обратной совместимости (используется в e2e helpers).
     cur = conn.execute(
         f'''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
                t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
                ln.name AS location_name,
-               u.username AS created_by_username
+               u.username AS created_by_username,
+               COALESCE(c.full_name, u.username) AS created_by_display_name
         FROM incident_ticket t
         LEFT JOIN location_node ln ON ln.id = t.location_node_id
         LEFT JOIN users u ON u.id = t.created_by_user_id
+        LEFT JOIN crew c ON c.id = u.crew_id
         {where_sql}
         ORDER BY t.created_at DESC
         ''',
@@ -209,10 +215,12 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
                t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
                ln.name AS location_name,
-               u.username AS created_by_username
+               u.username AS created_by_username,
+               COALESCE(c.full_name, u.username) AS created_by_display_name
         FROM incident_ticket t
         LEFT JOIN location_node ln ON ln.id = t.location_node_id
         LEFT JOIN users u ON u.id = t.created_by_user_id
+        LEFT JOIN crew c ON c.id = u.crew_id
         WHERE t.id = ?
         ''',
         (ticket_id,)

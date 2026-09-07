@@ -548,6 +548,9 @@
                             <option value="admin">Админ</option>
                             <option value="superadmin">Суперадмин</option>
                         </select>
+                        <select id="newCrewId" title="Человек из справочника (опционально)">
+                            <option value="">— Без привязки —</option>
+                        </select>
                         <button class="btn btn-primary btn-sm" onclick="adminCreateUser()">Создать</button>
                         <button class="btn btn-secondary btn-sm" onclick="document.getElementById('addUserForm').style.display='none'">Отмена</button>
                     </div>
@@ -839,6 +842,34 @@
              и её содержимое "вылезало" за пределы формы. Перенос сюда
              гарантирует правильное наложение независимо от того, из
              какой карточки открыта обрезка/добавление/просмотр фото. -->
+
+        <!-- Модальное окно смены привязки пользователя к записи crew
+             (admin → «Сменить привязку» в таблице). Лёгкий inline-выбор:
+             один <select> с «— Без привязки —» + список ФИО из справочника.
+             Тот же класс .modal, что у остальных карточек, чтобы попасть
+             под общие правила открытия/закрытия (modal-open, .active). -->
+        <div class="modal" id="adminChangeCrewModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><span class="icon icon-person"></span> Сменить привязку</h2>
+                    <button class="modal-close" onclick="closeAdminChangeCrewModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="adminChangeCrewUserId" value="">
+                    <div style="margin-bottom:12px">
+                        Пользователь: <b id="adminChangeCrewLabel"></b>
+                    </div>
+                    <label for="adminChangeCrewSelect" style="display:block;margin-bottom:4px">Человек из справочника crew</label>
+                    <select id="adminChangeCrewSelect" style="width:100%">
+                        <option value="">— Без привязки —</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAdminChangeCrewModal()">Отмена</button>
+                    <button type="button" class="btn btn-success" onclick="submitAdminChangeCrew()"><span class="icon icon-save"></span> Сохранить</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Модальное окно добавления фото (карточка двигателя) -->
         <div class="modal" id="photoAddModal">

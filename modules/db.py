@@ -482,6 +482,15 @@ def init_db(conn=None):
         # Auto-migration: добавляем новые колонки, если БД была создана ранее
         _ensure_column(cursor, 'users', 'last_login', 'TEXT')
         _ensure_column(cursor, 'users', 'last_edit', 'TEXT')
+        # crew_id — опциональная привязка учётки к записи в справочнике людей
+        # (crew). Не NOT NULL: не у каждого пользователя есть запись в crew
+        # (например, «внешние» учётки, ИТ-админы без отношения к цехам).
+        # В SQLite REFERENCES без ON DELETE ведёт себя как RESTRICT — при
+        # попытке удалить crew-запись, на которую кто-то ссылается, БД
+        # выкинет FOREIGN KEY constraint failed. Защита от сырой FK-ошибки
+        # в UI — в repositories/crew_repo.py::is_referenced (дополнительно
+        # проверяет наличие users.crew_id).
+        _ensure_column(cursor, 'users', 'crew_id', 'INTEGER REFERENCES crew(id)')
         _ensure_column(cursor, 'engines', 'created_at', 'TEXT')
         _ensure_column(cursor, 'engines', 'updated_at', 'TEXT')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_engines_updated_at ON engines(updated_at)')

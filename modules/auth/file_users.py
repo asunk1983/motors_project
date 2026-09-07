@@ -89,8 +89,13 @@ def _next_file_user_id():
     return max(ids) + 1
 
 
-def create_file_user(username, password, role='user'):
-    """Создать файлового пользователя. Возвращает id."""
+def create_file_user(username, password, role='user', crew_id=None):
+    """Создать файлового пользователя. Возвращает id.
+
+    crew_id — опциональная привязка к записи справочника crew. Хранится
+    прямо в JSON, без FOREIGN KEY (JSON-хранилище не валидируется СУБД);
+    валидация существования crew_id — на стороне роута (routes/auth.py).
+    """
     username = (username or '').strip()
     if not username or not password:
         raise ValueError('Логин и пароль обязательны')
@@ -108,7 +113,8 @@ def create_file_user(username, password, role='user'):
         'password_hash': hash_password(password),
         'role': role,
         'created_at': now,
-        'last_edit': now
+        'last_edit': now,
+        'crew_id': crew_id,
     })
     _save_file_users(users)
     return uid
@@ -151,3 +157,47 @@ def update_file_user_last_login(user_id):
     if changed:
         _save_file_users(users)
     return changed
+
+
+def _attach_file_display_name(conn, user_dict):
+    """Резолвит display_name для файлового юзера: crew_id берётся прямо
+    из JSON-записи, full_name — из БД (через db_users.resolve_display_name).
+    crew_id может отсутствовать в старых JSON-записях — нормализуем в None."""
+    if user_dict is None:
+        return None
+    crew_id = user_dict.get('crew_id')
+    # Старые записи без crew_id: считать None (а не пропускать отсутствующий ключ).
+    user_dict['crew_id'] = crew_id
+    # Импорт здесь, чтобы не было циклической зависимости на уровне модуля
+    # (db_users.py тоже импортирует file_users для _load_file_users).
+    from modules.auth.db_users import resolve_display_name
+    user_dict['display_name'] = resolve_display_name(
+        conn, crew_id, user_dict.get('username', '')
+    )
+    return user_dict
+
+
+def update_file_user_crew_id(user_id, crew_id):
+    """Обновляет привязку файлового пользователя к crew. crew_id=None —
+    отвязать. last_edit обновляется. Возвращает True если запись найдена."""
+    users = _load_file_users()
+    changed = False
+    for u in users:
+        if u.get('id') == user_id:
+            u['crew_id'] = crew_id
+            u['last_edit'] = datetime.now().isoformat()
+            changed = True
+            break
+    if changed:
+        _save_file_users(users)
+    return changed
+
+
+def is_file_crew_referenced(crew_id):
+    """True, если хотя бы один файловый пользователь привязан к crew_id.
+    Используется в routes/crew_routes.py::delete_crew_route как дополнение
+    к repositories/crew_repo.is_referenced (тот проверяет только БД)."""
+    for u in _load_file_users():
+        if u.get('crew_id') == crew_id:
+            return True
+    return False

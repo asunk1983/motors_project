@@ -6,6 +6,7 @@
 from flask import Blueprint, request, jsonify
 
 from modules.db import db_connection
+from modules.auth import auth as auth_module
 from repositories import crew_repo
 from services import incident_service
 
@@ -66,6 +67,13 @@ def delete_crew_route(crew_id):
     with db_connection() as conn:
         if crew_repo.get_by_id(conn, crew_id) is None:
             return jsonify({'error': 'Человек не найден'}), 404
+        # crew_repo.is_referenced проверяет БД (incident_ticket_initiator/executor
+        # + users.crew_id). Отдельно нужно проверить файловых пользователей —
+        # они живут в config/users.json, БД-метод их не видит.
+        if auth_module.is_file_crew_referenced(crew_id):
+            return jsonify({
+                'error': 'Этот человек привязан к учётной записи (config/users.json) — удаление невозможно'
+            }), 400
         ok, error = incident_service.delete_crew(conn, crew_id)
         if not ok:
             return jsonify({'error': error or 'Не удалось удалить'}), 400

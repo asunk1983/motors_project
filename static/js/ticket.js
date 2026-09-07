@@ -208,7 +208,7 @@ function renderTicketDetail(ticket, failure) {
     let html = `
         <div class="ticket-detail-row"><span class="k">Тема</span><span>${escapeHtml(ticket.title)}</span></div>
         <div class="ticket-detail-row"><span class="k">Оборудование</span><span>${escapeHtml(ticket.equipment_name || '—')}</span></div>
-        <div class="ticket-detail-row"><span class="k">Инициатор</span><span>${escapeHtml(ticket.created_by_username || '—')}</span></div>
+        <div class="ticket-detail-row"><span class="k">Инициатор</span><span>${escapeHtml(ticket.created_by_display_name || ticket.created_by_username || '—')}</span></div>
         <div class="ticket-detail-row"><span class="k">Приоритет</span>${priorityBadge(ticket.priority)}</div>
         <div class="ticket-detail-row"><span class="k">Статус</span>${statusBadge(ticket.status)}</div>
         <div class="ticket-detail-row"><span class="k">Создана</span><span>${escapeHtml((ticket.created_at || '').slice(0, 16).replace('T', ' '))}</span></div>

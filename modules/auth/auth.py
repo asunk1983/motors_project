@@ -31,8 +31,10 @@ from modules.auth.db_users import (
     list_users,
     delete_user,
     update_user_password,
+    update_user_crew_id,
     update_last_login,
     count_users,
+    resolve_display_name,
 )
 
 # Файловые пользователи и токены
@@ -41,6 +43,8 @@ from modules.auth.file_users import (
     delete_file_user,
     update_file_user_password,
     update_file_user_last_login,
+    update_file_user_crew_id,
+    is_file_crew_referenced,
     _load_file_users,
     _save_file_users,
     _load_file_tokens,
@@ -74,10 +78,12 @@ __all__ = [
     'hash_password', 'verify_password', 'hash_token', 'generate_token',
     # db_users
     'create_user', 'get_user_by_username', 'get_user_by_id', 'list_users',
-    'delete_user', 'update_user_password', 'update_last_login', 'count_users',
+    'delete_user', 'update_user_password', 'update_user_crew_id',
+    'update_last_login', 'count_users', 'resolve_display_name',
     # file_users
     'create_file_user', 'delete_file_user', 'update_file_user_password',
-    'update_file_user_last_login',
+    'update_file_user_last_login', 'update_file_user_crew_id',
+    'is_file_crew_referenced',
     '_load_file_users', '_save_file_users', '_load_file_tokens', '_save_file_tokens',
     '_next_file_user_id', '_migrate_negative_file_user_ids',
     'FILE_USER_ID_OFFSET', 'FILE_USERS', 'FILE_TOKENS', 'CONFIG_DIR',

@@ -212,9 +212,16 @@ function applyRoleUI() {
     restoreActiveTab();
 
     // Обновляем кнопку выхода и имя пользователя в топбаре.
+    // display_name — резолвленное ФИО из crew (если привязан), иначе username.
+    // title показывает сырой username, чтобы при наведении было видно «кто
+    // именно» для пользователей, у которых display_name совпадает с username.
     const userNameEl = document.getElementById('userName');
     if (userNameEl) {
-        userNameEl.textContent = user.username || '';
+        const name = user.display_name || user.username || '';
+        userNameEl.textContent = name;
+        if (user.username && user.username !== name) {
+            userNameEl.title = user.username;
+        }
     }
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
@@ -235,7 +242,8 @@ function applyRoleUI() {
         : user.role === 'admin' ? 'админ'
         : user.role === 'reader' ? 'читатель'
         : 'пользователь';
-    badge.innerHTML = `<span class="icon icon-person"></span> ${escapeHtml(user.username || '')} <span class="auth-role">${roleLabel}</span> <button id="logout-btn" class="logout-btn">Выйти</button>`;
+    const displayName = user.display_name || user.username || '';
+    badge.innerHTML = `<span class="icon icon-person"></span> ${escapeHtml(displayName)} <span class="auth-role">${roleLabel}</span> <button id="logout-btn" class="logout-btn">Выйти</button>`;
     const lb = document.getElementById('logout-btn');
     if (lb) lb.addEventListener('click', logout);
     // Опции admin/superadmin в #newRole видимы только суперадмину.
@@ -298,7 +306,16 @@ function authInit() {
 
 function showAddUserForm() {
     const f = document.getElementById('addUserForm');
-    f.style.display = f.style.display === 'none' ? '' : 'none';
+    const isOpening = f.style.display === 'none';
+    f.style.display = isOpening ? '' : 'none';
+    if (isOpening) {
+        // При первом открытии формы — подтянуть справочник crew для селекта.
+        // Если /api/crew вернёт пусто (никого не завели) — оставляем только
+        // «— Без привязки —», форма всё равно работает.
+        ensureAdminCrewCache().then(() => {
+            _populateCrewSelect(document.getElementById('newCrewId'), null);
+        });
+    }
 }
 
 async function loadAdminUsers() {
@@ -317,11 +334,21 @@ async function loadAdminUsers() {
         }
         const me = getAuthUser();
         list.innerHTML = `<table class="data-table admin-users-table">
-            <thead><tr><th>ID</th><th>Логин</th><th>Роль</th><th>Активных сессий</th><th>Создан</th><th>Последний вход</th><th>Последнее изменение</th><th></th></tr></thead>
+            <thead><tr><th>ID</th><th>Имя</th><th>Логин</th><th>Роль</th><th>Активных сессий</th><th>Создан</th><th>Последний вход</th><th>Последнее изменение</th><th></th></tr></thead>
             <tbody>
-            ${users.map(u => `
+            ${users.map(u => {
+                // display_name гарантированно приходит (fallback на username
+                // делается в db_users._attach_display_name), но на всякий
+                // случай фолбэчимся ещё раз здесь.
+                const displayName = u.display_name || u.username || '';
+                // В prompt смены пароля показываем «человеческое» имя — если
+                // display_name совпадает с username (нет привязки к crew),
+                // подпись всё равно не врёт.
+                const labelForPrompt = displayName || u.username;
+                return `
                 <tr>
                     <td>${u.id}</td>
+                    <td>${escapeHtml(displayName)}</td>
                     <td>${escapeHtml(u.username)}</td>
                     <td>${u.role === 'superadmin' ? '<span class="icon icon-workspace-premium"></span> суперадмин' : (u.role === 'admin' ? '<span class="icon icon-shield"></span> админ' : (u.role === 'reader' ? '<span class="icon icon-visibility"></span> читатель' : 'пользователь'))}</td>
                     <td>${u.active_sessions || 0}</td>
@@ -329,11 +356,13 @@ async function loadAdminUsers() {
                     <td>${escapeHtml((u.last_login || '').slice(0, 10))}</td>
                     <td>${escapeHtml((u.last_edit || '').slice(0, 10))}</td>
                     <td class="col-action-narrow">
+                        <button class="btn btn-secondary btn-sm" onclick="promptChangeCrew(${u.id}, '${escapeHtml(u.username)}', ${u.crew_id == null ? 'null' : u.crew_id})" title="Сменить привязку к человеку из справочника"><span class="icon icon-person"></span></button>
                         <button class="btn btn-warning btn-sm" onclick="adminRevokeUser(${u.id})" title="Сбросить все сессии"><span class="icon icon-sync"></span></button>
-                        <button class="btn btn-secondary btn-sm" onclick="promptChangePassword(${u.id}, '${escapeHtml(u.username)}')" title="Сменить пароль"><span class="icon icon-lock"></span></button>
+                        <button class="btn btn-secondary btn-sm" onclick="promptChangePassword(${u.id}, '${escapeHtml(labelForPrompt)}')" title="Сменить пароль"><span class="icon icon-lock"></span></button>
                         ${u.id !== me.id && (me.role === 'superadmin' || u.role === 'user') ? `<button class="btn btn-danger btn-sm" onclick="adminDeleteUser(${u.id})"><span class="icon icon-delete"></span></button>` : ''}
                     </td>
-                </tr>`).join('')}
+                </tr>`;
+            }).join('')}
             </tbody>
         </table>`;
     } catch (e) {
@@ -342,7 +371,11 @@ async function loadAdminUsers() {
 }
 
 function promptChangePassword(userId, username) {
-    const password = prompt(`Новый пароль для ${username || 'пользователя'}:`);
+    // username здесь — на самом деле уже display_name (см. loadAdminUsers
+    // ниже: мы передаём туда именно его). На случай вызовов из других мест
+    // всё равно фолбэчимся на сам логин, если пусто.
+    const label = username || 'пользователя';
+    const password = prompt(`Новый пароль для ${label}:`);
     if (!password) return;
     if (password.length < 6) {
         showToast('Пароль должен быть не короче 6 символов', 'error');
@@ -368,18 +401,152 @@ async function adminChangePassword(userId, password) {
     }
 }
 
+// ----- Привязка пользователя к записи crew (ФИО из справочника) -----
+// Кэш crew — лениво подгружается при первом обращении (открытие формы
+// создания или первая смена привязки). Полный список небольшой, держать
+// в памяти незатратно; повторные GET не идут.
+let adminCrewCache = null;
+let adminCrewCachePromise = null;
+
+async function ensureAdminCrewCache() {
+    if (Array.isArray(adminCrewCache)) return adminCrewCache;
+    if (adminCrewCachePromise) return adminCrewCachePromise;
+    adminCrewCachePromise = (async () => {
+        try {
+            const resp = await apiFetch('/api/crew');
+            const data = await parseJsonResponse(resp);
+            if (!resp.ok || !Array.isArray(data)) {
+                showToast(data && data.error ? data.error : 'Не удалось загрузить справочник людей', 'error');
+                adminCrewCache = [];
+                return adminCrewCache;
+            }
+            adminCrewCache = data;
+            return adminCrewCache;
+        } catch (e) {
+            showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
+            adminCrewCache = [];
+            return adminCrewCache;
+        } finally {
+            adminCrewCachePromise = null;
+        }
+    })();
+    return adminCrewCachePromise;
+}
+
+function _crewOptionLabel(c) {
+    // Подпись в <option>: «Иванов Пётр Сергеевич — инженер (Цех №1)»
+    // если есть position/workshop; иначе просто ФИО.
+    const parts = [c.full_name];
+    const tail = [c.position, c.workshop].filter(Boolean).join(', ');
+    if (tail) parts.push('— ' + tail);
+    return parts.join(' ');
+}
+
+function _populateCrewSelect(selectEl, currentCrewId) {
+    if (!selectEl) return;
+    const opts = ['<option value="">— Без привязки —</option>'];
+    for (const c of (adminCrewCache || [])) {
+        const selected = (currentCrewId != null && Number(c.id) === Number(currentCrewId)) ? ' selected' : '';
+        opts.push(`<option value="${c.id}"${selected}>${escapeHtml(_crewOptionLabel(c))}</option>`);
+    }
+    selectEl.innerHTML = opts.join('');
+}
+
+function _setAddUserFormBusy(busy) {
+    // Простая защита от двойного клика «Создать», пока идёт запрос.
+    const btn = document.querySelector('#addUserForm .btn-primary');
+    if (btn) {
+        btn.disabled = !!busy;
+        btn.style.opacity = busy ? '0.6' : '';
+    }
+}
+
+async function promptChangeCrew(userId, username, currentCrewId) {
+    // Лёгкий inline-выбор (в стиле promptChangePassword — без отдельной
+    // модалки, чтобы не раздувать админку): показываем модалку с <select>,
+    // заполненным по кэшу /api/crew. Выбор «— Без привязки —» (value="")
+    // означает PATCH {crew_id: null}.
+    const crew = await ensureAdminCrewCache();
+    const modal = document.getElementById('adminChangeCrewModal');
+    if (!modal) {
+        // Fallback: если HTML-разметка модалки не подгрузилась — старый prompt().
+        const input = prompt(
+            `ID записи crew для ${username || 'пользователя'} (0 — без привязки):`,
+            currentCrewId == null ? '0' : String(currentCrewId)
+        );
+        if (input === null) return;
+        const v = input.trim();
+        let newVal;
+        if (v === '' || v === '0') newVal = null;
+        else {
+            const n = parseInt(v, 10);
+            if (!Number.isFinite(n) || n <= 0) {
+                showToast('Введите целое положительное число или 0', 'error');
+                return;
+            }
+            newVal = n;
+        }
+        await adminUpdateUserCrew(userId, newVal);
+        return;
+    }
+    // Штатный путь — модалка
+    document.getElementById('adminChangeCrewUserId').value = String(userId);
+    document.getElementById('adminChangeCrewLabel').textContent = username || '';
+    const select = document.getElementById('adminChangeCrewSelect');
+    _populateCrewSelect(select, currentCrewId);
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
+}
+
+async function adminUpdateUserCrew(userId, crewId) {
+    try {
+        const resp = await apiFetch(`/api/auth/admin/users/${userId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ crew_id: crewId })
+        });
+        const data = await parseJsonResponse(resp);
+        if (!resp.ok) {
+            showToast(data.error || 'Ошибка смены привязки', 'error');
+            return;
+        }
+        showToast('Привязка обновлена', 'success');
+        loadAdminUsers();
+    } catch (e) {
+        showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
+    }
+}
+
+function closeAdminChangeCrewModal() {
+    const modal = document.getElementById('adminChangeCrewModal');
+    if (modal) modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+}
+
+async function submitAdminChangeCrew() {
+    const userId = parseInt(document.getElementById('adminChangeCrewUserId').value, 10);
+    const raw = document.getElementById('adminChangeCrewSelect').value;
+    const crewId = raw === '' ? null : parseInt(raw, 10);
+    if (!Number.isFinite(userId)) return;
+    closeAdminChangeCrewModal();
+    await adminUpdateUserCrew(userId, crewId);
+}
+
 async function adminCreateUser() {
     const username = document.getElementById('newUsername').value.trim();
     const password = document.getElementById('newPassword').value;
     const role = document.getElementById('newRole').value;
+    // crew_id опционален: пустая строка в <select> = null (без привязки).
+    const crewRaw = (document.getElementById('newCrewId') || {}).value;
+    const crew_id = crewRaw === '' || crewRaw == null ? null : parseInt(crewRaw, 10);
     if (!username || !password) {
         showToast('Укажите логин и пароль', 'error');
         return;
     }
+    _setAddUserFormBusy(true);
     try {
         const resp = await apiFetch('/api/auth/admin/users', {
             method: 'POST',
-            body: JSON.stringify({ username, password, role })
+            body: JSON.stringify({ username, password, role, crew_id })
         });
         const data = await parseJsonResponse(resp);
         if (!resp.ok) {
@@ -388,11 +555,15 @@ async function adminCreateUser() {
         }
         document.getElementById('newUsername').value = '';
         document.getElementById('newPassword').value = '';
+        const crewSel = document.getElementById('newCrewId');
+        if (crewSel) crewSel.value = '';
         document.getElementById('addUserForm').style.display = 'none';
         showToast('Пользователь создан', 'success');
         loadAdminUsers();
     } catch (e) {
         showToast('Сетевая ошибка', 'error');
+    } finally {
+        _setAddUserFormBusy(false);
     }
 }
 
