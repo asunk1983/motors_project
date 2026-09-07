@@ -258,9 +258,19 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
         фильтрации по узлу.
 
     unassigned=True — отдельная ветка (несовместимая с location_node_id,
-    вызывающий выбирает одно из двух): показывает записи БЕЗ единого
-    места вообще — ни одного placement, ни legacy location_node_id.
-    Соответствует псевдо-узлу "Без места" в equipmentLocationTree.js.
+    вызывающий выбирает одно из двух): показывает записи, у которых
+    НЕТ ни одной строки в equipment_placement. Legacy-поле
+    equipment.location_node_id НАМЕРЕННО не участвует в этом условии —
+    оно read-only и может расходиться с фактом наличия placement'ов
+    (см. общую доктрину выше про "legacy-поле остаётся в данных для
+    совместимости, но в UX-фильтр больше не входит", а также
+    симметричное условие в get_equipment_location_counts, где
+    счётчик 'unassigned' строится по тому же NOT EXISTS placement).
+    Без этого согласования счётчик в дереве и список по клику на
+    "Без места" расходились бы: счётчик показывал бы N записей без
+    placement, а список был бы пустым для всех записей с заполненным
+    legacy location_node_id. Соответствует псевдо-узлу "Без места"
+    в equipmentLocationTree.js.
 
     sort/order — ТЗ раздел 3.2: whitelist колонок (EQUIPMENT_SORT_COLUMNS)
     во избежание SQL-инъекции через имя колонки (нельзя параметризовать
@@ -282,10 +292,12 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
         conditions.append('(e.name LIKE ? OR e.article LIKE ?)')
         params += [f'%{search}%'] * 2
     if unassigned:
-        conditions.append('''(
-            NOT EXISTS (SELECT 1 FROM equipment_placement ep0 WHERE ep0.equipment_id = e.id)
-            AND e.location_node_id IS NULL
-        )''')
+        # Условие симметрично счётчику 'unassigned' в
+        # get_equipment_location_counts — только NOT EXISTS placement,
+        # без проверки legacy location_node_id (см. docstring выше).
+        conditions.append(
+            'NOT EXISTS (SELECT 1 FROM equipment_placement ep0 WHERE ep0.equipment_id = e.id)'
+        )
     elif location_node_id:
         subtree_ids = location_repo.get_subtree_ids(conn, location_node_id)
         if not subtree_ids:
