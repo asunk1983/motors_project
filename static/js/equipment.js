@@ -24,6 +24,11 @@ let equipmentPageSize = 20; // пересчитывается динамичес
 // добавления/редактирования), при "Все типы" — пустой массив
 // (колонки не рисуются, колонка "Тип" показывается).
 let equipmentDisplayAttrs = [];
+// Модульная ссылка на ResizeObserver — нужна loadEquipmentTab(), чтобы
+// отключать наблюдателя на время загрузки (иначе его callback рендерит
+// таблицу из устаревшего allEquipment с прошлого захода). См. подробнее
+// в loadEquipmentTab и в комментарии к new ResizeObserver ниже.
+let equipmentResizeObserver = null;
 
 // ===== Фото (ТЗ 3.3) =====
 // pendingPhotoFiles — тот же паттерн, что exportManager.js для двигателей:
@@ -44,6 +49,21 @@ let equipmentSelectedExportIds = new Set();
 // ---------------------------------------------------------------------
 
 async function loadEquipmentTab() {
+    // Отключаем ResizeObserver на время всей цепочки загрузки. Без
+    // этого при заходе на вкладку "Оборудование" observer срабатывает
+    // на показ wrapper'а (display:none → block) и его callback рендерит
+    // таблицу из устаревшего allEquipment (кэш с прошлого захода) — это
+    // создаёт "двойное мигание": старые данные → "Загрузка..." → свежие
+    // данные. Размещаем disconnect() первой строкой и до всех await'ов,
+    // потому что switchTab() синхронно переключает .active и в том же
+    // синхронном стеке вызывает loadEquipmentTab(), а ResizeObserver в
+    // браузере не может доставить callback, пока текущий синхронный
+    // JS-код не отработает — это исключает гонку полностью.
+    // Re-observe делается в самом конце loadEquipmentList (последний
+    // шаг цепочки) — см. там.
+    if (equipmentResizeObserver) {
+        equipmentResizeObserver.disconnect();
+    }
     await loadEquipmentTypes();
     await loadAttributeDefinitions();
     if (typeof loadEquipmentLocationTree === 'function') await loadEquipmentLocationTree();
@@ -543,6 +563,16 @@ async function loadEquipmentList() {
         const catchColspan = 7 - (typeFilter ? 1 : 0);
         body.innerHTML = `<tr><td colspan="${catchColspan}" class="no-data">${escapeHtml(e && e.message ? e.message : 'Сетевая ошибка')}</td></tr>`;
     }
+    // Re-observe в любом исходе (успех или ошибка) — после финального
+    // applyDynamicEquipmentPageSize в try или после сообщения об ошибке
+    // в catch. Сам observe() мгновенно дёрнет один callback с реальной
+    // высотой wrapper'а; applyDynamicEquipmentPageSize сделает early
+    // exit если pageSize не изменился, либо корректно перерисует.
+    // Парный disconnect() стоит первой строкой в loadEquipmentTab().
+    if (equipmentResizeObserver) {
+        const wrapper = document.getElementById('equipmentTableWrapper');
+        if (wrapper) equipmentResizeObserver.observe(wrapper);
+    }
 }
 
 function sortEquipmentTable(field) {
@@ -812,14 +842,25 @@ function applyDynamicEquipmentPageSize() {
     renderEquipmentTable();
 }
 
-const debouncedApplyDynamicEquipmentPageSize = typeof debounce === 'function'
-    ? debounce(applyDynamicEquipmentPageSize, 150)
-    : applyDynamicEquipmentPageSize;
-
+// ResizeObserver на #equipmentTableWrapper — для динамического пересчёта
+// equipmentPageSize при ресайзе окна / drag-resize панели, а также при
+// показе вкладки (display:none → block). Раньше callback был обёрнут в
+// debounce(150мс) — это создавало две проблемы:
+//   1) При заходе на вкладку "Оборудование" debounce-таймер мог
+//      сработать ДО loadEquipmentList и отрендерить таблицу из
+//      устаревшего allEquipment (кэш с прошлого захода) — отсюда
+//      "двойное мигание": старые данные → "Загрузка..." → свежие.
+//   2) debounce-таймер жил в замыкании common.js::debounce без
+//      handle'а наружу — нельзя было его отменить через disconnect().
+// Сейчас callback синхронный (applyDynamicEquipmentPageSize сама делает
+// early exit на if (next === equipmentPageSize) return; — идемпотентна
+// на drag-resize), а loadEquipmentTab делает disconnect первой строкой
+// на время загрузки и observe в самом конце loadEquipmentList.
 document.addEventListener('DOMContentLoaded', function () {
     const equipmentTableWrapperEl = document.getElementById('equipmentTableWrapper');
     if (equipmentTableWrapperEl && typeof ResizeObserver !== 'undefined') {
-        new ResizeObserver(debouncedApplyDynamicEquipmentPageSize).observe(equipmentTableWrapperEl);
+        equipmentResizeObserver = new ResizeObserver(applyDynamicEquipmentPageSize);
+        equipmentResizeObserver.observe(equipmentTableWrapperEl);
     }
 });
 
