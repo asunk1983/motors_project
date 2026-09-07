@@ -127,6 +127,23 @@ function formatRuDateTime(iso) {
     return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// Перенесено из backupManager.js при разделении на backup.js/info.js —
+// используется и резервными копиями, и пожеланиями (вкладка "Инфо"),
+// поэтому теперь общий хелпер, а не локальный для одного модуля.
+function _formatBackupDate(iso) {
+    // Экранируем в ЛЮБОЙ ветке, не только fallback — см. аналогичный фикс
+    // _formatRuDate() в лог изменений: сейчас backups/ пополняется только
+    // доверенным _build_backup_zip_bytes() на бэкенде, но если этот
+    // инвариант когда-нибудь сломается (например, появится путь, кладущий
+    // туда содержимое из загруженного пользователем файла), рендер уже
+    // будет безопасен по умолчанию, а не только "пока никто не завёл
+    // такой путь".
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return escapeHtml(iso);
+    return escapeHtml(d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }));
+}
+
 // ===== РАЗВОРОТ МОДАЛКИ КАРТОЧКИ НА ВЕСЬ ЭКРАН =====
 // Как в обычном оконном приложении: первое нажатие разворачивает,
 // повторное — возвращает размер, который был до разворачивания. Если
