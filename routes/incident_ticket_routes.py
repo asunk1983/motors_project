@@ -115,6 +115,7 @@ def update_ticket_route(ticket_id):
             executor_ids=executor_ids,
             closed_at=data.get('closed_at'),
             closed_at_explicitly_set=('closed_at' in data),
+            actor=getattr(request, 'current_user', None),
         )
         if not ok:
             status_code = 404 if error == 'Заявка не найдена' else 400

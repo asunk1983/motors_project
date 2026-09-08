@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 
 from repositories import location_repo
+from modules.audit import log_field_changes
 
 
 def _row_to_dict(row):
@@ -467,8 +468,38 @@ def create_equipment(conn, data: dict) -> int:
     return cur.lastrowid
 
 
-def update_equipment(conn, equipment_id: int, data: dict) -> bool:
+def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). None —
+    правка без привязки к пользователю."""
     now = datetime.now().isoformat()
+
+    new_specs_json = json.dumps(data.get('specs', {}), ensure_ascii=False)
+    changed_input = {
+        'equipment_type_id': data['equipment_type_id'],
+        'name': data['name'],
+        'article': data.get('article'),
+        'manufacturer': data.get('manufacturer'),
+        'workshop': data.get('workshop'),
+        'location': data.get('location'),
+        'location_node_id': data.get('location_node_id'),
+        'criticality': data.get('criticality'),
+        'installed_at': data.get('installed_at'),
+        'specs_json': new_specs_json,
+        'note': data.get('note'),
+    }
+    # Сырые текущие значения колонок (не через get_equipment_by_id — та
+    # функция может отдавать преобразованные поля, например specs как
+    # распарсенный dict вместо specs_json-строки; для честного диффа со
+    # значениями, которые реально уйдут в UPDATE, читаем колонки как есть).
+    old_row_raw = conn.execute(
+        'SELECT equipment_type_id, name, article, manufacturer, workshop, '
+        'location, location_node_id, criticality, installed_at, specs_json, note '
+        'FROM equipment WHERE id = ?', (equipment_id,)
+    ).fetchone()
+    old_row = {k: old_row_raw[k] for k in old_row_raw.keys()} if old_row_raw else None
+    log_field_changes(conn, 'equipment', equipment_id, actor, old_row, changed_input)
+
     cur = conn.cursor()
     cur.execute('''
         UPDATE equipment SET
@@ -480,7 +511,7 @@ def update_equipment(conn, equipment_id: int, data: dict) -> bool:
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
         data.get('workshop'), data.get('location'), data.get('location_node_id'),
         data.get('criticality'), data.get('installed_at'),
-        json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, equipment_id,
+        new_specs_json, data.get('note'), now, equipment_id,
     ))
     conn.commit()
     return cur.rowcount > 0

@@ -79,10 +79,14 @@ def update_ticket(conn: sqlite3.Connection, ticket_id: int, *, location_node_id:
                    priority: str | None = None, status: str | None = None,
                    initiator_ids: list[int] | None = None, executor_ids: list[int] | None = None,
                    closed_at: str | None = None,
-                   closed_at_explicitly_set: bool = False) -> tuple[bool, str | None]:
+                   closed_at_explicitly_set: bool = False,
+                   actor: dict | None = None) -> tuple[bool, str | None]:
     """closed_at_explicitly_set — отличает "поле не передавали" (None,
     авто-логика по смене статуса) от "поле передали и хотят NULL"
-    (пользователь вручную очистил дату закрытия в форме)."""
+    (пользователь вручную очистил дату закрытия в форме).
+
+    actor — dict текущего пользователя (request.current_user), прокидывается
+    в incident_ticket_repo.update() для журнала изменений."""
     current = incident_ticket_repo.get_by_id(conn, ticket_id)
     if current is None:
         return False, 'Заявка не найдена'
@@ -110,7 +114,7 @@ def update_ticket(conn: sqlite3.Connection, ticket_id: int, *, location_node_id:
         resolved_closed_at = _resolve_closed_at(current['status'], new_status, current['closed_at'], None)
 
     incident_ticket_repo.update(
-        conn, ticket_id,
+        conn, ticket_id, actor=actor,
         location_node_id=location_node_id, problem=problem, solution=solution,
         priority=priority, status=status, closed_at=resolved_closed_at
     )

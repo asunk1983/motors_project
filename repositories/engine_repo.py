@@ -6,6 +6,7 @@
 from datetime import datetime
 
 from modules.db import ENGINE_COLUMNS_ORDERED
+from modules.audit import log_field_changes
 
 
 def _row_to_dict(row):
@@ -339,7 +340,7 @@ def create(conn, data: dict) -> int:
         raise
 
 
-def update(conn, engine_id: int, data: dict) -> bool:
+def update(conn, engine_id: int, data: dict, actor: dict | None = None) -> bool:
     """Обновить двигатель. Возвращает True если строка была изменена.
 
     updated_at проставляется на КАЖДОЕ сохранение карточки — характеристики,
@@ -347,16 +348,27 @@ def update(conn, engine_id: int, data: dict) -> bool:
     routes/engines.py::update_engine), поэтому "сохранение карточки" и
     "изменение updated_at" — синонимы. created_at не трогается: он
     неизменяем после create() (и, как и там, отфильтрован из клиентского
-    payload заранее, т.к. отсутствует в ENGINE_COLUMNS_ORDERED)."""
+    payload заранее, т.к. отсутствует в ENGINE_COLUMNS_ORDERED).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). None —
+    правка без привязки к пользователю (тогда changed_by_* в audit_log
+    пишутся NULL)."""
     now = datetime.now().isoformat()
     set_parts = []
     values = []
+    changed_input = {}
     for col in ENGINE_COLUMNS_ORDERED:
         if col == 'id':
             continue
         if col in data:
             set_parts.append(f'{col} = ?')
             values.append(data[col])
+            changed_input[col] = data[col]
+
+    if changed_input:
+        old_row = get_by_id(conn, engine_id)
+        log_field_changes(conn, 'engine', engine_id, actor, old_row, changed_input)
 
     set_parts.append('updated_at = ?')
     values.append(now)

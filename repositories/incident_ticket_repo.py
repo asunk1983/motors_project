@@ -4,6 +4,7 @@
 import sqlite3
 
 from repositories import incident_equipment_repo, location_repo
+from modules.audit import log_field_changes
 
 
 # ---------------------------------------------------------------------
@@ -256,27 +257,43 @@ def create(conn: sqlite3.Connection, location_node_id: int, problem: str, create
     return cur.lastrowid
 
 
-def update(conn: sqlite3.Connection, ticket_id: int, **fields) -> bool:
+def update(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None, **fields) -> bool:
     """fields — любые из: location_node_id, problem, solution, priority,
     status, closed_at. None-значения игнорируются (кроме closed_at,
     которому явный None нужно уметь ставить при возврате в "В работе" —
-    для этого используется отдельный именованный параметр)."""
+    для этого используется отдельный именованный параметр).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). None —
+    правка без привязки к пользователю."""
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     allowed = {'location_node_id', 'problem', 'solution', 'priority', 'status'}
     set_parts, params = [], []
+    changed_input = {}
     for key, value in fields.items():
         if key in allowed and value is not None:
             set_parts.append(f'{key} = ?')
             params.append(value)
+            changed_input[key] = value
     if 'closed_at' in fields:
         # closed_at может быть осмысленно выставлен в NULL (сброс при
         # возврате статуса в 'in_progress') — обрабатывается отдельно от
         # общего None-пропуска выше.
         set_parts.append('closed_at = ?')
         params.append(fields['closed_at'])
+        changed_input['closed_at'] = fields['closed_at']
     if not set_parts:
         return False
+
+    if changed_input:
+        old_row_raw = conn.execute(
+            'SELECT location_node_id, problem, solution, priority, status, closed_at '
+            'FROM incident_ticket WHERE id = ?', (ticket_id,)
+        ).fetchone()
+        old_row = {k: old_row_raw[k] for k in old_row_raw.keys()} if old_row_raw else None
+        log_field_changes(conn, 'incident_ticket', ticket_id, actor, old_row, changed_input)
+
     # "Изменено" в шапке карточки (incidents.js::renderIncidentDetailToolbar)
     # держим актуальным на любое реальное изменение — тот же принцип, что
     # updated_at у equipment (см. update_equipment в equipment_repo.py).

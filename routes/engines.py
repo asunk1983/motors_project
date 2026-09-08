@@ -112,7 +112,7 @@ def update_engine(engine_id):
         with db_connection() as conn:
             if not get_by_id(conn, engine_id):
                 return jsonify({'error': 'Двигатель не найден'}), 404
-            engine_update(conn, engine_id, clean)
+            engine_update(conn, engine_id, clean, actor=getattr(request, 'current_user', None))
             # Единая точка сохранения карточки: характеристики + режимы +
             # работы одним запросом (см. engineCard.js::saveDetailEdit).
             # 'modes'/'works' в data — полная замена списка (DELETE+INSERT,

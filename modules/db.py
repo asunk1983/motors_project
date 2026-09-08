@@ -148,6 +148,40 @@ def init_db(conn=None):
             )
         ''')
 
+        # --- Журнал изменений (audit_log) ------------------------------
+        # Единая точка записи диффов по ВСЕМ таблицам проекта (не только
+        # engines) — пишется из modules/audit.py::log_field_changes,
+        # вызываемого из repository-функций обновления (engine_repo.update,
+        # equipment_repo.update_equipment, incident_ticket_repo.update и
+        # далее по списку остальных repo — единой обёртки над UPDATE в
+        # проекте нет, каждая repo-функция подключает helper сама).
+        # Одна строка = одно изменившееся поле одной записи (не одна
+        # строка на весь UPDATE) — так видно именно что изменилось, а не
+        # только факт правки. entity_type/entity_id — универсальный ключ
+        # ('engine'/5, 'equipment'/12, 'incident_ticket'/3, ...), без
+        # отдельной таблицы на каждую сущность.
+        # changed_by_display_name денормализовано (не JOIN на users/crew
+        # при каждом чтении журнала) — имя фиксируется на момент правки,
+        # не меняется задним числом, если человека потом переименуют или
+        # удалят его учётку.
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                entity_type TEXT NOT NULL,
+                entity_id INTEGER NOT NULL,
+                field_name TEXT NOT NULL,
+                old_value TEXT,
+                new_value TEXT,
+                changed_by_user_id INTEGER,
+                changed_by_display_name TEXT,
+                changed_at TEXT NOT NULL
+            )
+        ''')
+        # Индекс с самого начала (не догоняем постфактум на выросшей
+        # таблице) — под основной сценарий чтения журнала: история по
+        # конкретной записи, отсортированная по времени.
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id, changed_at)')
+
         # --- База знаний по отказам (справочники + статьи) --------------
         # Полностью автономна от engines/maintenance_works — намеренно.
         # Сейчас это отдельный, не привязанный к двигателям инструмент.

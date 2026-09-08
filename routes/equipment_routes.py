@@ -359,7 +359,7 @@ def update_equipment_route(equipment_id):
         with db_connection() as conn:
             if not get_equipment_by_id(conn, equipment_id):
                 return jsonify({'error': 'Оборудование не найдено'}), 404
-            update_equipment(conn, equipment_id, clean)
+            update_equipment(conn, equipment_id, clean, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'message': 'Оборудование обновлено'})
     except Exception as e:
         logger.exception('update_equipment_route failed')
