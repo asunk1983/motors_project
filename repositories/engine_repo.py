@@ -45,7 +45,8 @@ def get_works_for_engine(conn, engine_id: int):
     return get_all(conn, engine_id)
 
 
-def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
+def get_all(conn, limit: int = 30, offset: int = 0,
+            sort_by: str = 'location', sort_order: str = 'ASC',
             search_field: str = 'all', search_query: str = '',
             workshop: str = None, location: str = None, status: str = None):
     """Получить список двигателей с пагинацией, сортировкой и поиском.
@@ -65,24 +66,61 @@ def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
     используется дефолт 'reserve'. engines.status остаётся в SELECT как
     engines_status для обратной совместимости, но в JSON для фронта
     отдаётся именно пересчитанный status (см. SELECT-list).
+
+    sort_by/sort_order — сортировка через whitelist ALLOWED_SORT_FIELDS
+    (ниже), а не ручной словарь комбинаций asc/desc (как было раньше) —
+    безопаснее (sort_by больше не подставляется в SQL напрямую) и не
+    требует перечисления N полей × 2 направления при добавлении новых
+    сортируемых колонок (см. комбобокс "Столбцы" в static/js/catalog.js).
+    Неизвестный sort_by молча откатывается на 'location' (как и раньше
+    было дефолтом для отсутствующего ключа в sort_map).
     """
-    sort_map = {
-        'location_asc': 'location ASC',
-        'location_desc': 'location DESC',
-        'id_desc': 'id DESC',
-        'id_asc': 'id ASC',
-        'engine_type_asc': 'engine_type ASC',
-        'engine_type_desc': 'engine_type DESC',
-        'manufacturer_asc': 'manufacturer ASC',
-        'manufacturer_desc': 'manufacturer DESC',
-        'created_at_asc': 'created_at ASC',
-        'created_at_desc': 'created_at DESC',
-        'updated_at_asc': 'updated_at ASC',
-        'updated_at_desc': 'updated_at DESC',
-        'photo_count_asc': 'photo_count ASC',
-        'photo_count_desc': 'photo_count DESC',
+    # Прямые колонки engines — сортировка по алиасу e.<col>.
+    BASE_SORT_COLUMNS = {
+        'id': 'e.id',
+        'filename': 'e.filename',
+        'purpose': 'e.purpose',
+        'workshop': 'e.workshop',
+        'location': 'e.location',
+        'engine_type': 'e.engine_type',
+        'manufacturer': 'e.manufacturer',
+        'serial_number': 'e.serial_number',
+        'bearing_front': 'e.bearing_front',
+        'bearing_rear': 'e.bearing_rear',
+        'shaft_diameter': 'e.shaft_diameter',
+        'protection_class': 'e.protection_class',
+        'mounting_type': 'e.mounting_type',
+        'temp_sensor': 'e.temp_sensor',
+        'encoder': 'e.encoder',
+        'cooling': 'e.cooling',
+        'note': 'e.note',
+        'photo_count': 'e.photo_count',
+        'created_at': 'e.created_at',
+        'updated_at': 'e.updated_at',
+        # 'status' — вычисляемый алиас из SELECT-list (COALESCE
+        # last_work_status), не колонка engines. SQLite разрешает
+        # ORDER BY по алиасу результата — дублировать выражение здесь
+        # не нужно.
+        'status': 'status',
     }
-    order_by = sort_map.get(sort, 'location ASC')
+    # Режимы работы (operating_modes, 1 двигатель → N режимов) — сортировка
+    # по MIN() среди режимов конкретного двигателя: числовые поля — MIN по
+    # CAST(... AS REAL), connection_type — текстовое, MIN по алфавиту.
+    # Алиасы *_sort объявлены в SELECT ниже (рядом с *_отображаемым
+    # GROUP_CONCAT-полем для той же колонки режима).
+    MODE_SORT_COLUMNS = {
+        'modes_frequency': 'modes_frequency_sort',
+        'modes_power': 'modes_power_sort',
+        'modes_voltage': 'modes_voltage_sort',
+        'modes_connection_type': 'modes_connection_type_sort',
+        'modes_current': 'modes_current_sort',
+        'modes_rpm': 'modes_rpm_sort',
+    }
+    ALLOWED_SORT_FIELDS = {**BASE_SORT_COLUMNS, **MODE_SORT_COLUMNS}
+
+    order_expr = ALLOWED_SORT_FIELDS.get(sort_by, 'e.location')
+    sort_order = sort_order.upper() if sort_order and sort_order.upper() in ('ASC', 'DESC') else 'ASC'
+    order_by = f'{order_expr} {sort_order}'
 
     conditions = []
     params = []
@@ -161,7 +199,54 @@ def get_all(conn, limit: int = 30, offset: int = 0, sort: str = 'location_asc',
                e.encoder, e.cooling, e.note, e.photo_count,
                e.created_at, e.updated_at,
                COALESCE(lw.last_work_status, 'reserve') AS status,
-               e.status AS engines_status
+               e.status AS engines_status,
+
+               -- Режимы работы (operating_modes, 1 двигатель → N режимов),
+               -- колонки комбобокса "Столбцы" (static/js/catalog.js).
+               -- Отображение — GROUP_CONCAT в порядке id (внутренний
+               -- SELECT с ORDER BY — сам GROUP_CONCAT порядок группы не
+               -- гарантирует), тот же порядок, что в карточке двигателя
+               -- (data.modes). Сортировка — MIN среди режимов двигателя;
+               -- для числовых полей MIN считается по CAST(... AS REAL) —
+               -- на грязных/нечисловых данных SQLite молча даёт 0.0
+               -- вместо ошибки, это осознанный компромисс при данном
+               -- объёме данных (значения проверены — чистые числа).
+               (SELECT GROUP_CONCAT(frequency, ', ') FROM
+                   (SELECT frequency FROM operating_modes
+                    WHERE engine_id = e.id ORDER BY id)) AS modes_frequency,
+               (SELECT MIN(CAST(frequency AS REAL)) FROM operating_modes
+                    WHERE engine_id = e.id) AS modes_frequency_sort,
+
+               (SELECT GROUP_CONCAT(power, ', ') FROM
+                   (SELECT power FROM operating_modes
+                    WHERE engine_id = e.id ORDER BY id)) AS modes_power,
+               (SELECT MIN(CAST(power AS REAL)) FROM operating_modes
+                    WHERE engine_id = e.id) AS modes_power_sort,
+
+               (SELECT GROUP_CONCAT(voltage, ', ') FROM
+                   (SELECT voltage FROM operating_modes
+                    WHERE engine_id = e.id ORDER BY id)) AS modes_voltage,
+               (SELECT MIN(CAST(voltage AS REAL)) FROM operating_modes
+                    WHERE engine_id = e.id) AS modes_voltage_sort,
+
+               (SELECT GROUP_CONCAT(connection_type, ', ') FROM
+                   (SELECT connection_type FROM operating_modes
+                    WHERE engine_id = e.id ORDER BY id)) AS modes_connection_type,
+               (SELECT MIN(connection_type) FROM operating_modes
+                    WHERE engine_id = e.id) AS modes_connection_type_sort,
+
+               (SELECT GROUP_CONCAT(current, ', ') FROM
+                   (SELECT current FROM operating_modes
+                    WHERE engine_id = e.id ORDER BY id)) AS modes_current,
+               (SELECT MIN(CAST(current AS REAL)) FROM operating_modes
+                    WHERE engine_id = e.id) AS modes_current_sort,
+
+               (SELECT GROUP_CONCAT(rpm, ', ') FROM
+                   (SELECT rpm FROM operating_modes
+                    WHERE engine_id = e.id ORDER BY id)) AS modes_rpm,
+               (SELECT MIN(CAST(rpm AS REAL)) FROM operating_modes
+                    WHERE engine_id = e.id) AS modes_rpm_sort
+
         FROM engines e
         LEFT JOIN last_work lw ON lw.engine_id = e.id AND lw.rn = 1
         {where_clause}

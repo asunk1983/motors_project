@@ -106,6 +106,12 @@ def init_db(conn=None):
                 FOREIGN KEY (engine_id) REFERENCES engines (id) ON DELETE CASCADE
             )
         ''')
+        # Таблица столбцов "Режимы работы" в комбобоксе видимости колонок
+        # (static/js/catalog.js::ENGINE_COLUMNS) бьёт по этой колонке
+        # коррелированными подзапросами (GROUP_CONCAT + MIN) на каждую
+        # строку списка двигателей (repositories/engine_repo.py::get_all) —
+        # без индекса это full scan operating_modes на каждый двигатель.
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_operating_modes_engine_id ON operating_modes(engine_id)')
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS maintenance_works (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

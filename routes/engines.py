@@ -38,14 +38,13 @@ def list_engines():
         # только с обычным фильтром по месту/тексту, как workshop/location.
         status = request.args.get('status', None)
 
-        # Собираем внутренний параметр сортировки из sort_by + sort_order
-        # (front отправляет их отдельными параметрами, а repository
-        #  оживает единый токен вроде 'location_asc').
-        sort_order = sort_order if sort_order in ('ASC', 'DESC') else 'ASC'
-        sort = f'{sort_by}_{sort_order.lower()}'
-
+        # sort_by/sort_order идут в get_all() как есть — валидация через
+        # whitelist ALLOWED_SORT_FIELDS теперь внутри repository (см.
+        # repositories/engine_repo.py::get_all), дублировать её здесь
+        # (как раньше делал sort_order in (...) + склейка токена) не нужно.
         with db_connection() as conn:
-            engines = get_all(conn, limit=10000, offset=0, sort=sort,
+            engines = get_all(conn, limit=10000, offset=0,
+                              sort_by=sort_by, sort_order=sort_order,
                               search_field=search_field, search_query=search,
                               workshop=workshop, location=location, status=status)
 
