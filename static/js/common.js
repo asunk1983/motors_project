@@ -489,3 +489,78 @@ function initPanelResizer(options) {
         }
     };
 }
+
+function initColumnToggleCombobox(opts) {
+    const container = opts.container;
+    const columns = opts.columns;
+    const getVisible = opts.getVisible;
+    const getDefaults = opts.getDefaults;
+    const onChange = opts.onChange;
+    const buttonLabel = opts.buttonLabel || 'Столбцы';
+    if (!container) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'column-toggle-wrap';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-secondary column-toggle-btn';
+    btn.textContent = buttonLabel + ' ▾';
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'column-toggle-dropdown hidden';
+
+    function renderList() {
+        const visible = new Set(getVisible());
+        let html = '<div class="column-toggle-list">';
+        columns.forEach(function(col) {
+            const checked = visible.has(col.key);
+            const disabled = col.required ? 'disabled' : '';
+            html += '<label class="column-toggle-item">'
+                + '<input type="checkbox" data-col-key="' + col.key + '" '
+                + (checked ? 'checked ' : '') + disabled + '>'
+                + '<span>' + escapeHtml(col.label) + '</span>'
+                + '</label>';
+        });
+        html += '</div><div class="column-toggle-footer">'
+            + '<button type="button" class="link-btn column-toggle-reset">Сбросить</button>'
+            + '</div>';
+        dropdown.innerHTML = html;
+
+        dropdown.querySelectorAll('input[data-col-key]').forEach(function(input) {
+            input.addEventListener('change', function() {
+                const current = new Set(getVisible());
+                if (input.checked) current.add(input.dataset.colKey);
+                else current.delete(input.dataset.colKey);
+                const ordered = columns.filter(function(c) { return current.has(c.key); }).map(function(c) { return c.key; });
+                onChange(ordered);
+                // Не вызываем renderList() — чекбокс уже отменил состояние визуально
+            });
+        });
+
+        dropdown.querySelector('.column-toggle-reset').addEventListener('click', function() {
+            const defaultKeys = getDefaults ? getDefaults() : columns.filter(function(c) { return c.defaultVisible !== false; }).map(function(c) { return c.key; });
+            onChange(defaultKeys);
+            renderList();
+        });
+    }
+
+    btn.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        const isHidden = dropdown.classList.contains('hidden');
+        if (isHidden) {
+            renderList();
+            dropdown.classList.remove('hidden');
+        } else {
+            dropdown.classList.add('hidden');
+        }
+    });
+
+    document.addEventListener('click', function(ev) {
+        if (!wrap.contains(ev.target)) dropdown.classList.add('hidden');
+    });
+
+    wrap.appendChild(btn);
+    wrap.appendChild(dropdown);
+    container.appendChild(wrap);
+}

@@ -232,42 +232,166 @@ function onEngineStatusFilterChange() {
 
 
 // ===== ТАБЛИЦА =====
+// ===== Настраиваемые столбцы таблицы двигателей =====
+const ENGINE_COLUMNS = [
+    { key: 'id', label: 'ID', sortField: 'id', required: true, defaultVisible: true,
+      thClass: 'col-id sortable',
+      render: e => `<span class="badge-id">${e.id}</span>` },
+    { key: 'status', label: 'Статус', sortField: null, defaultVisible: true,
+      thClass: 'col-engine-status',
+      render: e => engineStatusBadgeHtml(e.status) },
+    { key: 'location', label: 'Место установки', sortField: 'location', defaultVisible: true,
+      thClass: 'sortable',
+      render: e => highlightMatch(e.location, currentSearchQuery) || '—' },
+    { key: 'engine_type', label: 'Тип', sortField: 'engine_type', defaultVisible: true,
+      thClass: 'sortable', tdClass: 'mono',
+      render: e => highlightMatch(e.engine_type, currentSearchQuery) || '—' },
+    { key: 'serial_number', label: 'Зав. номер', sortField: 'serial_number', defaultVisible: true,
+      thClass: 'sortable', tdClass: 'mono mono-muted',
+      render: e => highlightMatch(e.serial_number, currentSearchQuery) || '—' },
+    { key: 'manufacturer', label: 'Производитель', sortField: 'manufacturer', defaultVisible: true,
+      thClass: 'sortable',
+      render: e => highlightMatch(e.manufacturer, currentSearchQuery) || '—' },
+    { key: 'updated_at', label: 'Изменено', sortField: 'updated_at', defaultVisible: true,
+      thClass: 'sortable',
+      render: e => formatRuDateTime(e.updated_at) },
+    { key: 'photo_count', label: 'Фото', sortField: 'photo_count', defaultVisible: true,
+      thClass: 'col-photo sortable', tdClass: 'col-photo',
+      render: e => e.photo_count > 0 ? `<span class="photo-badge"><span class="icon icon-photo-camera"></span> ${e.photo_count}</span>` : '—' },
+    // Новые колонки — скрыты по умолчанию
+    { key: 'workshop', label: 'Цех', sortField: null, defaultVisible: false,
+      thClass: 'sortable',
+      render: e => highlightMatch(e.workshop, currentSearchQuery) || '—' },
+    { key: 'purpose', label: 'Назначение', sortField: 'purpose', defaultVisible: false,
+      thClass: 'sortable',
+      render: e => highlightMatch(e.purpose, currentSearchQuery) || '—' },
+    { key: 'bearing_front', label: 'Подшипник передний', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.bearing_front, currentSearchQuery) || '—' },
+    { key: 'bearing_rear', label: 'Подшипник задний', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.bearing_rear, currentSearchQuery) || '—' },
+    { key: 'shaft_diameter', label: 'Диаметр вала (мм)', sortField: null, defaultVisible: false,
+      thClass: 'mono',
+      render: e => highlightMatch(e.shaft_diameter, currentSearchQuery) || '—' },
+    { key: 'protection_class', label: 'Степень защиты', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.protection_class, currentSearchQuery) || '—' },
+    { key: 'mounting_type', label: 'Тип крепления', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.mounting_type, currentSearchQuery) || '—' },
+    { key: 'temp_sensor', label: 'Датчик температуры', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.temp_sensor, currentSearchQuery) || '—' },
+    { key: 'encoder', label: 'Энкодер', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.encoder, currentSearchQuery) || '—' },
+    { key: 'cooling', label: 'Охлаждение', sortField: null, defaultVisible: false,
+      thClass: '',
+      render: e => highlightMatch(e.cooling, currentSearchQuery) || '—' },
+    { key: 'note', label: 'Примечание', sortField: null, defaultVisible: false,
+      thClass: 'col-note',
+      render: e => {
+          const val = e.note || '';
+          if (!val) return '—';
+          if (val.length <= 60) return escapeHtml(val);
+          return `<span title="${escapeHtml(val)}">${escapeHtml(val.substring(0, 60))}...</span>`;
+      } },
+];
+
+const ENGINE_COLUMNS_STORAGE_KEY = 'motors_engine_columns_v1';
+
+function getVisibleEngineColumnKeys() {
+    let saved = null;
+    try {
+        const raw = localStorage.getItem(ENGINE_COLUMNS_STORAGE_KEY);
+        if (raw) saved = JSON.parse(raw);
+    } catch (e) { /* приватный режим/битые данные — используем дефолт */ }
+    const validKeys = new Set(ENGINE_COLUMNS.map(c => c.key));
+    let visible;
+    if (Array.isArray(saved)) {
+        visible = new Set(saved.filter(k => validKeys.has(k)));
+    } else {
+        // Фолбэк: видимые колонки = те, у кого defaultVisible: true + required
+        visible = new Set(ENGINE_COLUMNS.filter(c => c.defaultVisible !== false && c.defaultVisible !== undefined ? c.defaultVisible : true).filter(c => c.required || c.defaultVisible).map(c => c.key));
+    }
+    ENGINE_COLUMNS.forEach(c => { if (c.required) visible.add(c.key); });
+    return ENGINE_COLUMNS.filter(c => visible.has(c.key)).map(c => c.key);
+}
+
+function setVisibleEngineColumnKeys(keys) {
+    try {
+        localStorage.setItem(ENGINE_COLUMNS_STORAGE_KEY, JSON.stringify(keys));
+    } catch (e) { /* не критично */ }
+}
+
+function getDefaultEngineColumnKeys() {
+    // Сброс — только defaultVisible: true (плюс required, которые всегда видимы)
+    return ENGINE_COLUMNS.filter(c => c.defaultVisible !== false).map(c => c.key);
+}
+
+let visibleEngineColumnKeys = getVisibleEngineColumnKeys();
+
+function renderEngineTableHeaders() {
+    const theadRow = document.querySelector('#tab-catalog .data-table thead tr');
+    if (!theadRow) return;
+    let html = `<th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)"></th>`;
+    ENGINE_COLUMNS.forEach(c => {
+        if (!visibleEngineColumnKeys.includes(c.key)) return;
+        const onclick = c.sortField ? ` onclick="sortTable('${c.sortField}')"` : '';
+        const arrow = c.sortField ? ' ↕' : '';
+        html += `<th class="${c.thClass || ''}"${onclick}>${escapeHtml(c.label)}${arrow}</th>`;
+    });
+    theadRow.innerHTML = html;
+}
+
 function renderTable() {
+    renderEngineTableHeaders();
+
     const tbody = document.getElementById('tableBody');
     const start = (currentPage - 1) * pageSize;
     const end = start + pageSize;
     const pageData = allEngines.slice(start, end);
+    const visibleColumns = ENGINE_COLUMNS.filter(c => visibleEngineColumnKeys.includes(c.key));
+    const colCount = 1 + visibleColumns.length;
 
     if (!pageData || pageData.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="no-data">Нет данных</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${colCount}" class="no-data">Нет данных</td></tr>`;
         document.getElementById('pageInfo').textContent = 'Показано 0 из 0';
         return;
     }
 
-    tbody.innerHTML = pageData.map(e => `
+    tbody.innerHTML = pageData.map(e => {
+        const cells = visibleColumns.map(c => `<td class="${c.tdClass || ''}">${c.render(e)}</td>`).join('');
+        return `
         <tr class="clickable-row" onclick="showDetail(${e.id})" data-id="${e.id}">
             <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="row-checkbox" ${selectedEngineIds.has(e.id) ? 'checked' : ''} onchange="toggleEngineSelection(${e.id}, this.checked)"></td>
-            <td><span class="badge-id">${e.id}</span></td>
-            <td>${engineStatusBadgeHtml(e.status)}</td>
-            <td>${highlightMatch(e.location, currentSearchQuery) || '—'}</td>
-            <td class="mono">${highlightMatch(e.engine_type, currentSearchQuery) || '—'}</td>
-            <td class="mono mono-muted">${highlightMatch(e.serial_number, currentSearchQuery) || '—'}</td>
-            <td>${highlightMatch(e.manufacturer, currentSearchQuery) || '—'}</td>
-            <td>${highlightMatch(e.purpose, currentSearchQuery) || '—'}</td>
-            <td>${formatRuDateTime(e.updated_at)}</td>
-            <td class="col-photo">${e.photo_count > 0 ? `<span class="photo-badge"><span class="icon icon-photo-camera"></span> ${e.photo_count}</span>` : '—'}</td>
-        </tr>
-    `).join('');
+            ${cells}
+        </tr>`;
+    }).join('');
 
-    // Диапазон 1-based, а не просто "показано N из M" — конец диапазона
-    // считаем от pageData.length (реально отрисованных строк), а не от
-    // pageSize, чтобы на последней неполной странице не показать
-    // "91-100 из 97".
     const rangeStart = start + 1;
     const rangeEnd = start + pageData.length;
     document.getElementById('pageInfo').textContent = `${rangeStart}-${rangeEnd} из ${allEngines.length}`;
     document.getElementById('pageNumber').textContent = currentPage;
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.querySelector('#tab-catalog .toolbar-left');
+    if (!container || typeof initColumnToggleCombobox !== 'function') return;
+    initColumnToggleCombobox({
+        container: container,
+        columns: ENGINE_COLUMNS.map(c => ({ key: c.key, label: c.label, required: !!c.required, defaultVisible: c.defaultVisible !== false })),
+        getVisible: () => visibleEngineColumnKeys,
+        getDefaults: () => getDefaultEngineColumnKeys(),
+        onChange: function(keys) {
+            visibleEngineColumnKeys = keys;
+            setVisibleEngineColumnKeys(keys);
+            renderTable();
+        },
+        buttonLabel: 'Столбцы'
+    });
+});
 
 
 function prevPage() {

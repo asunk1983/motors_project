@@ -2422,3 +2422,48 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px rgba(67,56,202,0.12);
 }
+
+/* Комбобокс "Столбцы" (управление видимостью колонок таблицы) */
+.column-toggle-wrap {
+    position: relative;
+    display: inline-block;
+}
+.column-toggle-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 50;
+    min-width: 220px;
+    background: var(--bg-panel, #fff);
+    border: 1px solid var(--border-color, #ddd);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 8px;
+}
+.column-toggle-dropdown.hidden {
+    display: none;
+}
+.column-toggle-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.column-toggle-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+.column-toggle-item:hover {
+    background: var(--bg-hover, #f0f0f0);
+}
+.column-toggle-footer {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color, #ddd);
+    text-align: right;
+}
