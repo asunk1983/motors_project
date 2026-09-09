@@ -10,6 +10,8 @@ equipment_work существует только через failure (осозн�
 """
 from datetime import datetime
 
+from modules.audit import log_field_changes
+
 
 def _row_to_dict(row):
     if row is None:
@@ -84,16 +86,31 @@ def create_ticket(conn, data: dict) -> int:
     return cur.lastrowid
 
 
-def update_ticket_status(conn, ticket_id: int, status: str, rejection_reason=None) -> bool:
+def update_ticket_status(conn, ticket_id: int, status: str, rejection_reason=None,
+                          actor: dict | None = None) -> bool:
     """Единая точка смены статуса — сама проставляет соответствующий
     timestamp (resolved_at/closed_at/rejected_at), как resolved_at/closed_at
-    у ticket в самом первом обсуждении этой сущности."""
+    у ticket в самом первом обсуждении этой сущности.
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). Логируется
+    только status/rejection_reason — сопутствующий timestamp-столбец
+    (resolved_at/closed_at/rejected_at) не логируется отдельно: он
+    полностью производный от смены статуса, дублировать его в журнале
+    не даёт дополнительной информации."""
     now = datetime.now().isoformat()
     field_map = {
         'resolved': 'resolved_at',
         'closed': 'closed_at',
         'rejected': 'rejected_at',
     }
+
+    changed_input = {'status': status}
+    if status == 'rejected':
+        changed_input['rejection_reason'] = rejection_reason
+    old_row = get_ticket_by_id(conn, ticket_id)
+    log_field_changes(conn, 'ticket', ticket_id, actor, old_row, changed_input)
+
     cur = conn.cursor()
     if status in field_map:
         ts_field = field_map[status]
@@ -110,7 +127,18 @@ def update_ticket_status(conn, ticket_id: int, status: str, rejection_reason=Non
     return cur.rowcount > 0
 
 
-def update_ticket(conn, ticket_id: int, data: dict) -> bool:
+def update_ticket(conn, ticket_id: int, data: dict, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes)."""
+    changed_input = {
+        'equipment_id': data.get('equipment_id'),
+        'priority': data.get('priority', 'normal'),
+        'title': data['title'],
+        'description': data.get('description'),
+    }
+    old_row = get_ticket_by_id(conn, ticket_id)
+    log_field_changes(conn, 'ticket', ticket_id, actor, old_row, changed_input)
+
     cur = conn.cursor()
     cur.execute('''
         UPDATE ticket SET equipment_id = ?, priority = ?, title = ?, description = ?
@@ -174,7 +202,22 @@ def create_failure(conn, data: dict) -> int:
     return cur.lastrowid
 
 
-def update_failure(conn, failure_id: int, data: dict) -> bool:
+def update_failure(conn, failure_id: int, data: dict, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes)."""
+    changed_input = {
+        'failure_mode_id': data.get('failure_mode_id'),
+        'failure_cause_id': data.get('failure_cause_id'),
+        'knowledge_article_id': data.get('knowledge_article_id'),
+        'symptom': data.get('symptom'),
+        'description': data.get('description'),
+        'confirmed': int(bool(data.get('confirmed', True))),
+        'occurred_at': data.get('occurred_at'),
+        'restored_at': data.get('restored_at'),
+    }
+    old_row = get_failure_by_id(conn, failure_id)
+    log_field_changes(conn, 'failure', failure_id, actor, old_row, changed_input)
+
     cur = conn.cursor()
     cur.execute('''
         UPDATE failure SET

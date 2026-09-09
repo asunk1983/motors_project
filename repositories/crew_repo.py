@@ -5,6 +5,8 @@
 
 import sqlite3
 
+from modules.audit import log_field_changes
+
 
 def list_all(conn: sqlite3.Connection) -> list[dict]:
     cur = conn.execute('SELECT id, full_name, position, workshop, created_at FROM crew')
@@ -43,19 +45,32 @@ def create(conn: sqlite3.Connection, full_name: str, position: str | None = None
 
 
 def update(conn: sqlite3.Connection, crew_id: int, full_name: str | None = None,
-           position: str | None = None, workshop: str | None = None) -> bool:
+           position: str | None = None, workshop: str | None = None,
+           actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). None —
+    правка без привязки к пользователю."""
     fields, params = [], []
+    changed_input = {}
     if full_name is not None:
         fields.append('full_name = ?')
         params.append(full_name)
+        changed_input['full_name'] = full_name
     if position is not None:
         fields.append('position = ?')
         params.append(position)
+        changed_input['position'] = position
     if workshop is not None:
         fields.append('workshop = ?')
         params.append(workshop)
+        changed_input['workshop'] = workshop
     if not fields:
         return False
+
+    if changed_input:
+        old_row = get_by_id(conn, crew_id)
+        log_field_changes(conn, 'crew', crew_id, actor, old_row, changed_input)
+
     params.append(crew_id)
     cur = conn.execute(f'UPDATE crew SET {", ".join(fields)} WHERE id = ?', params)
     conn.commit()

@@ -56,7 +56,8 @@ def update_crew_route(crew_id):
     with db_connection() as conn:
         if crew_repo.get_by_id(conn, crew_id) is None:
             return jsonify({'error': 'Человек не найден'}), 404
-        ok = crew_repo.update(conn, crew_id, full_name=full_name, position=position, workshop=workshop)
+        ok = crew_repo.update(conn, crew_id, full_name=full_name, position=position, workshop=workshop,
+                              actor=getattr(request, 'current_user', None))
         if not ok:
             return jsonify({'error': 'Нечего обновлять'}), 400
         return jsonify({'success': True, 'message': 'Данные обновлены'})

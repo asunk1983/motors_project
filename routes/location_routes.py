@@ -86,7 +86,8 @@ def update_location_route(node_id):
         if location_repo.get_by_id(conn, node_id) is None:
             return jsonify({'error': 'Место не найдено'}), 404
         try:
-            ok = location_repo.update(conn, node_id, name=name, node_type=node_type)
+            ok = location_repo.update(conn, node_id, name=name, node_type=node_type,
+                                      actor=getattr(request, 'current_user', None))
         except Exception as e:
             if 'UNIQUE' in str(e):
                 return jsonify({'error': 'Такое место уже существует в этой ветке'}), 400
@@ -105,7 +106,8 @@ def move_location_route(node_id):
     with db_connection() as conn:
         if location_repo.get_by_id(conn, node_id) is None:
             return jsonify({'error': 'Место не найдено'}), 404
-        ok, error = location_repo.move(conn, node_id, new_parent_id)
+        ok, error = location_repo.move(conn, node_id, new_parent_id,
+                                       actor=getattr(request, 'current_user', None))
         if not ok:
             return jsonify({'error': error or 'Не удалось перенести место'}), 400
         return jsonify({'success': True, 'message': 'Место перенесено'})

@@ -7,6 +7,8 @@
 """
 from datetime import datetime
 
+from modules.audit import log_field_changes
+
 
 def _row_to_dict(row):
     """Преобразует sqlite3.Row в dict."""
@@ -166,8 +168,24 @@ def create_article(conn, data: dict) -> int:
     return article_id
 
 
-def update_article(conn, article_id: int, data: dict) -> bool:
+def update_article(conn, article_id: int, data: dict, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). cause_ids
+    (M2M связь) не логируется через это поле — это отдельный список
+    связей, а не скалярное поле статьи; если понадобится история и по
+    ним, потребуется отдельный подход (сравнение множеств, не строк)."""
     now = datetime.now().isoformat()
+    changed_input = {
+        'title': data.get('title'),
+        'symptom': data.get('symptom'),
+        'failure_mode_id': data.get('failure_mode_id'),
+        'diagnostic_steps': data.get('diagnostic_steps'),
+        'recommended_action': data.get('recommended_action'),
+        'reference_note': data.get('reference_note'),
+    }
+    old_row = get_article_by_id(conn, article_id)
+    log_field_changes(conn, 'knowledge_article', article_id, actor, old_row, changed_input)
+
     cur = conn.cursor()
     cur.execute('''
         UPDATE knowledge_article

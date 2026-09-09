@@ -57,6 +57,9 @@
                 <button class="tab-btn" data-tab="admin" style="display:none">
                     <span class="icon icon-shield"></span> Админ
                 </button>
+                <button class="tab-btn" data-tab="audit" style="display:none">
+                    <span class="icon icon-table-chart"></span> Журнал
+                </button>
             </nav>
 
             <div class="topbar-right">
@@ -558,6 +561,53 @@
                 </div>
             </div>
 
+            <!-- Вкладка: Журнал изменений (только для role='admin'/'superadmin',
+                 см. applyRoleUI() в auth.js и _require_admin в routes/audit_routes.py) -->
+            <div class="tab-content" id="tab-audit">
+                <h2><span class="icon icon-table-chart"></span> Журнал изменений</h2>
+
+                <div class="toolbar">
+                    <div class="toolbar-left">
+                        <select id="auditEntityTypeFilter" class="sort-select">
+                            <option value="">Все разделы</option>
+                        </select>
+                        <input type="text" id="auditActorFilter" placeholder="Автор..." class="search-input">
+                        <input type="date" id="auditDateFromFilter" class="sort-select" title="С какой даты">
+                        <input type="date" id="auditDateToFilter" class="sort-select" title="По какую дату">
+                        <button class="btn btn-secondary btn-sm" onclick="applyAuditFilters()"><span class="icon icon-search"></span> Применить</button>
+                        <button class="btn btn-secondary btn-sm" onclick="resetAuditFilters()"><span class="icon icon-close"></span> Сбросить</button>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Когда</th>
+                                <th>Раздел</th>
+                                <th>ID записи</th>
+                                <th>Поле</th>
+                                <th>Было</th>
+                                <th>Стало</th>
+                                <th>Кто изменил</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditTableBody">
+                            <tr><td colspan="7" class="no-data">Загрузка...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination">
+                    <span class="page-info" id="auditPageInfo">Показано 0 из 0</span>
+                    <div class="page-controls">
+                        <button class="btn btn-sm btn-secondary" onclick="auditPrevPage()"><span class="icon icon-chevron-left"></span></button>
+                        <span id="auditPageNumber">1</span>
+                        <button class="btn btn-sm btn-secondary" onclick="auditNextPage()"><span class="icon icon-chevron-left icon-chevron-right"></span></button>
+                    </div>
+                </div>
+            </div>
+
             <!-- Вкладка: База знаний (только для role='superadmin' — см.
                  _require_superadmin в routes/auth.py и applyRoleUI() в auth.js.
                  Пока не привязана к двигателям — самостоятельный справочный
@@ -953,6 +1003,7 @@
     <script src="/static/js/incidentLocationTree.js?v=20260830"></script>
     <script src="/static/js/incidentCrew.js?v=20260820"></script>
     <script src="/static/js/incidents.js?v=20260820"></script>
+    <script src="/static/js/audit.js?v=20260908"></script>
     <script>
         (function() {
             const btn = document.getElementById('themeToggleBtn');

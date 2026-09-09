@@ -91,7 +91,7 @@ def update_ticket_route(ticket_id):
         with db_connection() as conn:
             if not get_ticket_by_id(conn, ticket_id):
                 return jsonify({'error': 'Заявка не найдена'}), 404
-            update_ticket(conn, ticket_id, clean)
+            update_ticket(conn, ticket_id, clean, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'message': 'Заявка обновлена'})
     except Exception as e:
         logger.exception('update_ticket_route failed')
@@ -108,7 +108,8 @@ def update_ticket_status_route(ticket_id):
         with db_connection() as conn:
             if not get_ticket_by_id(conn, ticket_id):
                 return jsonify({'error': 'Заявка не найдена'}), 404
-            update_ticket_status(conn, ticket_id, data['status'], data.get('rejection_reason'))
+            update_ticket_status(conn, ticket_id, data['status'], data.get('rejection_reason'),
+                                 actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'message': 'Статус заявки обновлён'})
     except Exception as e:
         logger.exception('update_ticket_status_route failed')
@@ -164,7 +165,7 @@ def confirm_failure_route(ticket_id):
                 return jsonify({'error': err}), 400
             clean = sanitize_failure_data(data)
             failure_id = create_failure(conn, clean)
-            update_ticket_status(conn, ticket_id, 'in_progress')
+            update_ticket_status(conn, ticket_id, 'in_progress', actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'id': failure_id, 'message': 'Отказ подтверждён'})
     except Exception as e:
         logger.exception('confirm_failure_route failed')
@@ -179,7 +180,7 @@ def update_failure_route(failure_id):
             if not get_failure_by_id(conn, failure_id):
                 return jsonify({'error': 'Отказ не найден'}), 404
             clean = sanitize_failure_data(data)
-            update_failure(conn, failure_id, clean)
+            update_failure(conn, failure_id, clean, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'message': 'Отказ обновлён'})
     except Exception as e:
         logger.exception('update_failure_route failed')

@@ -183,6 +183,12 @@ function applyRoleUI() {
 
     const adminTab = document.querySelector('.tab-btn[data-tab="admin"]');
     if (adminTab) adminTab.style.display = isAdmin ? '' : 'none';
+    // Журнал изменений (audit_log) — та же видимость, что у "Админ":
+    // показывает, кто и что менял в базе, административная информация.
+    // Сам бэкенд тоже защищён (_require_admin в routes/audit_routes.py),
+    // это лишь отражение той же проверки в UI.
+    const auditTab = document.querySelector('.tab-btn[data-tab="audit"]');
+    if (auditTab) auditTab.style.display = isAdmin ? '' : 'none';
     // База знаний — намеренно строже, чем isAdmin: доступна ТОЛЬКО
     // superadmin (не admin), см. _require_superadmin в routes/auth.py —
     // это зеркало той же серверной проверки на клиенте, чтобы кнопка не

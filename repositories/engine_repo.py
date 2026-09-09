@@ -403,8 +403,16 @@ def delete(conn, engine_id: int) -> bool:
     return cur.rowcount > 0
 
 
-def update_photo_count(conn, engine_id: int, count: int) -> None:
-    """Обновить счётчик фото для двигателя."""
+def update_photo_count(conn, engine_id: int, count: int, actor: dict | None = None) -> None:
+    """Обновить счётчик фото для двигателя.
+
+    actor — dict текущего пользователя, для журнала изменений. По
+    умолчанию None: место вызова этой функции (photo_manager) не входит
+    в объём этой правки — если понадобится фиксировать автора именно
+    здесь, вызывающую сторону нужно будет отдельно прокинуть actor."""
+    old_row = get_by_id(conn, engine_id)
+    log_field_changes(conn, 'engine', engine_id, actor, old_row, {'photo_count': count})
+
     cur = conn.cursor()
     cur.execute('UPDATE engines SET photo_count = ? WHERE id = ?', (count, engine_id))
     conn.commit()
@@ -413,14 +421,19 @@ def update_photo_count(conn, engine_id: int, count: int) -> None:
 VALID_STATUSES = ('work', 'reserve', 'repair')
 
 
-def update_status(conn, engine_id: int, status: str) -> bool:
+def update_status(conn, engine_id: int, status: str, actor: dict | None = None) -> bool:
     """Обновить эксплуатационный статус двигателя.
 
     Отдельная лёгкая операция (не через update()/ENGINE_COLUMNS_ORDERED) —
     статус меняется кликом по переключателю в карточке, без входа в режим
     редактирования и без валидации остальных полей характеристик.
     updated_at НЕ трогаем: смена статуса — не редактирование карточки.
-    """
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes)."""
+    old_row = get_by_id(conn, engine_id)
+    log_field_changes(conn, 'engine', engine_id, actor, old_row, {'status': status})
+
     cur = conn.cursor()
     cur.execute('UPDATE engines SET status = ? WHERE id = ?', (status, engine_id))
     conn.commit()

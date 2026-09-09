@@ -5,6 +5,8 @@
 
 import sqlite3
 
+from modules.audit import log_field_changes
+
 
 VALID_NODE_TYPES = {'workshop', 'installation', 'unit', 'zone', 'warehouse', 'other'}
 
@@ -101,16 +103,28 @@ def create(conn: sqlite3.Connection, name: str, node_type: str, parent_id: int |
     return cur.lastrowid
 
 
-def update(conn: sqlite3.Connection, node_id: int, name: str | None = None, node_type: str | None = None) -> bool:
+def update(conn: sqlite3.Connection, node_id: int, name: str | None = None, node_type: str | None = None,
+           actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_field_changes). None —
+    правка без привязки к пользователю."""
     fields, params = [], []
+    changed_input = {}
     if name is not None:
         fields.append('name = ?')
         params.append(name)
+        changed_input['name'] = name
     if node_type is not None:
         fields.append('node_type = ?')
         params.append(node_type)
+        changed_input['node_type'] = node_type
     if not fields:
         return False
+
+    if changed_input:
+        old_row = get_by_id(conn, node_id)
+        log_field_changes(conn, 'location_node', node_id, actor, old_row, changed_input)
+
     params.append(node_id)
     cur = conn.execute(f'UPDATE location_node SET {", ".join(fields)} WHERE id = ?', params)
     conn.commit()
@@ -147,8 +161,14 @@ def _is_descendant(conn: sqlite3.Connection, node_id: int, candidate_ancestor_id
     return candidate_ancestor_id in get_subtree_ids(conn, node_id)
 
 
-def move(conn: sqlite3.Connection, node_id: int, new_parent_id: int | None) -> tuple[bool, str | None]:
-    """Смена родителя с защитой от цикла. Возвращает (ok, error)."""
+def move(conn: sqlite3.Connection, node_id: int, new_parent_id: int | None,
+          actor: dict | None = None) -> tuple[bool, str | None]:
+    """Смена родителя с защитой от цикла. Возвращает (ok, error).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений. log_field_changes сам пропустит запись, если
+    new_parent_id совпадает с текущим parent_id (без изменений — нет
+    смысла писать в журнал "переместили туда же")."""
     if new_parent_id is not None:
         if new_parent_id == node_id:
             return False, 'Нельзя сделать узел родителем самого себя'
@@ -156,6 +176,10 @@ def move(conn: sqlite3.Connection, node_id: int, new_parent_id: int | None) -> t
             return False, 'Нельзя перенести узел в собственное поддерево'
         if get_by_id(conn, new_parent_id) is None:
             return False, 'Новый родитель не найден'
+
+    old_row = get_by_id(conn, node_id)
+    log_field_changes(conn, 'location_node', node_id, actor, old_row, {'parent_id': new_parent_id})
+
     cur = conn.execute('UPDATE location_node SET parent_id = ? WHERE id = ?', (new_parent_id, node_id))
     conn.commit()
     return cur.rowcount > 0, None

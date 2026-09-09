@@ -197,7 +197,7 @@ def update_article_route(article_id):
         with db_connection() as conn:
             if not get_article_by_id(conn, article_id):
                 return jsonify({'error': 'Статья не найдена'}), 404
-            update_article(conn, article_id, clean)
+            update_article(conn, article_id, clean, actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'message': 'Статья обновлена'})
     except Exception as e:

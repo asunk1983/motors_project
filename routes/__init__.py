@@ -30,6 +30,7 @@ def create_blueprints():
     from routes.status import status_bp
     from routes.search import search_bp
     from routes.pages import pages_bp
+    from routes.audit_routes import audit_bp
 
     return [
         auth_bp,
@@ -50,6 +51,7 @@ def create_blueprints():
         status_bp,
         search_bp,
         pages_bp,
+        audit_bp,
     ]
 
 
