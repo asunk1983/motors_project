@@ -72,6 +72,7 @@ def create_ticket_route():
             initiator_ids=[int(x) for x in (data.get('initiator_ids') or [])],
             executor_ids=[int(x) for x in (data.get('executor_ids') or [])],
             closed_at=data.get('closed_at'),
+            actor=getattr(request, 'current_user', None),
         )
         if error:
             return jsonify({'error': error}), 400
@@ -135,7 +136,7 @@ def delete_ticket_route(ticket_id):
         return denied
 
     with db_connection() as conn:
-        ok, error = incident_service.delete_ticket(conn, ticket_id)
+        ok, error = incident_service.delete_ticket(conn, ticket_id, actor=getattr(request, 'current_user', None))
         if not ok:
             return jsonify({'error': error or 'Не удалось удалить заявку'}), 404
         # Фото удаляем ПОСЛЕ успешного удаления записи из БД — тот же

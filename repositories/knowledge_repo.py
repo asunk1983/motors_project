@@ -7,7 +7,7 @@
 """
 from datetime import datetime
 
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 def _row_to_dict(row):
@@ -141,7 +141,7 @@ def list_articles(conn, symptom_query: str = ''):
     return [_row_to_dict(row) for row in cur.fetchall()]
 
 
-def create_article(conn, data: dict) -> int:
+def create_article(conn, data: dict, actor: dict | None = None) -> int:
     """Создать статью. Возвращает ID.
 
     В отличие от engines (см. engine_repo.py::create — явный поиск
@@ -149,7 +149,9 @@ def create_article(conn, data: dict) -> int:
     на порядки меньше, чем двигателей, "дыры" в нумерации не создают
     практических проблем, а конкурентное создание статей — не тот
     сценарий, для которого стоило городить BEGIN IMMEDIATE.
-    """
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     now = datetime.now().isoformat()
     cur = conn.cursor()
     cur.execute('''
@@ -163,6 +165,7 @@ def create_article(conn, data: dict) -> int:
         data.get('reference_note'), now, now,
     ))
     article_id = cur.lastrowid
+    log_creation(conn, 'knowledge_article', article_id, actor, data.get('title'))
     _replace_article_causes(cur, article_id, data.get('cause_ids', []))
     conn.commit()
     return article_id
@@ -215,16 +218,23 @@ def _replace_article_causes(cur, article_id: int, cause_ids: list) -> None:
         )
 
 
-def delete_article(conn, article_id: int) -> bool:
+def delete_article(conn, article_id: int, actor: dict | None = None) -> bool:
     """Удалить статью. knowledge_article_cause удаляется каскадно по схеме
     (ON DELETE CASCADE) — таблица новая, создана этим же патчем, поэтому
     каскад гарантированно работает (в отличие от старых таблиц проекта,
     где CASCADE мог быть добавлен в схему уже после создания продакшен-БД —
     см. PROJECT_CORE.md п.7.3). Явную очистку M2M добавляем всё равно —
     дёшево и единообразно с остальными delete() в проекте.
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion).
     """
     cur = conn.cursor()
+    cur.execute('SELECT title FROM knowledge_article WHERE id = ?', (article_id,))
+    old_row = cur.fetchone()
     cur.execute('DELETE FROM knowledge_article_cause WHERE knowledge_article_id = ?', (article_id,))
     cur.execute('DELETE FROM knowledge_article WHERE id = ?', (article_id,))
+    if old_row is not None:
+        log_deletion(conn, 'knowledge_article', article_id, actor, old_row['title'])
     conn.commit()
     return cur.rowcount > 0

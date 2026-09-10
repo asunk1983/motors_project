@@ -44,7 +44,8 @@ def create_ticket(conn: sqlite3.Connection, *, location_node_id: int, problem: s
                    priority: str = 'medium', status: str = 'in_progress',
                    initiator_ids: list[int] | None = None,
                    executor_ids: list[int] | None = None,
-                   closed_at: str | None = None) -> tuple[int | None, str | None]:
+                   closed_at: str | None = None,
+                   actor: dict | None = None) -> tuple[int | None, str | None]:
     problem = (problem or '').strip()
     if not problem:
         return None, 'Поле "Проблема" обязательно'
@@ -66,7 +67,7 @@ def create_ticket(conn: sqlite3.Connection, *, location_node_id: int, problem: s
 
     ticket_id = incident_ticket_repo.create(
         conn, location_node_id=location_node_id, problem=problem, created_by_user_id=created_by_user_id,
-        solution=solution, priority=priority, status=status, closed_at=closed_at
+        solution=solution, priority=priority, status=status, closed_at=closed_at, actor=actor
     )
     incident_ticket_repo.set_initiators(conn, ticket_id, initiator_ids)
     if executor_ids:
@@ -125,13 +126,13 @@ def update_ticket(conn: sqlite3.Connection, ticket_id: int, *, location_node_id:
     return True, None
 
 
-def delete_ticket(conn: sqlite3.Connection, ticket_id: int) -> tuple[bool, str | None]:
+def delete_ticket(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None) -> tuple[bool, str | None]:
     """Физическое удаление — вызывающий routes ОБЯЗАН сам проверить
     role == 'superadmin' до вызова этой функции (ТЗ раздел 2.1.4); здесь
     только существование записи, не права."""
     if incident_ticket_repo.get_by_id(conn, ticket_id) is None:
         return False, 'Заявка не найдена'
-    incident_ticket_repo.delete(conn, ticket_id)
+    incident_ticket_repo.delete(conn, ticket_id, actor=actor)
     return True, None
 
 
@@ -171,5 +172,5 @@ def delete_location(conn: sqlite3.Connection, node_id: int) -> tuple[bool, str |
     return location_repo.delete(conn, node_id)
 
 
-def delete_crew(conn: sqlite3.Connection, crew_id: int) -> tuple[bool, str | None]:
-    return crew_repo.delete(conn, crew_id)
+def delete_crew(conn: sqlite3.Connection, crew_id: int, actor: dict | None = None) -> tuple[bool, str | None]:
+    return crew_repo.delete(conn, crew_id, actor=actor)

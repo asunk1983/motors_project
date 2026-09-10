@@ -36,7 +36,7 @@ def create_location_route():
         if parent_id is not None and location_repo.get_by_id(conn, parent_id) is None:
             return jsonify({'error': 'Родительский узел не найден'}), 400
         try:
-            new_id = location_repo.create(conn, name, node_type, parent_id)
+            new_id = location_repo.create(conn, name, node_type, parent_id, actor=getattr(request, 'current_user', None))
         except Exception as e:
             # UNIQUE(parent_id, name) — дубль имени в этой же ветке.
             if 'UNIQUE' in str(e):
@@ -118,7 +118,7 @@ def delete_location_route(node_id):
     with db_connection() as conn:
         if location_repo.get_by_id(conn, node_id) is None:
             return jsonify({'error': 'Место не найдено'}), 404
-        ok, error = location_repo.delete(conn, node_id)
+        ok, error = location_repo.delete(conn, node_id, actor=getattr(request, 'current_user', None))
         if not ok:
             return jsonify({'error': error or 'Не удалось удалить место'}), 400
         return jsonify({'success': True, 'message': 'Место удалено'})

@@ -5,7 +5,7 @@
 
 import sqlite3
 
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 def list_all(conn: sqlite3.Connection) -> list[dict]:
@@ -35,13 +35,18 @@ def search(conn: sqlite3.Connection, query: str, limit: int = 20) -> list[dict]:
     return rows[:limit]
 
 
-def create(conn: sqlite3.Connection, full_name: str, position: str | None = None, workshop: str | None = None) -> int:
+def create(conn: sqlite3.Connection, full_name: str, position: str | None = None, workshop: str | None = None,
+           actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     cur = conn.execute(
         "INSERT INTO crew (full_name, position, workshop, created_at) VALUES (?, ?, ?, datetime('now'))",
         (full_name, position, workshop)
     )
+    crew_id = cur.lastrowid
+    log_creation(conn, 'crew', crew_id, actor, full_name)
     conn.commit()
-    return cur.lastrowid
+    return crew_id
 
 
 def update(conn: sqlite3.Connection, crew_id: int, full_name: str | None = None,
@@ -101,9 +106,14 @@ def is_referenced(conn: sqlite3.Connection, crew_id: int) -> bool:
     return cur.fetchone() is not None
 
 
-def delete(conn: sqlite3.Connection, crew_id: int) -> tuple[bool, str | None]:
+def delete(conn: sqlite3.Connection, crew_id: int, actor: dict | None = None) -> tuple[bool, str | None]:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
     if is_referenced(conn, crew_id):
         return False, 'Человек указан хотя бы в одной заявке — удаление невозможно'
+    old_row = get_by_id(conn, crew_id)
     cur = conn.execute('DELETE FROM crew WHERE id = ?', (crew_id,))
+    if old_row is not None:
+        log_deletion(conn, 'crew', crew_id, actor, old_row.get('full_name'))
     conn.commit()
     return cur.rowcount > 0, None

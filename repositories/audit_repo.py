@@ -116,25 +116,6 @@ def _attach_value_labels(conn, rows: list[dict]) -> list[dict]:
     return rows
 
 
-def growth_stats(conn, days: int = 90) -> dict:
-    """Кол-во новых записей audit_log по дням за последние `days` дней
-    (для графика динамики разрастания журнала) + общее количество строк
-    в audit_log на текущий момент. changed_at хранится в ISO-формате
-    (datetime.now().isoformat()) — первые 10 символов всегда YYYY-MM-DD,
-    группировка по этому префиксу корректна без парсинга даты."""
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT substr(changed_at, 1, 10) AS day, COUNT(*) AS c "
-        "FROM audit_log WHERE changed_at >= date('now', ?) "
-        "GROUP BY day ORDER BY day",
-        (f'-{days} days',)
-    )
-    by_day = {r['day']: r['c'] for r in cur.fetchall()}
-    cur.execute('SELECT COUNT(*) AS c FROM audit_log')
-    total = cur.fetchone()['c']
-    return {'by_day': by_day, 'total': total, 'days': days}
-
-
 def list_entity_types(conn) -> list[str]:
     """Список различных entity_type, уже встречавшихся в журнале — для
     выпадающего фильтра на фронте. Не хардкодим список типов сущностей на

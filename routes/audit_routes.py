@@ -58,17 +58,3 @@ def list_entity_types_route():
     except Exception as e:
         logger.exception('list_entity_types_route failed')
         return jsonify({'error': str(e)}), 500
-
-
-@audit_bp.route('/stats', methods=['GET'])
-def audit_stats_route():
-    """Динамика разрастания журнала — записей в день за последние N дней
-    (по умолчанию 90) + общее количество строк в audit_log сейчас."""
-    try:
-        days = min(request.args.get('days', 90, type=int) or 90, 730)
-        with db_connection() as conn:
-            data = audit_repo.growth_stats(conn, days=days)
-        return jsonify(data)
-    except Exception as e:
-        logger.exception('audit_stats_route failed')
-        return jsonify({'error': str(e)}), 500

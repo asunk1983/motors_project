@@ -341,7 +341,7 @@ def create_equipment_route():
         with db_connection() as conn:
             if not get_equipment_type(conn, clean['equipment_type_id']):
                 return jsonify({'error': 'Указанный тип оборудования не найден'}), 400
-            equipment_id = create_equipment(conn, clean)
+            equipment_id = create_equipment(conn, clean, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'id': equipment_id, 'message': 'Оборудование добавлено'})
     except Exception as e:
         logger.exception('create_equipment_route failed')
@@ -374,7 +374,7 @@ def delete_equipment_route(equipment_id):
                 return jsonify({'error': 'Оборудование не найдено'}), 404
             if equipment_referenced_by_incidents(conn, equipment_id):
                 return jsonify({'error': 'Оборудование привязано к заявке Инцидента — сначала отвяжите его от заявки'}), 400
-            delete_equipment(conn, equipment_id)
+            delete_equipment(conn, equipment_id, actor=getattr(request, 'current_user', None))
         # Фото — вне транзакции БД, ПОСЛЕ успешного удаления записи (тот
         # же порядок, что routes/engines.py::delete_engine ->
         # manager.py::delete_engine_photos_from_disk). Ошибки отдельных

@@ -6,7 +6,7 @@
 from datetime import datetime
 
 from modules.db import ENGINE_COLUMNS_ORDERED
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 def _row_to_dict(row):
@@ -301,7 +301,7 @@ def _next_free_id(conn) -> int:
     return cur.fetchone()[0]
 
 
-def create(conn, data: dict) -> int:
+def create(conn, data: dict, actor: dict | None = None) -> int:
     """Создать двигатель. Возвращает ID.
 
     ID выбирается явно как минимальный свободный (см. _next_free_id), а не
@@ -317,7 +317,10 @@ def create(conn, data: dict) -> int:
     ENGINE_COLUMNS_ORDERED, поэтому sanitize_engine_data (schemas/
     engine_schema.py) уже отфильтровал их из клиентского payload раньше —
     это дублирующая, но не лишняя защита на случай прямого вызова
-    create() в обход роута."""
+    create() в обход роута.
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     now = datetime.now().isoformat()
     data_columns = [k for k in ENGINE_COLUMNS_ORDERED if k != 'id' and k in data]
     all_columns = data_columns + ['created_at', 'updated_at']
@@ -333,6 +336,8 @@ def create(conn, data: dict) -> int:
             f'INSERT INTO engines ({col_names}) VALUES ({placeholders})',
             [engine_id] + values
         )
+        summary = data.get('serial_number') or data.get('engine_type') or data.get('location') or str(engine_id)
+        log_creation(conn, 'engine', engine_id, actor, summary)
         conn.commit()
         return engine_id
     except Exception:
@@ -383,7 +388,7 @@ def update(conn, engine_id: int, data: dict, actor: dict | None = None) -> bool:
     return cur.rowcount > 0
 
 
-def delete(conn, engine_id: int) -> bool:
+def delete(conn, engine_id: int, actor: dict | None = None) -> bool:
     """Удалить двигатель (каскадно удаляет modes и works).
 
     Схема БД имеет ON DELETE CASCADE, но на продакшен-БД (созданной
@@ -394,11 +399,17 @@ def delete(conn, engine_id: int) -> bool:
     репозиторий содержит только SQL. Чистка файлов — на уровне роута
     (routes/engines.py::delete_engine), через
     modules.photo_manager.manager.delete_engine_photos_from_disk().
-    """
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
+    old_row = get_by_id(conn, engine_id)
     cur = conn.cursor()
     cur.execute('DELETE FROM operating_modes WHERE engine_id = ?', (engine_id,))
     cur.execute('DELETE FROM maintenance_works WHERE engine_id = ?', (engine_id,))
     cur.execute('DELETE FROM engines WHERE id = ?', (engine_id,))
+    if old_row is not None:
+        summary = old_row.get('serial_number') or old_row.get('engine_type') or old_row.get('location') or str(engine_id)
+        log_deletion(conn, 'engine', engine_id, actor, summary)
     conn.commit()
     return cur.rowcount > 0
 

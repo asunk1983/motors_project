@@ -4,7 +4,7 @@
 import sqlite3
 
 from repositories import incident_equipment_repo, location_repo
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 # ---------------------------------------------------------------------
@@ -241,7 +241,9 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
 
 def create(conn: sqlite3.Connection, location_node_id: int, problem: str, created_by_user_id: int,
            solution: str | None = None, priority: str = 'medium', status: str = 'in_progress',
-           closed_at: str | None = None) -> int:
+           closed_at: str | None = None, actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     cur = conn.execute(
@@ -253,8 +255,10 @@ def create(conn: sqlite3.Connection, location_node_id: int, problem: str, create
         ''',
         (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id)
     )
+    ticket_id = cur.lastrowid
+    log_creation(conn, 'incident_ticket', ticket_id, actor, problem)
     conn.commit()
-    return cur.lastrowid
+    return ticket_id
 
 
 def update(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None, **fields) -> bool:
@@ -304,11 +308,17 @@ def update(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None, 
     return cur.rowcount > 0
 
 
-def delete(conn: sqlite3.Connection, ticket_id: int) -> bool:
+def delete(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None) -> bool:
     """Физическое удаление — вызывающий (routes) обязан проверить
     role == 'superadmin' до вызова (ТЗ раздел 2.1.4). initiator/executor/
-    equipment-link/link удаляются каскадом (ON DELETE CASCADE)."""
+    equipment-link/link удаляются каскадом (ON DELETE CASCADE).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
+    old_row = get_by_id(conn, ticket_id)
     cur = conn.execute('DELETE FROM incident_ticket WHERE id = ?', (ticket_id,))
+    if old_row is not None:
+        log_deletion(conn, 'incident_ticket', ticket_id, actor, old_row.get('problem'))
     conn.commit()
     return cur.rowcount > 0
 

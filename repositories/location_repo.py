@@ -5,7 +5,7 @@
 
 import sqlite3
 
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 VALID_NODE_TYPES = {'workshop', 'installation', 'unit', 'zone', 'warehouse', 'other'}
@@ -93,14 +93,19 @@ def get_by_id(conn: sqlite3.Connection, node_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def create(conn: sqlite3.Connection, name: str, node_type: str, parent_id: int | None = None) -> int:
+def create(conn: sqlite3.Connection, name: str, node_type: str, parent_id: int | None = None,
+           actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     cur = conn.execute(
         'INSERT INTO location_node (parent_id, name, node_type, created_at) '
         "VALUES (?, ?, ?, datetime('now'))",
         (parent_id, name, node_type)
     )
+    node_id = cur.lastrowid
+    log_creation(conn, 'location_node', node_id, actor, name)
     conn.commit()
-    return cur.lastrowid
+    return node_id
 
 
 def update(conn: sqlite3.Connection, node_id: int, name: str | None = None, node_type: str | None = None,
@@ -216,11 +221,16 @@ def is_referenced(conn: sqlite3.Connection, node_id: int) -> bool:
     return False
 
 
-def delete(conn: sqlite3.Connection, node_id: int) -> tuple[bool, str | None]:
+def delete(conn: sqlite3.Connection, node_id: int, actor: dict | None = None) -> tuple[bool, str | None]:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
     if has_children(conn, node_id):
         return False, 'У узла есть дочерние места — сначала удалите или перенесите их'
     if is_referenced(conn, node_id):
         return False, 'Узел используется в оборудовании или заявках — удаление невозможно'
+    old_row = get_by_id(conn, node_id)
     cur = conn.execute('DELETE FROM location_node WHERE id = ?', (node_id,))
+    if old_row is not None:
+        log_deletion(conn, 'location_node', node_id, actor, old_row.get('name'))
     conn.commit()
     return cur.rowcount > 0, None

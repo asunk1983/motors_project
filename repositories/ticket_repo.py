@@ -10,7 +10,7 @@ equipment_work существует только через failure (осозн�
 """
 from datetime import datetime
 
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 def _row_to_dict(row):
@@ -71,7 +71,9 @@ def get_ticket_by_id(conn, ticket_id: int):
     return ticket
 
 
-def create_ticket(conn, data: dict) -> int:
+def create_ticket(conn, data: dict, actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     now = datetime.now().isoformat()
     cur = conn.cursor()
     cur.execute('''
@@ -82,8 +84,10 @@ def create_ticket(conn, data: dict) -> int:
         data.get('equipment_id'), data.get('created_by_user_id'),
         data.get('priority', 'normal'), data['title'], data.get('description'), now,
     ))
+    ticket_id = cur.lastrowid
+    log_creation(conn, 'ticket', ticket_id, actor, data.get('title'))
     conn.commit()
-    return cur.lastrowid
+    return ticket_id
 
 
 def update_ticket_status(conn, ticket_id: int, status: str, rejection_reason=None,
@@ -148,11 +152,17 @@ def update_ticket(conn, ticket_id: int, data: dict, actor: dict | None = None) -
     return cur.rowcount > 0
 
 
-def delete_ticket(conn, ticket_id: int) -> bool:
+def delete_ticket(conn, ticket_id: int, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
     cur = conn.cursor()
+    cur.execute('SELECT title FROM ticket WHERE id = ?', (ticket_id,))
+    old_row = cur.fetchone()
     cur.execute('DELETE FROM equipment_work WHERE failure_id IN (SELECT id FROM failure WHERE ticket_id = ?)', (ticket_id,))
     cur.execute('DELETE FROM failure WHERE ticket_id = ?', (ticket_id,))
     cur.execute('DELETE FROM ticket WHERE id = ?', (ticket_id,))
+    if old_row is not None:
+        log_deletion(conn, 'ticket', ticket_id, actor, old_row['title'])
     conn.commit()
     return cur.rowcount > 0
 
@@ -181,10 +191,13 @@ def get_failure_by_id(conn, failure_id: int):
     return failure
 
 
-def create_failure(conn, data: dict) -> int:
+def create_failure(conn, data: dict, actor: dict | None = None) -> int:
     """Создать отказ по заявке. Не проверяет и не меняет статус заявки —
     это ответственность роута (симметрично тому, как engine_repo.py не
-    лезет в чужие таблицы сам, только выполняет то, о чём его просят)."""
+    лезет в чужие таблицы сам, только выполняет то, о чём его просят).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     now = datetime.now().isoformat()
     cur = conn.cursor()
     cur.execute('''
@@ -198,8 +211,10 @@ def create_failure(conn, data: dict) -> int:
         data.get('symptom'), data.get('description'), int(bool(data.get('confirmed', True))),
         data.get('occurred_at'), data.get('restored_at'), now,
     ))
+    failure_id = cur.lastrowid
+    log_creation(conn, 'failure', failure_id, actor, data.get('symptom') or data.get('description'))
     conn.commit()
-    return cur.lastrowid
+    return failure_id
 
 
 def update_failure(conn, failure_id: int, data: dict, actor: dict | None = None) -> bool:

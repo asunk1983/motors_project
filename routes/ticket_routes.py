@@ -73,7 +73,7 @@ def create_ticket_route():
         clean = sanitize_ticket_data(data)
         clean['created_by_user_id'] = _current_user_id()
         with db_connection() as conn:
-            ticket_id = create_ticket(conn, clean)
+            ticket_id = create_ticket(conn, clean, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'id': ticket_id, 'message': 'Заявка создана'})
     except Exception as e:
         logger.exception('create_ticket_route failed')
@@ -122,7 +122,7 @@ def delete_ticket_route(ticket_id):
         with db_connection() as conn:
             if not get_ticket_by_id(conn, ticket_id):
                 return jsonify({'error': 'Заявка не найдена'}), 404
-            delete_ticket(conn, ticket_id)
+            delete_ticket(conn, ticket_id, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'message': 'Заявка удалена'})
     except Exception as e:
         logger.exception('delete_ticket_route failed')
@@ -164,7 +164,7 @@ def confirm_failure_route(ticket_id):
             if not is_valid:
                 return jsonify({'error': err}), 400
             clean = sanitize_failure_data(data)
-            failure_id = create_failure(conn, clean)
+            failure_id = create_failure(conn, clean, actor=getattr(request, 'current_user', None))
             update_ticket_status(conn, ticket_id, 'in_progress', actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'id': failure_id, 'message': 'Отказ подтверждён'})
     except Exception as e:

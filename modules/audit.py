@@ -10,6 +10,47 @@ repo-функция пишет свой SQL сама), поэтому вызов
 from datetime import datetime
 
 
+def log_creation(conn, entity_type: str, entity_id: int, actor: dict | None, summary: str | None) -> None:
+    """Пишет одну строку в audit_log о создании записи.
+
+    summary — короткое человекочитаемое описание созданного (например,
+    название/заголовок/ФИО), чтобы в журнале было видно, ЧТО создали, а не
+    только entity_id. field_name зафиксирован как '__created__' —
+    служебный маркер, отличимый от обычных имён полей (не может
+    совпасть с реальной колонкой таблицы, так как содержит подчёркивания
+    по краям и никогда не встретится как имя SQL-колонки в этом проекте)."""
+    actor_id = actor.get('id') if actor else None
+    actor_name = (actor.get('display_name') or actor.get('username')) if actor else None
+    now = datetime.now().isoformat()
+    cur = conn.cursor()
+    cur.execute(
+        'INSERT INTO audit_log '
+        '(entity_type, entity_id, field_name, old_value, new_value, '
+        ' changed_by_user_id, changed_by_display_name, changed_at) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        (entity_type, entity_id, '__created__', None, summary, actor_id, actor_name, now)
+    )
+
+
+def log_deletion(conn, entity_type: str, entity_id: int, actor: dict | None, summary: str | None) -> None:
+    """Пишет одну строку в audit_log об удалении записи.
+
+    summary — короткое описание того, что удалили; вызывающая сторона
+    обязана достать его из записи ДО DELETE (после удаления читать уже
+    нечего) — см. места вызова в repositories/*.py::delete*()."""
+    actor_id = actor.get('id') if actor else None
+    actor_name = (actor.get('display_name') or actor.get('username')) if actor else None
+    now = datetime.now().isoformat()
+    cur = conn.cursor()
+    cur.execute(
+        'INSERT INTO audit_log '
+        '(entity_type, entity_id, field_name, old_value, new_value, '
+        ' changed_by_user_id, changed_by_display_name, changed_at) '
+        'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        (entity_type, entity_id, '__deleted__', summary, None, actor_id, actor_name, now)
+    )
+
+
 def log_field_changes(conn, entity_type: str, entity_id: int, actor: dict | None,
                        old_row: dict | None, new_fields: dict) -> None:
     """Пишет по одной строке audit_log на каждое РЕАЛЬНО изменившееся поле.

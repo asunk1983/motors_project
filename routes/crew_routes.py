@@ -29,7 +29,7 @@ def create_crew_route():
     workshop = (data.get('workshop') or '').strip() or None
 
     with db_connection() as conn:
-        new_id = crew_repo.create(conn, full_name, position, workshop)
+        new_id = crew_repo.create(conn, full_name, position, workshop, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'id': new_id, 'message': 'Человек добавлен'})
 
 
@@ -75,7 +75,7 @@ def delete_crew_route(crew_id):
             return jsonify({
                 'error': 'Этот человек привязан к учётной записи (config/users.json) — удаление невозможно'
             }), 400
-        ok, error = incident_service.delete_crew(conn, crew_id)
+        ok, error = incident_service.delete_crew(conn, crew_id, actor=getattr(request, 'current_user', None))
         if not ok:
             return jsonify({'error': error or 'Не удалось удалить'}), 400
         return jsonify({'success': True, 'message': 'Удалено'})

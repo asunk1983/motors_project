@@ -88,7 +88,7 @@ def create_engine():
 
         clean = sanitize_engine_data(data)
         with db_connection() as conn:
-            engine_id = engine_create(conn, clean)
+            engine_id = engine_create(conn, clean, actor=getattr(request, 'current_user', None))
             if data.get('modes'):
                 replace_modes(conn, engine_id, data['modes'])
             if data.get('works'):
@@ -145,7 +145,7 @@ def delete_engine(engine_id):
             if not get_by_id(conn, engine_id):
                 # Двигатель уже был удален (возможно, конкурентным запросом)
                 return jsonify({'error': 'Двигатель не найден'}), 404
-            engine_delete(conn, engine_id)
+            engine_delete(conn, engine_id, actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'message': 'Двигатель удалён'})
     except Exception as e:

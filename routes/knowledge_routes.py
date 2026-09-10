@@ -177,7 +177,7 @@ def create_article_route():
 
         clean = sanitize_article_data(data)
         with db_connection() as conn:
-            article_id = create_article(conn, clean)
+            article_id = create_article(conn, clean, actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'id': article_id, 'message': 'Статья создана'})
     except Exception as e:
@@ -211,7 +211,7 @@ def delete_article_route(article_id):
         with db_connection() as conn:
             if not get_article_by_id(conn, article_id):
                 return jsonify({'error': 'Статья не найдена'}), 404
-            delete_article(conn, article_id)
+            delete_article(conn, article_id, actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'message': 'Статья удалена'})
     except Exception as e:

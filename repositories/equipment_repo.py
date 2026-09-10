@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 
 from repositories import location_repo
-from modules.audit import log_field_changes
+from modules.audit import log_field_changes, log_creation, log_deletion
 
 
 def _row_to_dict(row):
@@ -449,7 +449,9 @@ def get_equipment_location_counts(conn) -> dict:
     return result
 
 
-def create_equipment(conn, data: dict) -> int:
+def create_equipment(conn, data: dict, actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     now = datetime.now().isoformat()
     cur = conn.cursor()
     cur.execute('''
@@ -464,8 +466,10 @@ def create_equipment(conn, data: dict) -> int:
         data.get('criticality'), data.get('installed_at'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, now,
     ))
+    equipment_id = cur.lastrowid
+    log_creation(conn, 'equipment', equipment_id, actor, data.get('name'))
     conn.commit()
-    return cur.lastrowid
+    return equipment_id
 
 
 def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = None) -> bool:
@@ -532,9 +536,14 @@ def equipment_referenced_by_incidents(conn, equipment_id: int) -> bool:
     return cur.fetchone() is not None
 
 
-def delete_equipment(conn, equipment_id: int) -> bool:
+def delete_equipment(conn, equipment_id: int, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
+    old_row = get_equipment_by_id(conn, equipment_id)
     cur = conn.cursor()
     cur.execute('DELETE FROM equipment WHERE id = ?', (equipment_id,))
+    if old_row is not None:
+        log_deletion(conn, 'equipment', equipment_id, actor, old_row.get('name'))
     conn.commit()
     return cur.rowcount > 0
 
