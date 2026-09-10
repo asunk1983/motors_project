@@ -63,7 +63,8 @@ def list_entries(conn, entity_type: str | None = None, entity_id: int | None = N
         q = actor_query.lower()
         rows = [r for r in rows if q in (r.get('changed_by_display_name') or '').lower()]
         total = len(rows)
-        return rows[offset:offset + limit], total
+        page_rows = _attach_value_labels(conn, rows[offset:offset + limit])
+        return page_rows, total
 
     cur.execute(f'SELECT COUNT(*) AS c FROM audit_log {where_clause}', params)
     total = cur.fetchone()['c']
@@ -73,7 +74,65 @@ def list_entries(conn, entity_type: str | None = None, entity_id: int | None = N
         params + [limit, offset]
     )
     rows = [_row_to_dict(r) for r in cur.fetchall()]
+    rows = _attach_value_labels(conn, rows)
     return rows, total
+
+
+def _resolve_location_label(conn, value):
+    """location_node_id -> человекочитаемый путь места (breadcrumb),
+    например 'Цех №1 → Линия 2 → Зона 3', вместо голого числового id."""
+    if value in (None, ''):
+        return None
+    try:
+        node_id = int(value)
+    except (TypeError, ValueError):
+        return None
+    from repositories import location_repo
+    if location_repo.get_by_id(conn, node_id) is None:
+        return None  # место с таким id больше не существует (удалено) — оставляем голый id на фронте
+    return location_repo.get_breadcrumb_text(conn, node_id)
+
+
+# Резолверы значений полей, хранящих внешний ключ (id), в человекочитаемый
+# label — расширяемо: добавить новый FK-field_name сюда, когда понадобится
+# (например crew_id -> ФИО, equipment_type_id -> название типа). Каждый
+# резолвер: (conn, raw_value) -> str | None. None means "не смогли
+# определить" — фронт в этом случае покажет исходное значение как есть.
+FIELD_VALUE_RESOLVERS = {
+    'location_node_id': _resolve_location_label,
+}
+
+
+def _attach_value_labels(conn, rows: list[dict]) -> list[dict]:
+    """Добавляет old_value_display/new_value_display для полей из
+    FIELD_VALUE_RESOLVERS — не переопределяет old_value/new_value (сырые
+    значения остаются в ответе), фронт сам решает, что показывать."""
+    for row in rows:
+        resolver = FIELD_VALUE_RESOLVERS.get(row.get('field_name'))
+        if not resolver:
+            continue
+        row['old_value_display'] = resolver(conn, row.get('old_value'))
+        row['new_value_display'] = resolver(conn, row.get('new_value'))
+    return rows
+
+
+def growth_stats(conn, days: int = 90) -> dict:
+    """Кол-во новых записей audit_log по дням за последние `days` дней
+    (для графика динамики разрастания журнала) + общее количество строк
+    в audit_log на текущий момент. changed_at хранится в ISO-формате
+    (datetime.now().isoformat()) — первые 10 символов всегда YYYY-MM-DD,
+    группировка по этому префиксу корректна без парсинга даты."""
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT substr(changed_at, 1, 10) AS day, COUNT(*) AS c "
+        "FROM audit_log WHERE changed_at >= date('now', ?) "
+        "GROUP BY day ORDER BY day",
+        (f'-{days} days',)
+    )
+    by_day = {r['day']: r['c'] for r in cur.fetchall()}
+    cur.execute('SELECT COUNT(*) AS c FROM audit_log')
+    total = cur.fetchone()['c']
+    return {'by_day': by_day, 'total': total, 'days': days}
 
 
 def list_entity_types(conn) -> list[str]:
