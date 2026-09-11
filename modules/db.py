@@ -281,12 +281,9 @@ def init_db(conn=None):
                 name TEXT NOT NULL,
                 article TEXT,
                 manufacturer TEXT,
-                serial_number TEXT,
                 workshop TEXT,
                 location TEXT,
-                firmware_version TEXT,
                 criticality INTEGER CHECK (criticality BETWEEN 1 AND 5),
-                installed_at TEXT,
                 specs_json TEXT,
                 note TEXT,
                 created_at TEXT NOT NULL,
@@ -479,7 +476,13 @@ def init_db(conn=None):
                 -- инцидентов любым пользователем, кроме seed-superadmin.
                 -- Идемпотентная миграция для уже существующих БД — в
                 -- repositories/incident_ticket_repo.py::_ensure_no_users_fk
-                created_by_user_id INTEGER NOT NULL
+                created_by_user_id INTEGER NOT NULL,
+                -- updated_at объявлен здесь для свежих БД: так новые
+                -- развёртывания сразу имеют полную схему, а старые БД получают
+                -- эту колонку через репозитариальную миграцию
+                -- _ensure_updated_at_column. last_edited_by/last_edited_at
+                -- добавляются миграцией _ensure_last_edited_columns.
+                updated_at TEXT
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_status ON incident_ticket(status)')
@@ -507,17 +510,7 @@ def init_db(conn=None):
             )
         ''')
 
-        # Только ссылки — фото идут файловым паттерном PhotoI/, не через БД.
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS incident_ticket_link (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticket_id INTEGER NOT NULL REFERENCES incident_ticket(id) ON DELETE CASCADE,
-                url TEXT NOT NULL,
-                caption TEXT,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
-            )
-        ''')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_link_ticket ON incident_ticket_link(ticket_id)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_status ON incident_ticket(status)')
 
         # Auto-migration: добавляем новые колонки, если БД была создана ранее
         _ensure_column(cursor, 'users', 'last_login', 'TEXT')

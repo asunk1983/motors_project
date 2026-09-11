@@ -707,9 +707,7 @@ def export_equipment_to_xlsx(conn, equipment_ids: list[int]) -> bytes:
             ('Тип оборудования', item.get('equipment_type_name')),
             ('Артикул', item.get('article')),
             ('Производитель', item.get('manufacturer')),
-            ('Серийный номер', item.get('serial_number')),
             ('Место', location_text),
-            ('Версия прошивки', item.get('firmware_version')),
             ('Критичность', criticality_text),
             ('Примечание', item.get('note')),
         ]

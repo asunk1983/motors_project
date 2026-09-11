@@ -64,7 +64,7 @@ def main() -> int:
     with db_connection() as conn:
         cur = conn.cursor()
         cur.execute('SELECT id, equipment_type_id, name, article, manufacturer, workshop, '
-                     'location, location_node_id, criticality, installed_at, specs_json, note '
+                     'location, location_node_id, criticality, specs_json, note '
                      'FROM equipment LIMIT 1')
         eq_row = cur.fetchone()
 

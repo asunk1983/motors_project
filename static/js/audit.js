@@ -71,7 +71,6 @@ const AUDIT_FIELD_LABELS = {
     // Оборудование (equipment_repo.update_equipment)
     article: 'Артикул',
     criticality: 'Критичность',
-    installed_at: 'Дата установки',
     specs_json: 'Характеристики',
     // Инциденты (incident_ticket_repo.update)
     closed_at: 'Дата закрытия',

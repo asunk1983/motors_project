@@ -9,9 +9,6 @@ from repositories.incident_ticket_repo import (
     set_executors,
     get_initiators,
     set_initiators,
-    get_links,
-    add_link,
-    delete_link,
     get_location_counts,
     count_all,
     count_by_status,
@@ -170,25 +167,6 @@ class TestIncidentTicketRepo:
         initiators = get_initiators(db_conn, ticket_id)
         assert len(initiators) == 1
 
-    def test_links_round_trip(self, db_conn, location_id):
-        ticket_id = create(db_conn, location_node_id=location_id, problem="П", created_by_user_id=1)
-        assert get_links(db_conn, ticket_id) == []
-        link_id = add_link(db_conn, ticket_id, url="https://example.com", caption="Фото")
-        assert isinstance(link_id, int)
-        links = get_links(db_conn, ticket_id)
-        assert len(links) == 1
-        assert links[0]["url"] == "https://example.com"
-
-    def test_delete_link(self, db_conn, location_id):
-        ticket_id = create(db_conn, location_node_id=location_id, problem="П", created_by_user_id=1)
-        link_id = add_link(db_conn, ticket_id, url="https://example.com")
-        result = delete_link(db_conn, link_id)
-        assert result is True
-        assert get_links(db_conn, ticket_id) == []
-
-    def test_delete_link_not_found(self, db_conn):
-        assert delete_link(db_conn, 9999) is False
-
     def test_count_all(self, db_conn, location_id):
         assert count_all(db_conn) == 0
         create(db_conn, location_node_id=location_id, problem="П", created_by_user_id=1)
@@ -250,18 +228,16 @@ class TestIncidentTicketRepo:
         ticket = get_by_id(db_conn, ticket_id)
         assert ticket["problem"] == "Проблема"
 
-    def test_delete_cascades_executors_initiators_links(self, db_conn, location_id, crew_id):
+    def test_delete_cascades_executors_initiators(self, db_conn, location_id, crew_id):
         """DELETE тиката должен каскадно удалять связи из incident_ticket_executor,
-        incident_ticket_initiator, incident_ticket_link."""
+        incident_ticket_initiator."""
         ticket_id = create(db_conn, location_node_id=location_id, problem="П", created_by_user_id=1)
         set_executors(db_conn, ticket_id, [crew_id])
         set_initiators(db_conn, ticket_id, [crew_id])
-        add_link(db_conn, ticket_id, url="https://example.com")
 
         # Проверяем что связи есть до удаления
         assert len(get_executors(db_conn, ticket_id)) == 1
         assert len(get_initiators(db_conn, ticket_id)) == 1
-        assert len(get_links(db_conn, ticket_id)) == 1
 
         delete(db_conn, ticket_id)
 
@@ -270,8 +246,6 @@ class TestIncidentTicketRepo:
         cur.execute("SELECT COUNT(*) FROM incident_ticket_executor WHERE ticket_id = ?", (ticket_id,))
         assert cur.fetchone()[0] == 0
         cur.execute("SELECT COUNT(*) FROM incident_ticket_initiator WHERE ticket_id = ?", (ticket_id,))
-        assert cur.fetchone()[0] == 0
-        cur.execute("SELECT COUNT(*) FROM incident_ticket_link WHERE ticket_id = ?", (ticket_id,))
         assert cur.fetchone()[0] == 0
 
     def test_list_all_multiple_filters(self, db_conn, location_id):

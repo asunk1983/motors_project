@@ -30,6 +30,161 @@ let equipmentDisplayAttrs = [];
 // в loadEquipmentTab и в комментарии к new ResizeObserver ниже.
 let equipmentResizeObserver = null;
 
+// ===== Комбобокс «Столбцы» (тот же паттерн, что ENGINE_COLUMNS в catalog.js) =====
+// Фиксированные колонки списка оборудования. sortField — только исходя из
+// whitelist сортировки на бэкенде (EQUIPMENT_SORT_COLUMNS в equipment_repo.py):
+// manufacturer/created_at/updated_at/note серверной сортировки НЕ имеют —
+// sortable для них не вешаем, иначе клик по заголовку обещал бы то, чего
+// бэкенд не делает (молча откатывается на сортировку по умолчанию). Колонка
+// «Тип» (key 'type') рисуется ТОЛЬКО в режиме «Все типы» — при выбранном
+// конкретном типе она скрыта (см. renderEquipmentTableHeaders).
+
+const EQUIPMENT_COLUMNS = [
+    { key: 'name', label: 'Наименование', sortField: 'name', required: true, defaultVisible: true },
+    { key: 'type', label: 'Тип', sortField: 'equipment_type_name', defaultVisible: true },
+    { key: 'article', label: 'Артикул', sortField: 'article', defaultVisible: true },
+    { key: 'location', label: 'Место', sortField: null, defaultVisible: true },
+    { key: 'criticality', label: 'Критичность', sortField: 'criticality', defaultVisible: true },
+    { key: 'last_edited_by', label: 'Изменил', sortField: 'last_edited_by', defaultVisible: true },
+    // Скрытые по умолчанию (данные приходят из /api/equipment целиком)
+    { key: 'manufacturer', label: 'Производитель', sortField: null, defaultVisible: false },
+    { key: 'created_at', label: 'Создано', sortField: null, defaultVisible: false },
+    { key: 'updated_at', label: 'Обновлено', sortField: null, defaultVisible: false },
+    { key: 'note', label: 'Примечание', sortField: null, defaultVisible: false, thClass: 'col-note' },
+];
+
+const EQUIPMENT_COLUMNS_STORAGE_KEY = 'motors_equipment_columns_v1';
+// История атрибутов, которые пользователь ЯВНО скрыл в комбобоксе. Нужна
+// потому, что динамические колонки (attr:...) зависят от выбранного типа:
+// при переключении типов атрибут с тем же ключом может появиться снова, и
+// «ключа нет в сохранённом списке видимых» ещё не значит «скрыт намеренно».
+// Без этой истории новый/другой тип каждый раз терял бы свои колонки. Ключи
+// копим накопительно (см. setVisibleEquipmentColumnKeys).
+const EQUIPMENT_HIDDEN_ATTRS_STORAGE_KEY = 'motors_equipment_hidden_attr_columns_v1';
+
+// Актуальный (с учётом выбранного типа) список колонок для комбобокса.
+// Динамические атрибуты вставляются в каноническое место таблицы — между
+// «Место» и «Критичность» (тот же порядок, что был в renderEquipmentTableHeaders
+// до появления комбобокса).
+function getEquipmentColumnDefs() {
+    const defs = EQUIPMENT_COLUMNS.map(c => ({
+        key: c.key, label: c.label, sortField: c.sortField, thClass: c.thClass || '',
+        required: !!c.required, defaultVisible: c.defaultVisible !== false,
+        isDynamic: false,
+    }));
+    const attrCols = equipmentDisplayAttrs.map(a => ({
+        key: 'attr:' + a.key,
+        label: a.label + (a.unit ? ' (' + a.unit + ')' : ''),
+        sortField: null, thClass: '',
+        required: false, defaultVisible: true, isDynamic: true,
+    }));
+    if (attrCols.length) {
+        const insertAt = defs.findIndex(c => c.key === 'criticality');
+        if (insertAt !== -1) defs.splice(insertAt, 0, ...attrCols);
+        else defs.push(...attrCols);
+    }
+    return defs;
+}
+
+function getVisibleEquipmentColumnKeys() {
+    let saved = null;
+    try {
+        const raw = localStorage.getItem(EQUIPMENT_COLUMNS_STORAGE_KEY);
+        if (raw) saved = JSON.parse(raw);
+    } catch (e) { /* приватный режим/битые данные — используем дефолт */ }
+    let hiddenAttrs = [];
+    try {
+        const raw = localStorage.getItem(EQUIPMENT_HIDDEN_ATTRS_STORAGE_KEY);
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) hiddenAttrs = parsed;
+        }
+    } catch (e) { /* приватный режим/битые данные */ }
+    const defs = getEquipmentColumnDefs();
+    const visible = new Set();
+    if (Array.isArray(saved)) {
+        defs.forEach(c => {
+            if (c.required) { visible.add(c.key); return; }
+            if (saved.includes(c.key)) { visible.add(c.key); return; }
+            // Ключа нет в сохранённом списке. Для фиксированных колонок это
+            // «пользователь скрыл» — не воскрешаем. Для динамических — либо
+            // атрибут ещё ни разу не сохранялся (показываем по умолчанию),
+            // либо его скрыли ранее, и история скрытых не даёт ему вернуться
+            // при переключении между типами с общими атрибутами.
+            if (c.isDynamic && !hiddenAttrs.includes(c.key)) visible.add(c.key);
+        });
+    } else {
+        defs.forEach(c => { if (c.required || c.defaultVisible) visible.add(c.key); });
+    }
+    return defs.filter(c => visible.has(c.key)).map(c => c.key);
+}
+
+function setVisibleEquipmentColumnKeys(keys) {
+    try {
+        localStorage.setItem(EQUIPMENT_COLUMNS_STORAGE_KEY, JSON.stringify(keys));
+        // Обновляем историю скрытых атрибутов: attr-ключи, которых нет в новом
+        // списке видимых, считаем скрытыми и добавляем накопительно.
+        let prevHidden = [];
+        try {
+            const raw = localStorage.getItem(EQUIPMENT_HIDDEN_ATTRS_STORAGE_KEY);
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) prevHidden = parsed;
+            }
+        } catch (e) {}
+        const hiddenNow = getEquipmentColumnDefs()
+            .filter(c => c.isDynamic && !keys.includes(c.key))
+            .map(c => c.key);
+        const merged = Array.from(new Set(prevHidden.concat(hiddenNow)));
+        localStorage.setItem(EQUIPMENT_HIDDEN_ATTRS_STORAGE_KEY, JSON.stringify(merged));
+    } catch (e) { /* приватный режим — не критично */ }
+}
+
+function getDefaultEquipmentColumnKeys() {
+    // Сброс — все колонки с defaultVisible: true (включая динамические
+    // атрибуты текущего типа; required в EQUIPMENT_COLUMNS и так помечены
+    // defaultVisible: true).
+    return getEquipmentColumnDefs().filter(c => c.defaultVisible !== false).map(c => c.key);
+}
+
+function equipmentVisibleColCount() {
+    const typeSelected = equipmentDisplayAttrs.length > 0;
+    const visible = new Set(getVisibleEquipmentColumnKeys());
+    let n = 1; // чекбокс
+    getEquipmentColumnDefs().forEach(c => {
+        if (c.key === 'type' && typeSelected) return;
+        if (visible.has(c.key)) n++;
+    });
+    return n;
+}
+
+function renderEquipmentCellHtml(key, e, locationDisplay) {
+    switch (key) {
+        case 'name': return escapeHtml(e.name);
+        case 'type': return escapeHtml(e.equipment_type_name || '—');
+        case 'article': return escapeHtml(e.article || '—');
+        case 'location': return locationDisplay;
+        case 'criticality': return e.criticality ? '●'.repeat(e.criticality) + '○'.repeat(5 - e.criticality) : '—';
+        case 'last_edited_by': return escapeHtml(e.last_edited_by || '—');
+        case 'manufacturer': return escapeHtml(e.manufacturer || '—');
+        case 'created_at': return formatRuDateTime(e.created_at);
+        case 'updated_at': return formatRuDateTime(e.updated_at);
+        case 'note': {
+            const val = e.note || '';
+            if (!val) return '—';
+            if (val.length <= 60) return escapeHtml(val);
+            return `<span title="${escapeHtml(val)}">${escapeHtml(val.substring(0, 60))}...</span>`;
+        }
+    }
+    if (key.startsWith('attr:')) {
+        const attrKey = key.slice('attr:'.length);
+        const a = equipmentDisplayAttrs.find(x => x.key === attrKey);
+        const val = e.specs && e.specs[attrKey] !== undefined && e.specs[attrKey] !== '' ? e.specs[attrKey] : null;
+        return val !== null ? escapeHtml(String(val)) + (a && a.unit ? ' ' + escapeHtml(a.unit) : '') : '—';
+    }
+    return '—';
+}
+
 // ===== Фото (ТЗ 3.3) =====
 // pendingPhotoFiles — тот же паттерн, что exportManager.js для двигателей:
 // очередь File-объектов, ещё НЕ загруженных на сервер, отправляется одним
@@ -500,11 +655,11 @@ async function loadEquipmentList() {
     const typeFilter = document.getElementById('equipmentTypeFilter').value;
     const search = document.getElementById('equipmentSearchInput').value.trim();
 
-    // При выбранном типе колонка "Тип" в заголовке скрыта (см.
-    // renderEquipmentTableHeaders) — colspan тоже минус 1, иначе столбцы
-    // в строке "Загрузка..." разъедутся с заголовком. После удаления
-    // колонки "Действия" из таблицы — минус ещё 1 от прежнего значения 7.
-    const loadingColspan = 6 - (typeFilter ? 1 : 0);
+    // При выбранном типе колонка "Тип" в заголовке скрыта, а состав
+    // динамических колонок зависит от типа — поэтому colspan считаем
+    // динамически (1 чекбокс + видимые колонки), чтобы строка "Загрузка..."
+    // не разъезжалась с заголовком.
+    const loadingColspan = equipmentVisibleColCount();
     body.innerHTML = `<tr><td colspan="${loadingColspan}" class="no-data">Загрузка...</td></tr>`;
     try {
         const params = new URLSearchParams();
@@ -528,11 +683,10 @@ async function loadEquipmentList() {
         const resp = await apiFetch('/api/equipment' + (params.toString() ? '?' + params.toString() : ''));
         const items = await parseJsonResponse(resp);
         if (!resp.ok) {
-            // Синхронизировано с colspan в loadingColspan выше: при выбранном
-            // типе минус 1 (нет колонки "Тип"). Эта ветка срабатывает до
-            // загрузки динамических колонок, поэтому используем локальный
-            // typeFilter (видим в catch через замыкание функции).
-            const errColspan = 6 - (typeFilter ? 1 : 0);
+            // Эта ветка срабатывает до загрузки динамических колонок нового
+            // типа — colspan берём по текущему состоянию колонок (то же, что
+            // сейчас на экране), после успешной загрузки он пересчитается.
+            const errColspan = equipmentVisibleColCount();
             body.innerHTML = `<tr><td colspan="${errColspan}" class="no-data">${escapeHtml(items.error || 'Ошибка')}</td></tr>`;
             return;
         }
@@ -559,9 +713,9 @@ async function loadEquipmentList() {
         renderEquipmentTable();
         applyDynamicEquipmentPageSize();
     } catch (e) {
-        // typeFilter виден через замыкание loadEquipmentList; см. пояснение
-        // к errColspan в ветке !resp.ok.
-        const catchColspan = 6 - (typeFilter ? 1 : 0);
+        // Тот же принцип, что в ветке !resp.ok — colspan по текущему
+        // состоянию колонок (см. equipmentVisibleColCount).
+        const catchColspan = equipmentVisibleColCount();
         body.innerHTML = `<tr><td colspan="${catchColspan}" class="no-data">${escapeHtml(e && e.message ? e.message : 'Сетевая ошибка')}</td></tr>`;
     }
     // Re-observe в любом исходе (успех или ошибка) — после финального
@@ -596,23 +750,29 @@ function renderEquipmentTableHeaders() {
     // тратит ширину, при "Все типы" — нужна, чтобы видеть, к какому типу
     // относится запись.
     const typeSelected = equipmentDisplayAttrs.length > 0;
-    // Место — намеренно НЕ sortable (ТЗ 3.2): workshop — переходное текстовое
-    // поле, не гарантированно заполнено у новых записей; навигация по месту
-    // уже полностью закрыта деревом слева (equipmentLocationTree.js).
-    let html = `
-        <th class="col-checkbox"><input type="checkbox" id="equipmentSelectAllCheckbox" onchange="toggleEquipmentSelectAll(this.checked)"></th>
-        <th class="sortable" onclick="sortEquipmentTable('name')">Наименование${_equipmentSortArrow('name')}</th>
-        ${typeSelected ? '' : `<th class="sortable" onclick="sortEquipmentTable('equipment_type_name')">Тип${_equipmentSortArrow('equipment_type_name')}</th>`}
-        <th class="sortable" onclick="sortEquipmentTable('article')">Артикул${_equipmentSortArrow('article')}</th>
-        <th>Место</th>
-    `;
-    equipmentDisplayAttrs.forEach(a => {
-        html += `<th>${escapeHtml(a.label)}${a.unit ? ` (${escapeHtml(a.unit)})` : ''}</th>`;
+    // Видимые колонки — набор из комбобокса "Столбцы" (localStorage).
+    const visible = new Set(getVisibleEquipmentColumnKeys());
+    let html = `<th class="col-checkbox"><input type="checkbox" id="equipmentSelectAllCheckbox" onchange="toggleEquipmentSelectAll(this.checked)"></th>`;
+    getEquipmentColumnDefs().forEach(c => {
+        if (!visible.has(c.key)) return;
+        if (c.key === 'type') {
+            if (!typeSelected) {
+                html += `<th class="sortable" onclick="sortEquipmentTable('equipment_type_name')">Тип${_equipmentSortArrow('equipment_type_name')}</th>`;
+            }
+            return;
+        }
+        if (c.key === 'location') {
+            // Место — намеренно НЕ sortable (ТЗ 3.2): workshop — переходное
+            // текстовое поле, не гарантированно заполнено у новых записей;
+            // навигация по месту уже полностью закрыта деревом слева.
+            html += '<th>Место</th>';
+            return;
+        }
+        const thClass = c.sortField ? 'sortable' : (c.thClass || '');
+        const onclick = c.sortField ? ` onclick="sortEquipmentTable('${c.sortField}')"` : '';
+        const arrow = c.sortField ? _equipmentSortArrow(c.sortField) : '';
+        html += `<th class="${thClass}"${onclick}>${escapeHtml(c.label)}${arrow}</th>`;
     });
-    html += `
-        <th class="sortable" onclick="sortEquipmentTable('criticality')">Критичность${_equipmentSortArrow('criticality')}</th>
-        <th class="sortable" onclick="sortEquipmentTable('last_edited_by')">Изменил${_equipmentSortArrow('last_edited_by')}</th>
-    `;
     theadRow.innerHTML = html;
 }
 
@@ -624,17 +784,8 @@ function _equipmentSortArrow(field) {
 function renderEquipmentTable() {
     const body = document.getElementById('equipmentListBody');
     if (!body) return;
-    // Синхронизировано с renderEquipmentTableHeaders: при выбранном типе
-    // колонка "Тип" скрыта, динамических — equipmentDisplayAttrs.length.
-    // 7 = базовые колонки (чекбокс + Наименование + Тип + Артикул + Место
-    // + Критичность + Изменил); минус 1 для "Тип" если тип выбран. Колонка
-    // "Действия" в таблице больше не показывается (правки/удаления —
-    // через открытую карточку).
-    const typeSelected = equipmentDisplayAttrs.length > 0;
-    const baseColCount = 7 - (typeSelected ? 1 : 0);
     if (!allEquipment.length) {
-        const colspan = baseColCount + equipmentDisplayAttrs.length;
-        body.innerHTML = `<tr><td colspan="${colspan}" class="no-data">Оборудования пока нет</td></tr>`;
+        body.innerHTML = `<tr><td colspan="${equipmentVisibleColCount()}" class="no-data">Оборудования пока нет</td></tr>`;
         const pageInfoEmpty = document.getElementById('equipmentPageInfo');
         if (pageInfoEmpty) pageInfoEmpty.textContent = 'Показано 0 из 0';
         return;
@@ -643,6 +794,14 @@ function renderEquipmentTable() {
     const start = (equipmentCurrentPage - 1) * equipmentPageSize;
     const end = start + equipmentPageSize;
     const pageData = allEquipment.slice(start, end);
+
+    // Колонки текущего рендера: видимые из комбобокса «Столбцы», минус
+    // «Тип», если выбран конкретный тип (та же логика, что в заголовке).
+    const typeSelected = equipmentDisplayAttrs.length > 0;
+    const visible = new Set(getVisibleEquipmentColumnKeys());
+    const columnDefs = getEquipmentColumnDefs().filter(c =>
+        visible.has(c.key) && !(c.key === 'type' && typeSelected)
+    );
 
     body.innerHTML = pageData.map(e => {
         // Место в таблице списка — два режима:
@@ -680,21 +839,11 @@ function renderEquipmentTable() {
             // Legacy fallback для записей без единого placement
             locationDisplay = escapeHtml(e.location_name || [e.workshop, e.location].filter(Boolean).join(' / ') || '—');
         }
-        let dynamicCells = '';
-        equipmentDisplayAttrs.forEach(a => {
-            const val = e.specs && e.specs[a.key] !== undefined && e.specs[a.key] !== '' ? e.specs[a.key] : null;
-            dynamicCells += `<td>${val !== null ? escapeHtml(String(val)) + (a.unit ? ' ' + escapeHtml(a.unit) : '') : '—'}</td>`;
-        });
+        const cells = columnDefs.map(c => `<td>${renderEquipmentCellHtml(c.key, e, locationDisplay)}</td>`).join('');
         return `
             <tr class="clickable-row" data-id="${e.id}" onclick="openEquipmentModal(${e.id})">
                 <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="equipment-row-checkbox" ${equipmentSelectedExportIds.has(e.id) ? 'checked' : ''} onchange="toggleEquipmentSelection(${e.id}, this.checked)"></td>
-                <td>${escapeHtml(e.name)}</td>
-                ${typeSelected ? '' : `<td>${escapeHtml(e.equipment_type_name || '—')}</td>`}
-                <td>${escapeHtml(e.article || '—')}</td>
-                <td>${locationDisplay}</td>
-                ${dynamicCells}
-                <td>${e.criticality ? '●'.repeat(e.criticality) + '○'.repeat(5 - e.criticality) : '—'}</td>
-                <td>${escapeHtml(e.last_edited_by || '—')}</td>
+                ${cells}
             </tr>
         `;
     }).join('');
@@ -858,6 +1007,28 @@ document.addEventListener('DOMContentLoaded', function () {
         equipmentResizeObserver = new ResizeObserver(applyDynamicEquipmentPageSize);
         equipmentResizeObserver.observe(equipmentTableWrapperEl);
     }
+});
+
+// Комбобокс «Столбцы» над таблицей (подвкладка «Номенклатура») — тот же
+// паттерн, что в catalog.js. getColumns возвращает АКТУАЛЬНЫЙ список колонок
+// (включая динамические атрибуты выбранного типа) — при смене типа список
+// дропдауна пересобирается при каждом открытии (см. common.js: opts.getColumns).
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.querySelector('#equipmentSubtab-list .toolbar-left');
+    if (!container || typeof initColumnToggleCombobox !== 'function') return;
+    initColumnToggleCombobox({
+        container: container,
+        columns: EQUIPMENT_COLUMNS.map(c => ({ key: c.key, label: c.label, required: !!c.required, defaultVisible: c.defaultVisible !== false })),
+        getColumns: getEquipmentColumnDefs,
+        getVisible: getVisibleEquipmentColumnKeys,
+        getDefaults: getDefaultEquipmentColumnKeys,
+        onChange: function (keys) {
+            setVisibleEquipmentColumnKeys(keys);
+            renderEquipmentTableHeaders();
+            renderEquipmentTable();
+        },
+        buttonLabel: 'Столбцы'
+    });
 });
 
 const debouncedLoadEquipmentList = typeof debounce === 'function' ? debounce(loadEquipmentList, 300) : loadEquipmentList;

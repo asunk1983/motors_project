@@ -161,30 +161,6 @@ def get_incident_location_counts_route():
 # Ссылки
 # ---------------------------------------------------------------------
 
-@incident_ticket_bp.route('/<int:ticket_id>/links', methods=['POST'])
-def add_link_route(ticket_id):
-    data = request.get_json(silent=True) or {}
-    url = (data.get('url') or '').strip()
-    if not url:
-        return jsonify({'error': 'URL обязателен'}), 400
-    caption = (data.get('caption') or '').strip() or None
-
-    with db_connection() as conn:
-        if incident_ticket_repo.get_by_id(conn, ticket_id) is None:
-            return jsonify({'error': 'Заявка не найдена'}), 404
-        link_id = incident_ticket_repo.add_link(conn, ticket_id, url, caption)
-        return jsonify({'success': True, 'id': link_id, 'message': 'Ссылка добавлена'})
-
-
-@incident_ticket_bp.route('/<int:ticket_id>/links/<int:link_id>', methods=['DELETE'])
-def delete_link_route(ticket_id, link_id):
-    with db_connection() as conn:
-        ok = incident_ticket_repo.delete_link(conn, link_id)
-        if not ok:
-            return jsonify({'error': 'Ссылка не найдена'}), 404
-        return jsonify({'success': True, 'message': 'Ссылка удалена'})
-
-
 # ---------------------------------------------------------------------
 # Привязка оборудования
 # ---------------------------------------------------------------------

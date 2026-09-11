@@ -20,11 +20,62 @@ let incidentExecutorsTag = null;
 let incidentSelectedPriority = 'medium';
 let incidentSelectedStatus = 'in_progress';
 let incidentEquipmentSelected = [];   // [{id, name}] — в обоих режимах (create/edit) как единый рабочий список
-let incidentPendingLinks = [];        // [{url, caption}] — только в режиме создания (до появления ticket_id)
 let incidentPendingPhotoFiles = [];   // File[] — только в режиме создания
 let incidentEditPhotos = [];          // [{filename, path}] — только в режиме редактирования (с сервера)
-let incidentEditLinks = [];           // [{id, url, caption}] — только в режиме редактирования (с сервера)
 let incidentSelectedExportIds = new Set();
+
+// ===== Комбобокс «Столбцы» (тот же паттерн, что ENGINE_COLUMNS в catalog.js) =====
+// Колонки журнала заявок. Скрытые по умолчанию (Решение/Исполнители/Создал/
+// Закрыта) — данные уже приходят в /api/incident-tickets целиком.
+const INCIDENT_COLUMNS = [
+    { key: 'id', label: '№', required: true, defaultVisible: true },
+    { key: 'location', label: 'Место', defaultVisible: true },
+    { key: 'problem', label: 'Проблема', defaultVisible: true },
+    { key: 'priority', label: 'Приоритет', defaultVisible: true },
+    { key: 'status', label: 'Статус', defaultVisible: true },
+    { key: 'initiators', label: 'Инициатор(ы)', defaultVisible: true },
+    { key: 'created_at', label: 'Создана', defaultVisible: true },
+    { key: 'last_edited_by', label: 'Изменил', defaultVisible: true },
+    // Скрытые по умолчанию (данные приходят из /api/incident-tickets)
+    { key: 'solution', label: 'Решение', defaultVisible: false },
+    { key: 'executors', label: 'Исполнители', defaultVisible: false },
+    { key: 'created_by_display_name', label: 'Создал', defaultVisible: false },
+    { key: 'closed_at', label: 'Закрыта', defaultVisible: false },
+];
+
+const INCIDENT_COLUMNS_STORAGE_KEY = 'motors_incident_columns_v1';
+
+function getVisibleIncidentColumnKeys() {
+    let saved = null;
+    try {
+        const raw = localStorage.getItem(INCIDENT_COLUMNS_STORAGE_KEY);
+        if (raw) saved = JSON.parse(raw);
+    } catch (e) { /* приватный режим/битые данные — используем дефолт */ }
+    const validKeys = new Set(INCIDENT_COLUMNS.map(c => c.key));
+    let visible;
+    if (Array.isArray(saved)) {
+        visible = new Set(saved.filter(k => validKeys.has(k)));
+    } else {
+        visible = new Set(INCIDENT_COLUMNS.filter(c => c.defaultVisible !== false).map(c => c.key));
+    }
+    // required-колонки видимы всегда, даже если в localStorage попал битый список
+    INCIDENT_COLUMNS.forEach(c => { if (c.required) visible.add(c.key); });
+    return INCIDENT_COLUMNS.filter(c => visible.has(c.key)).map(c => c.key);
+}
+
+function setVisibleIncidentColumnKeys(keys) {
+    try { localStorage.setItem(INCIDENT_COLUMNS_STORAGE_KEY, JSON.stringify(keys)); } catch (e) { /* не критично */ }
+}
+
+function getDefaultIncidentColumnKeys() {
+    return INCIDENT_COLUMNS.filter(c => c.defaultVisible !== false).map(c => c.key);
+}
+
+let visibleIncidentColumnKeys = getVisibleIncidentColumnKeys();
+
+function incidentVisibleColCount() {
+    return 1 + INCIDENT_COLUMNS.filter(c => visibleIncidentColumnKeys.includes(c.key)).length;
+}
 
 // ===== ВКЛАДКА / ПОДВКЛАДКИ =====
 
@@ -78,7 +129,7 @@ function loadIncidentsList() {
     if (incidentActiveLocationId !== null) params.set('location_node_id', incidentActiveLocationId);
 
     const body = document.getElementById('incidentsListBody');
-    if (body) body.innerHTML = '<tr><td colspan="7" class="no-data">Загрузка...</td></tr>';
+    if (body) body.innerHTML = `<tr><td colspan="${incidentVisibleColCount()}" class="no-data">Загрузка...</td></tr>`;
 
     apiFetch('/api/incident-tickets' + (params.toString() ? '?' + params.toString() : ''))
         .then(r => r.json())
@@ -87,31 +138,70 @@ function loadIncidentsList() {
             renderIncidentsList();
         })
         .catch(e => {
-            if (body) body.innerHTML = `<tr><td colspan="7" class="no-data">Ошибка: ${escapeHtml(e.message)}</td></tr>`;
+            if (body) body.innerHTML = `<tr><td colspan="${incidentVisibleColCount()}" class="no-data">Ошибка: ${escapeHtml(e.message)}</td></tr>`;
         });
 }
 
+function renderIncidentCellHtml(key, t) {
+    const open = `onclick="openIncidentModal(${t.id})"`;
+    switch (key) {
+        case 'id': return `<td ${open}>${t.id}</td>`;
+        case 'location': return `<td ${open}>${escapeHtml(t.location_name || '—')}</td>`;
+        case 'problem': {
+            const val = t.problem || '';
+            const short = val.length > 80 ? val.slice(0, 80) + '…' : val;
+            return `<td ${open}>${escapeHtml(short)}</td>`;
+        }
+        case 'priority': return `<td ${open}><span class="incident-priority-badge incident-priority-${t.priority}">${escapeHtml(INCIDENT_PRIORITY_LABEL[t.priority] || t.priority)}</span></td>`;
+        case 'status': return `<td ${open}><span class="incident-status-badge incident-status-${t.status}">${escapeHtml(INCIDENT_STATUS_LABEL[t.status] || t.status)}</span></td>`;
+        case 'initiators': return `<td ${open}>${escapeHtml((t.initiators || []).map(i => i.full_name).join(', ') || '—')}</td>`;
+        case 'created_at': return `<td ${open}>${formatRuDateTime(t.created_at)}</td>`;
+        case 'last_edited_by': return `<td ${open}>${escapeHtml(t.last_edited_by || '—')}</td>`;
+        case 'solution': {
+            const val = (t.solution || '').trim();
+            if (!val) return `<td ${open}>—</td>`;
+            const short = val.length > 80 ? val.slice(0, 80) + '…' : val;
+            return `<td ${open} title="${escapeHtml(val)}">${escapeHtml(short)}</td>`;
+        }
+        case 'executors': return `<td ${open}>${escapeHtml((t.executors || []).map(i => i.full_name).join(', ') || '—')}</td>`;
+        case 'created_by_display_name': return `<td ${open}>${escapeHtml(t.created_by_display_name || '—')}</td>`;
+        case 'closed_at': return `<td ${open}>${formatRuDateTime(t.closed_at)}</td>`;
+        default: return `<td>—</td>`;
+    }
+}
+
+// Заголовки журнала теперь строятся динамически (как в catalog.js), чтобы
+// соответствовать видимым колонкам из комбобокса «Столбцы».
+function renderIncidentsTableHeaders() {
+    const theadRow = document.querySelector('#incidentsTableWrapper thead tr');
+    if (!theadRow) return;
+    let html = '<th class="col-checkbox"><input type="checkbox" id="incidentSelectAllCheckbox" onchange="toggleIncidentSelectAll(this.checked)"></th>';
+    INCIDENT_COLUMNS.forEach(c => {
+        if (!visibleIncidentColumnKeys.includes(c.key)) return;
+        html += `<th>${escapeHtml(c.label)}</th>`;
+    });
+    theadRow.innerHTML = html;
+}
+
 function renderIncidentsList() {
+    renderIncidentsTableHeaders();
     const body = document.getElementById('incidentsListBody');
     if (!body) return;
     if (incidentsList.length === 0) {
-        body.innerHTML = '<tr><td colspan="9" class="no-data">Заявок пока нет</td></tr>';
+        body.innerHTML = `<tr><td colspan="${incidentVisibleColCount()}" class="no-data">Заявок пока нет</td></tr>`;
         updateIncidentExportButton();
         return;
     }
-    body.innerHTML = incidentsList.map(t => `
+    const visibleColumns = INCIDENT_COLUMNS.filter(c => visibleIncidentColumnKeys.includes(c.key));
+    body.innerHTML = incidentsList.map(t => {
+        const cells = visibleColumns.map(c => renderIncidentCellHtml(c.key, t)).join('');
+        return `
         <tr class="clickable-row" data-id="${t.id}">
             <td class="col-checkbox" onclick="event.stopPropagation()"><input type="checkbox" class="incident-row-checkbox" ${incidentSelectedExportIds.has(t.id) ? 'checked' : ''} onchange="toggleIncidentSelection(${t.id}, this.checked)"></td>
-            <td onclick="openIncidentModal(${t.id})">${t.id}</td>
-            <td onclick="openIncidentModal(${t.id})">${escapeHtml(t.location_name || '—')}</td>
-            <td onclick="openIncidentModal(${t.id})">${escapeHtml((t.problem || '').slice(0, 80))}${(t.problem || '').length > 80 ? '…' : ''}</td>
-            <td onclick="openIncidentModal(${t.id})"><span class="incident-priority-badge incident-priority-${t.priority}">${escapeHtml(INCIDENT_PRIORITY_LABEL[t.priority] || t.priority)}</span></td>
-            <td onclick="openIncidentModal(${t.id})"><span class="incident-status-badge incident-status-${t.status}">${escapeHtml(INCIDENT_STATUS_LABEL[t.status] || t.status)}</span></td>
-            <td onclick="openIncidentModal(${t.id})">${escapeHtml((t.initiators || []).map(i => i.full_name).join(', ') || '—')}</td>
-            <td onclick="openIncidentModal(${t.id})">${escapeHtml((t.created_at || '').slice(0, 16).replace('T', ' '))}</td>
-            <td onclick="openIncidentModal(${t.id})">${escapeHtml(t.last_edited_by || '—')}</td>
+            ${cells}
         </tr>
-    `).join('');
+        `;
+    }).join('');
     updateIncidentExportButton();
 }
 
@@ -198,14 +288,10 @@ function openIncidentModal(id) {
     const titleEl = document.getElementById('incidentModalTitle');
     const photosSection = document.getElementById('incidentPhotosEditSection');
     const photosCreateSection = document.getElementById('incidentPhotosCreateSection');
-    const linksEditSection = document.getElementById('incidentLinksEditSection');
-    const linksCreateSection = document.getElementById('incidentLinksCreateSection');
-
+        
     const isEdit = !!currentIncidentId;
     if (photosSection) photosSection.style.display = isEdit ? '' : 'none';
     if (photosCreateSection) photosCreateSection.style.display = isEdit ? 'none' : '';
-    if (linksEditSection) linksEditSection.style.display = isEdit ? '' : 'none';
-    if (linksCreateSection) linksCreateSection.style.display = isEdit ? 'none' : '';
 
     if (!isEdit) {
         titleEl.innerHTML = '<span class="icon icon-warning"></span> Новая заявка';
@@ -309,15 +395,12 @@ function resetIncidentForm() {
     incidentSelectedPriority = 'medium';
     incidentSelectedStatus = 'in_progress';
     incidentEquipmentSelected = [];
-    incidentPendingLinks = [];
-    incidentPendingPhotoFiles = [];
+        incidentPendingPhotoFiles = [];
     incidentEditPhotos = [];
-    incidentEditLinks = [];
-    renderIncidentPriorityPicker();
+        renderIncidentPriorityPicker();
     renderIncidentStatusPicker();
     renderIncidentEquipmentChips();
-    renderIncidentPendingLinks();
-    renderIncidentPendingPhotos();
+        renderIncidentPendingPhotos();
 
     const locationInput = document.getElementById('incidentLocationInput');
     // Модалка заявки переиспользует один и тот же <input> при каждом
@@ -359,9 +442,7 @@ function fillIncidentForm(data) {
     incidentEquipmentSelected = (data.equipment || []).map(e => ({ id: e.id, name: e.name }));
     renderIncidentEquipmentChips();
 
-    incidentEditLinks = data.links || [];
-    renderIncidentEditLinks();
-
+        
     incidentEditPhotos = data.photos || [];
     renderIncidentEditPhotos();
 }
@@ -474,85 +555,7 @@ function removeIncidentEquipment(equipmentId) {
 // Режим создания — очередь в памяти, отправляется одним проходом сразу
 // после успешного создания заявки (тот же принцип, что pendingPhotoFiles
 // у формы добавления двигателя в exportManager.js).
-function addPendingIncidentLink() {
-    const urlInput = document.getElementById('incidentLinkUrlInput');
-    const captionInput = document.getElementById('incidentLinkCaptionInput');
-    const url = urlInput.value.trim();
-    if (!url) {
-        showToast('Введите URL', 'warning', 'icon-warning');
-        return;
-    }
-    incidentPendingLinks.push({ url, caption: captionInput.value.trim() });
-    urlInput.value = '';
-    captionInput.value = '';
-    renderIncidentPendingLinks();
-}
-
-function renderIncidentPendingLinks() {
-    const el = document.getElementById('incidentPendingLinksList');
-    if (!el) return;
-    el.innerHTML = incidentPendingLinks.map((l, idx) => `
-        <li class="wishlist-item">
-            <span class="wishlist-text">${escapeHtml(l.caption || l.url)}</span>
-            <button type="button" class="link-btn" onclick="removePendingIncidentLink(${idx})"><span class="icon icon-close"></span></button>
-        </li>
-    `).join('');
-}
-
-function removePendingIncidentLink(idx) {
-    incidentPendingLinks.splice(idx, 1);
-    renderIncidentPendingLinks();
-}
-
 // Режим редактирования — сразу на сервер (заявка уже существует).
-function addIncidentLink() {
-    if (!currentIncidentId) return;
-    const urlInput = document.getElementById('incidentLinkUrlInput');
-    const captionInput = document.getElementById('incidentLinkCaptionInput');
-    const url = urlInput.value.trim();
-    if (!url) {
-        showToast('Введите URL', 'warning', 'icon-warning');
-        return;
-    }
-    apiFetch(`/api/incident-tickets/${currentIncidentId}/links`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, caption: captionInput.value.trim() })
-    })
-        .then(r => r.json())
-        .then(result => {
-            if (result.error) { showToast(result.error, 'error', 'icon-cancel'); return; }
-            incidentEditLinks.push({ id: result.id, url, caption: captionInput.value.trim() });
-            urlInput.value = '';
-            captionInput.value = '';
-            renderIncidentEditLinks();
-        })
-        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
-}
-
-function renderIncidentEditLinks() {
-    const el = document.getElementById('incidentEditLinksList');
-    if (!el) return;
-    el.innerHTML = incidentEditLinks.map(l => `
-        <li class="wishlist-item">
-            <a href="${escapeHtml(l.url)}" target="_blank" rel="noopener" class="wishlist-text">${escapeHtml(l.caption || l.url)}</a>
-            <button type="button" class="link-btn" onclick="deleteIncidentLink(${l.id})"><span class="icon icon-close"></span></button>
-        </li>
-    `).join('') || '<div class="no-data">Ссылок нет</div>';
-}
-
-function deleteIncidentLink(linkId) {
-    if (!currentIncidentId) return;
-    apiFetch(`/api/incident-tickets/${currentIncidentId}/links/${linkId}`, { method: 'DELETE' })
-        .then(r => r.json())
-        .then(result => {
-            if (result.error) { showToast(result.error, 'error', 'icon-cancel'); return; }
-            incidentEditLinks = incidentEditLinks.filter(l => l.id !== linkId);
-            renderIncidentEditLinks();
-        })
-        .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
-}
-
 // ===== ФОТО =====
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -645,16 +648,6 @@ function uploadPendingIncidentPhotos(ticketId) {
         .catch(() => showToast('Заявка сохранена, но фото не загрузились', 'warning', 'icon-warning'));
 }
 
-function uploadPendingIncidentLinks(ticketId) {
-    return Promise.all(incidentPendingLinks.map(l =>
-        apiFetch(`/api/incident-tickets/${ticketId}/links`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(l)
-        })
-    )).catch(() => showToast('Заявка сохранена, но не все ссылки добавились', 'warning', 'icon-warning'));
-}
-
 function submitIncident() {
     const location = incidentLocationPicker.getValue();
     if (!location) {
@@ -721,8 +714,7 @@ function submitIncident() {
                 );
                 Promise.all([
                     uploadPendingIncidentPhotos(ticketId),
-                    uploadPendingIncidentLinks(ticketId),
-                    ...equipmentCalls
+                                        ...equipmentCalls
                 ]).then(() => {
                     showToast('Заявка создана', 'success', 'icon-check-circle');
                     closeIncidentModal();
@@ -760,7 +752,6 @@ function printIncident() {
 // 1) e.defaultPrevented — Enter уже обработан автодополнением места
 //    (attachSuggestDropdown/attachEntitySuggest в common.js сами вызывают
 //    preventDefault при выборе подсказки из списка).
-// 2) поля добавления ссылки (incidentLinkUrlInput/incidentLinkCaptionInput) —
 //    у них своей кнопки/Enter-обработчика на добавление пока нет, но раз
 //    это обычный <input>, Enter в них не должен проваливаться в общий
 //    submit и случайно сохранять/закрывать всю заявку вместо (пока
@@ -770,7 +761,25 @@ document.addEventListener('keydown', function (e) {
     if (e.target.tagName !== 'INPUT') return; // не трогаем textarea (перенос строки) и select
     const modal = document.getElementById('incidentTicketModal');
     if (!modal || !modal.classList.contains('active')) return;
-    if (e.target.id === 'incidentLinkUrlInput' || e.target.id === 'incidentLinkCaptionInput') return;
-    e.preventDefault();
+        e.preventDefault();
     submitIncident();
+});
+
+// Комбобокс «Столбцы» над журналом (подвкладка «Журнал») — тот же паттерн,
+// что в catalog.js. Изменение видимости сразу перерисовывает таблицу.
+document.addEventListener('DOMContentLoaded', function () {
+    const container = document.querySelector('#incidentsSubtab-journal .toolbar-left');
+    if (!container || typeof initColumnToggleCombobox !== 'function') return;
+    initColumnToggleCombobox({
+        container: container,
+        columns: INCIDENT_COLUMNS.map(c => ({ key: c.key, label: c.label, required: !!c.required, defaultVisible: c.defaultVisible !== false })),
+        getVisible: () => visibleIncidentColumnKeys,
+        getDefaults: () => getDefaultIncidentColumnKeys(),
+        onChange: function (keys) {
+            visibleIncidentColumnKeys = keys;
+            setVisibleIncidentColumnKeys(keys);
+            renderIncidentsList(); // внутри себя перерисовывает и заголовки
+        },
+        buttonLabel: 'Столбцы'
+    });
 });

@@ -33,6 +33,22 @@ def _ensure_last_edited_columns(conn) -> None:
     conn.commit()
 
 
+# Самовосстанавливающаяся миграция: удаление legacy-колонок
+# serial_number/firmware_version/installed_at (поля «Зав. номер», «Версия ПО»,
+# «Установлено» выпилены из номенклатуры — см. modules/db.py и
+# schemas/equipment_schema.py). ALTER TABLE ... DROP COLUMN поддерживается
+# SQLite 3.35+ (на проде 3.50.x). Тот же приём, что
+# _ensure_last_edited_columns: проверка через PRAGMA table_info при каждом
+# вызове create_equipment/update_equipment — PRAGMA дёшев, а так миграция
+# применяется на любой существующей БД при первом же сохранении.
+def _ensure_legacy_columns_dropped(conn) -> None:
+    columns = [row[1] for row in conn.execute('PRAGMA table_info(equipment)').fetchall()]
+    for col in ('serial_number', 'firmware_version', 'installed_at'):
+        if col in columns:
+            conn.execute(f'ALTER TABLE equipment DROP COLUMN {col}')
+    conn.commit()
+
+
 def _actor_display_name(actor: dict | None) -> str | None:
     if not actor:
         return None
@@ -484,19 +500,20 @@ def create_equipment(conn, data: dict, actor: dict | None = None) -> int:
     журнала изменений (modules/audit.py::log_creation) и для колонки
     "Изменил" (last_edited_by/last_edited_at)."""
     _ensure_last_edited_columns(conn)
+    _ensure_legacy_columns_dropped(conn)
     now = datetime.now().isoformat()
     editor_name = _actor_display_name(actor)
     cur = conn.cursor()
     cur.execute('''
         INSERT INTO equipment
             (equipment_type_id, name, article, manufacturer,
-             workshop, location, location_node_id, criticality, installed_at,
+             workshop, location, location_node_id, criticality,
              specs_json, note, created_at, updated_at, last_edited_by, last_edited_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
         data.get('workshop'), data.get('location'), data.get('location_node_id'),
-        data.get('criticality'), data.get('installed_at'),
+        data.get('criticality'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, now,
         editor_name, now,
     ))
@@ -513,6 +530,7 @@ def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = N
     КАЖДОЕ сохранение, синхронно с updated_at). None — правка без
     привязки к пользователю."""
     _ensure_last_edited_columns(conn)
+    _ensure_legacy_columns_dropped(conn)
     now = datetime.now().isoformat()
     editor_name = _actor_display_name(actor)
 
@@ -526,7 +544,6 @@ def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = N
         'location': data.get('location'),
         'location_node_id': data.get('location_node_id'),
         'criticality': data.get('criticality'),
-        'installed_at': data.get('installed_at'),
         'specs_json': new_specs_json,
         'note': data.get('note'),
     }
@@ -536,7 +553,7 @@ def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = N
     # значениями, которые реально уйдут в UPDATE, читаем колонки как есть).
     old_row_raw = conn.execute(
         'SELECT equipment_type_id, name, article, manufacturer, workshop, '
-        'location, location_node_id, criticality, installed_at, specs_json, note '
+        'location, location_node_id, criticality, specs_json, note '
         'FROM equipment WHERE id = ?', (equipment_id,)
     ).fetchone()
     old_row = {k: old_row_raw[k] for k in old_row_raw.keys()} if old_row_raw else None
@@ -546,13 +563,13 @@ def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = N
     cur.execute('''
         UPDATE equipment SET
             equipment_type_id = ?, name = ?, article = ?, manufacturer = ?,
-            workshop = ?, location = ?, location_node_id = ?, criticality = ?, installed_at = ?,
+            workshop = ?, location = ?, location_node_id = ?, criticality = ?,
             specs_json = ?, note = ?, updated_at = ?, last_edited_by = ?, last_edited_at = ?
         WHERE id = ?
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
         data.get('workshop'), data.get('location'), data.get('location_node_id'),
-        data.get('criticality'), data.get('installed_at'),
+        data.get('criticality'),
         new_specs_json, data.get('note'), now, editor_name, now, equipment_id,
     ))
     conn.commit()

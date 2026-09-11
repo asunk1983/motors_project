@@ -24,17 +24,6 @@ function renderIncidentField(label, value) {
     return `<div class="print-field"><span class="print-field-label">${escapeHtml(label)}</span><span class="print-field-value">${safeVal}</span></div>`;
 }
 
-function renderIncidentLinks(links) {
-    if (!links || links.length === 0) return '';
-    const items = links.map(l =>
-        `<div class="print-field"><span class="print-field-value">${escapeHtml(l.caption || l.url)}${l.caption ? ' — ' + escapeHtml(l.url) : ''}</span></div>`
-    ).join('');
-    return `<div class="print-section">
-        <div class="print-section-title">Ссылки</div>
-        ${items}
-    </div>`;
-}
-
 function renderIncidentPhotos(photos) {
     if (!photos || photos.length === 0) return '';
     const imgs = photos.map(p =>
@@ -71,8 +60,8 @@ function renderIncidentPage(ticket) {
             ${renderIncidentField('Инициатор(ы)', initiators)}
             ${renderIncidentField('Исполнитель(и)', executors)}
             ${renderIncidentField('Оборудование', equipment)}
-            ${renderIncidentField('Создана', (ticket.created_at || '').slice(0, 16).replace('T', ' '))}
-            ${renderIncidentField('Закрыта', (ticket.closed_at || '').slice(0, 16).replace('T', ' '))}
+            ${renderIncidentField('Создана', formatRuDateTime(ticket.created_at))}
+            ${renderIncidentField('Закрыта', formatRuDateTime(ticket.closed_at))}
         </div>
     </div>
 
@@ -86,7 +75,6 @@ function renderIncidentPage(ticket) {
         <div class="print-field-value">${escapeHtml(ticket.solution || '—')}</div>
     </div>
 
-    ${renderIncidentLinks(ticket.links)}
     ${renderIncidentPhotos(ticket.photos)}
 </div>`;
 }

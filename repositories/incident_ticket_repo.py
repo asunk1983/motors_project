@@ -20,19 +20,12 @@ from modules.audit import log_field_changes, log_creation, log_deletion
 # дешёвая операция, PRAGMA table_info тоже, но кэшируем результат
 # флагом на модуль, чтобы не гонять её на каждый запрос в рамках
 # одного процесса.
-_updated_at_ensured = False
-
-
 def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
-    global _updated_at_ensured
-    if _updated_at_ensured:
-        return
     cols = [row[1] for row in conn.execute('PRAGMA table_info(incident_ticket)').fetchall()]
     if 'updated_at' not in cols:
         conn.execute('ALTER TABLE incident_ticket ADD COLUMN updated_at TEXT')
         conn.execute('UPDATE incident_ticket SET updated_at = created_at WHERE updated_at IS NULL')
         conn.commit()
-    _updated_at_ensured = True
 
 
 # ---------------------------------------------------------------------
@@ -40,20 +33,13 @@ def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------
 # "Изменил" — та же логика, что _ensure_updated_at_column выше, отдельный
 # флаг/функция под свою пару колонок.
-_last_edited_columns_ensured = False
-
-
 def _ensure_last_edited_columns(conn: sqlite3.Connection) -> None:
-    global _last_edited_columns_ensured
-    if _last_edited_columns_ensured:
-        return
     cols = [row[1] for row in conn.execute('PRAGMA table_info(incident_ticket)').fetchall()]
     if 'last_edited_by' not in cols:
         conn.execute('ALTER TABLE incident_ticket ADD COLUMN last_edited_by TEXT')
     if 'last_edited_at' not in cols:
         conn.execute('ALTER TABLE incident_ticket ADD COLUMN last_edited_at TEXT')
     conn.commit()
-    _last_edited_columns_ensured = True
 
 
 def _actor_display_name(actor: dict | None) -> str | None:
@@ -63,6 +49,19 @@ def _actor_display_name(actor: dict | None) -> str | None:
 
 
 # ---------------------------------------------------------------------
+# ---------------------------------------------------------------------
+# Самовосстанавливающаяся миграция: удаление таблицы incident_ticket_link
+# ---------------------------------------------------------------------
+# Функционал ссылок удалён из инцидентов (см. modules/db.py — CREATE TABLE
+# больше не создаётся). На уже существующих БД таблица остаётся — дропаем
+# её одноразовой миграцией. Модульный флаг гарантирует однократность.
+def _ensure_link_table_dropped(conn: sqlite3.Connection) -> None:
+    tables = [r[1] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'").fetchall()]
+    if tables:
+        conn.execute('DROP INDEX IF EXISTS idx_link_ticket')
+        conn.execute('DROP TABLE IF EXISTS incident_ticket_link')
+        conn.commit()
+
 # Самовосстанавливающаяся миграция: снятие FK incident_ticket.created_by_user_id -> users.id
 # ---------------------------------------------------------------------
 # В проекте два независимых хранилища пользователей: таблица users (БД)
@@ -94,20 +93,15 @@ def _actor_display_name(actor: dict | None) -> str | None:
 # применится эта миграция (теоретически невозможно — до этой миграции
 # такие INSERT-ы падали с IntegrityError), такая запись не пройдёт
 # мимо INSERT INTO ... SELECT. На практике риск нулевой.
-_no_users_fk_ensured = False
 
 
 def _ensure_no_users_fk(conn: sqlite3.Connection) -> None:
-    global _no_users_fk_ensured
-    if _no_users_fk_ensured:
-        return
     # FK на users из incident_ticket? Если нет — миграция не нужна
     # (свежая БД из обновлённого modules/db.py сюда не попадёт).
     rows = list(conn.execute(
         "SELECT 1 FROM pragma_foreign_key_list('incident_ticket') WHERE \"table\" = 'users'"
     ))
     if not rows:
-        _no_users_fk_ensured = True
         return
 
     conn.execute('BEGIN')
@@ -152,7 +146,6 @@ def _ensure_no_users_fk(conn: sqlite3.Connection) -> None:
     except Exception:
         conn.execute('ROLLBACK')
         raise
-    _no_users_fk_ensured = True
 
 
 def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str | None = None,
@@ -200,6 +193,7 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
 
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
+    _ensure_link_table_dropped(conn)
     _ensure_last_edited_columns(conn)
     # created_by_display_name — резолвленное «человеческое» имя автора:
     # если у пользователя есть crew_id и запись в crew существует, берём
@@ -208,7 +202,9 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
     cur = conn.execute(
         f'''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
-               t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
+               datetime(t.created_at, 'localtime') AS created_at,
+               datetime(t.updated_at, 'localtime') AS updated_at,
+               t.closed_at, t.created_by_user_id,
                t.last_edited_by,
                ln.name AS location_name,
                u.username AS created_by_username,
@@ -241,10 +237,13 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
     _ensure_last_edited_columns(conn)
+    _ensure_link_table_dropped(conn)
     cur = conn.execute(
         '''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
-               t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
+               datetime(t.created_at, 'localtime') AS created_at,
+               datetime(t.updated_at, 'localtime') AS updated_at,
+               t.closed_at, t.created_by_user_id,
                t.last_edited_by,
                ln.name AS location_name,
                u.username AS created_by_username,
@@ -266,7 +265,6 @@ def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
     data['initiators'] = get_initiators(conn, ticket_id)
     data['executors'] = get_executors(conn, ticket_id)
     data['equipment'] = incident_equipment_repo.get_relations(conn, ticket_id)
-    data['links'] = get_links(conn, ticket_id)
     return data
 
 
@@ -432,35 +430,6 @@ def set_executors(conn: sqlite3.Connection, ticket_id: int, crew_ids: list[int],
 
 
 # ---------------------------------------------------------------------
-# Ссылки-вложения (файлы-фото — отдельно, через photo_manager/PhotoI/)
-# ---------------------------------------------------------------------
-
-def get_links(conn: sqlite3.Connection, ticket_id: int) -> list[dict]:
-    cur = conn.execute(
-        'SELECT id, url, caption, created_at FROM incident_ticket_link '
-        'WHERE ticket_id = ? ORDER BY created_at',
-        (ticket_id,)
-    )
-    return [dict(row) for row in cur.fetchall()]
-
-
-def add_link(conn: sqlite3.Connection, ticket_id: int, url: str, caption: str | None = None) -> int:
-    cur = conn.execute(
-        "INSERT INTO incident_ticket_link (ticket_id, url, caption, created_at) VALUES (?, ?, ?, datetime('now'))",
-        (ticket_id, url, caption)
-    )
-    conn.commit()
-    return cur.lastrowid
-
-
-def delete_link(conn: sqlite3.Connection, link_id: int) -> bool:
-    cur = conn.execute('DELETE FROM incident_ticket_link WHERE id = ?', (link_id,))
-    conn.commit()
-    return cur.rowcount > 0
-
-
-# ---------------------------------------------------------------------
-# Дерево мест на вкладке "Инциденты" (по аналогии с
 # equipment_repo.get_equipment_location_counts — см. HANDOFF, раздел 4:
 # та же СВОЯ ошибка там уже была найдена и исправлена, здесь сразу
 # делаем правильно)

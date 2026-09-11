@@ -493,6 +493,12 @@ function initPanelResizer(options) {
 function initColumnToggleCombobox(opts) {
     const container = opts.container;
     const columns = opts.columns;
+    // Динамические колонки (equipment.js: состав колонок меняется при смене
+    // выбранного типа — см. getEquipmentColumnDefs). Если задан opts.getColumns,
+    // он возвращает АКТУАЛЬНЫЙ список на момент рендера дропдауна и имеет
+    // приоритет над статичным opts.columns (тот — фолбэк для вызовов вроде
+    // catalog.js, где набор колонок не меняется).
+    const getColumns = opts.getColumns || function () { return columns; };
     const getVisible = opts.getVisible;
     const getDefaults = opts.getDefaults;
     const onChange = opts.onChange;
@@ -511,9 +517,10 @@ function initColumnToggleCombobox(opts) {
     dropdown.className = 'column-toggle-dropdown hidden';
 
     function renderList() {
+        const cols = getColumns();
         const visible = new Set(getVisible());
         let html = '<div class="column-toggle-list">';
-        columns.forEach(function(col) {
+        cols.forEach(function(col) {
             const checked = visible.has(col.key);
             const disabled = col.required ? 'disabled' : '';
             html += '<label class="column-toggle-item">'
@@ -532,14 +539,14 @@ function initColumnToggleCombobox(opts) {
                 const current = new Set(getVisible());
                 if (input.checked) current.add(input.dataset.colKey);
                 else current.delete(input.dataset.colKey);
-                const ordered = columns.filter(function(c) { return current.has(c.key); }).map(function(c) { return c.key; });
+                const ordered = cols.filter(function(c) { return current.has(c.key); }).map(function(c) { return c.key; });
                 onChange(ordered);
                 // Не вызываем renderList() — чекбокс уже отменил состояние визуально
             });
         });
 
         dropdown.querySelector('.column-toggle-reset').addEventListener('click', function() {
-            const defaultKeys = getDefaults ? getDefaults() : columns.filter(function(c) { return c.defaultVisible !== false; }).map(function(c) { return c.key; });
+            const defaultKeys = getDefaults ? getDefaults() : cols.filter(function(c) { return c.defaultVisible !== false; }).map(function(c) { return c.key; });
             onChange(defaultKeys);
             renderList();
         });

@@ -34,9 +34,7 @@ function renderEquipmentCharacteristics(item, effectiveAttrs, locationText) {
         ['Тип оборудования', item.equipment_type_name],
         ['Артикул', item.article],
         ['Производитель', item.manufacturer],
-        ['Серийный номер', item.serial_number],
         ['Место', locationText],
-        ['Версия прошивки', item.firmware_version],
         ['Критичность', criticalityText],
     ].map(([label, value]) => renderEquipmentField(label, value)).join('');
 
