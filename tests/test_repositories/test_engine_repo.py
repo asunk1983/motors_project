@@ -174,3 +174,77 @@ class TestGetByFilename:
 
     def test_get_by_filename_not_found(self, db_conn):
         assert get_by_filename(db_conn, 'nonexistent.xlsx') is None
+ACTOR = {'id': 3, 'username': 'sidorov', 'display_name': 'Сидоров С.'}
+
+
+class TestLastEdited:
+    """last_edited_by/last_edited_at (engine_repo._ensure_last_edited_columns).
+
+    Задокументированное фактическое поведение:
+    - create/update ВСЕГДА проставляют last_edited_at серверным временем;
+    - last_edited_by = actor.display_name (или username), при actor=None —
+      NULL (update с actor=None ПЕРЕЗАПИСЫВАЕТ старое значение в NULL).
+    """
+
+    def _last_edited(self, db_conn, engine_id):
+        row = db_conn.execute(
+            'SELECT last_edited_by, last_edited_at FROM engines WHERE id = ?',
+            (engine_id,)).fetchone()
+        return row['last_edited_by'], row['last_edited_at']
+
+    def test_create_with_actor_sets_both(self, db_conn, sample_engine_data):
+        engine_id = create(db_conn, sample_engine_data, actor=ACTOR)
+        editor, edited_at = self._last_edited(db_conn, engine_id)
+        assert editor == 'Сидоров С.'
+        assert edited_at is not None
+
+    def test_create_without_actor_by_null_at_set(self, db_conn, sample_engine_data):
+        """Реальное поведение при actor=None: last_edited_by → NULL,
+        last_edited_at всё равно проставляется серверным временем."""
+        engine_id = create(db_conn, sample_engine_data)
+        editor, edited_at = self._last_edited(db_conn, engine_id)
+        assert editor is None
+        assert edited_at is not None
+
+    def test_update_with_actor_updates_both(self, db_conn, sample_engine_data):
+        engine_id = create(db_conn, sample_engine_data, actor=ACTOR)
+        _, first_at = self._last_edited(db_conn, engine_id)
+
+        assert update(db_conn, engine_id, {'location': 'Цех 2'},
+                      actor={'id': 5, 'username': 'petrov', 'display_name': 'Петров П.'}) is True
+
+        editor, edited_at = self._last_edited(db_conn, engine_id)
+        assert editor == 'Петров П.'
+        assert edited_at is not None and edited_at != first_at
+
+    def test_update_without_actor_overwrites_null(self, db_conn, sample_engine_data):
+        """Реальное поведение при actor=None в update(): last_edited_by
+        перезаписывается в NULL (не сохраняется прежний автор)."""
+        engine_id = create(db_conn, sample_engine_data, actor=ACTOR)
+        assert update(db_conn, engine_id, {'location': 'Цех 2'}) is True
+
+        editor, edited_at = self._last_edited(db_conn, engine_id)
+        assert editor is None
+        assert edited_at is not None
+
+    def test_ensure_last_edited_columns_idempotent(self, db_conn, sample_engine_data):
+        from repositories.engine_repo import _ensure_last_edited_columns
+
+        # На схеме из init_db (init_db тут — «старая» схема: колонок ещё нет)
+        columns = [r[1] for r in db_conn.execute('PRAGMA table_info(engines)')]
+        assert 'last_edited_by' not in columns and 'last_edited_at' not in columns
+
+        # Первый вызов добавляет колонки...
+        _ensure_last_edited_columns(db_conn)
+        columns = [r[1] for r in db_conn.execute('PRAGMA table_info(engines)')]
+        assert 'last_edited_by' in columns and 'last_edited_at' in columns
+
+        # ...повторный вызов — идемпотентен, не падает и не плодит дубли
+        _ensure_last_edited_columns(db_conn)
+        columns = [r[1] for r in db_conn.execute('PRAGMA table_info(engines)')]
+        assert 'last_edited_by' in columns and 'last_edited_at' in columns
+
+        # После миграции create() работает штатно
+        engine_id = create(db_conn, sample_engine_data, actor=ACTOR)
+        editor, edited_at = self._last_edited(db_conn, engine_id)
+        assert editor == 'Сидоров С.' and edited_at is not None

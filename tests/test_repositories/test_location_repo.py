@@ -9,8 +9,9 @@ from repositories.location_repo import (
 
 
 def _entries(db_conn):
+    """Возвращает audit-записи, исключая __created__ (лог создания отдельно)."""
     cur = db_conn.cursor()
-    cur.execute('SELECT * FROM audit_log ORDER BY id')
+    cur.execute("SELECT * FROM audit_log WHERE field_name != '__created__' ORDER BY id")
     return [dict(r) for r in cur.fetchall()]
 
 
@@ -99,3 +100,53 @@ def test_delete_with_children_rejected(db_conn, tree):
 def test_delete_leaf_ok(db_conn, tree):
     ok, err = delete(db_conn, tree['zone'])
     assert ok is True and get_by_id(db_conn, tree['zone']) is None
+def test_delete_referenced_by_incident_rejected(db_conn, tree):
+    """Узел, на который ссылается заявка Инцидента, удалить нельзя."""
+    from repositories.incident_ticket_repo import create as create_ticket
+
+    create_ticket(db_conn, location_node_id=tree['line'], problem='П', created_by_user_id=1)
+
+    ok, err = delete(db_conn, tree['line'])
+    assert ok is False and 'используется' in err
+    assert get_by_id(db_conn, tree['line']) is not None
+
+
+def test_delete_referenced_by_equipment_rejected(db_conn, tree):
+    """Узел, на который ссылается equipment.location_node_id, удалить нельзя."""
+    from repositories.equipment_repo import create_equipment_type, create_equipment
+
+    type_id = create_equipment_type(db_conn, code='pump', name='Насос')
+    create_equipment(db_conn, {
+        'equipment_type_id': type_id, 'name': 'EQ001', 'article': 'EQ001',
+        'location_node_id': tree['line'],
+    })
+
+    ok, err = delete(db_conn, tree['line'])
+    assert ok is False and 'используется' in err
+
+
+def test_delete_referenced_by_placement_rejected(db_conn, tree):
+    """Узел, на который ссылается equipment_placement.location_node_id,
+    удалить нельзя."""
+    from repositories.equipment_repo import create_equipment_type, create_equipment
+    from repositories.equipment_placement_repo import create as create_placement
+
+    type_id = create_equipment_type(db_conn, code='pump', name='Насос')
+    eq_id = create_equipment(db_conn, {
+        'equipment_type_id': type_id, 'name': 'EQ001', 'article': 'EQ001',
+    })
+    create_placement(db_conn, eq_id, tree['line'], designation='КМ1')
+
+    ok, err = delete(db_conn, tree['line'])
+    assert ok is False and 'используется' in err
+    assert get_by_id(db_conn, tree['line']) is not None
+
+
+def test_is_referenced_true_false(db_conn, tree):
+    """is_referenced: False для свободного узла, True при ссылке заявки."""
+    from repositories.location_repo import is_referenced
+    from repositories.incident_ticket_repo import create as create_ticket
+
+    assert is_referenced(db_conn, tree['zone']) is False
+    create_ticket(db_conn, location_node_id=tree['zone'], problem='П', created_by_user_id=1)
+    assert is_referenced(db_conn, tree['zone']) is True

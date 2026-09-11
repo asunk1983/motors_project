@@ -442,7 +442,8 @@ def create_equipment_placements_route(equipment_id):
                     errors.append(f'Обозначение "{designation}" уже занято в этом месте')
                     continue
                 placement_id = equipment_placement_repo.create(
-                    conn, equipment_id, location_node_id, designation, data.get('note')
+                    conn, equipment_id, location_node_id, designation, data.get('note'),
+                    actor=getattr(request, 'current_user', None)
                 )
                 created.append(placement_id)
 
@@ -460,7 +461,7 @@ def delete_equipment_placement_route(equipment_id, placement_id):
             placement = equipment_placement_repo.get_by_id(conn, placement_id)
             if not placement or placement['equipment_id'] != equipment_id:
                 return jsonify({'error': 'Место не найдено'}), 404
-            equipment_placement_repo.delete(conn, placement_id)
+            equipment_placement_repo.delete(conn, placement_id, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'message': 'Место удалено'})
     except Exception as e:
         logger.exception('delete_equipment_placement_route failed')

@@ -69,9 +69,9 @@ def create_ticket(conn: sqlite3.Connection, *, location_node_id: int, problem: s
         conn, location_node_id=location_node_id, problem=problem, created_by_user_id=created_by_user_id,
         solution=solution, priority=priority, status=status, closed_at=closed_at, actor=actor
     )
-    incident_ticket_repo.set_initiators(conn, ticket_id, initiator_ids)
+    incident_ticket_repo.set_initiators(conn, ticket_id, initiator_ids, actor=actor)
     if executor_ids:
-        incident_ticket_repo.set_executors(conn, ticket_id, executor_ids)
+        incident_ticket_repo.set_executors(conn, ticket_id, executor_ids, actor=actor)
     return ticket_id, None
 
 
@@ -120,9 +120,9 @@ def update_ticket(conn: sqlite3.Connection, ticket_id: int, *, location_node_id:
         priority=priority, status=status, closed_at=resolved_closed_at
     )
     if initiator_ids is not None:
-        incident_ticket_repo.set_initiators(conn, ticket_id, initiator_ids)
+        incident_ticket_repo.set_initiators(conn, ticket_id, initiator_ids, actor=actor)
     if executor_ids is not None:
-        incident_ticket_repo.set_executors(conn, ticket_id, executor_ids)
+        incident_ticket_repo.set_executors(conn, ticket_id, executor_ids, actor=actor)
     return True, None
 
 
@@ -136,7 +136,8 @@ def delete_ticket(conn: sqlite3.Connection, ticket_id: int, actor: dict | None =
     return True, None
 
 
-def add_equipment_link(conn: sqlite3.Connection, ticket_id: int, equipment_id: int) -> tuple[bool, str | None]:
+def add_equipment_link(conn: sqlite3.Connection, ticket_id: int, equipment_id: int,
+                        actor: dict | None = None) -> tuple[bool, str | None]:
     if incident_ticket_repo.get_by_id(conn, ticket_id) is None:
         return False, 'Заявка не найдена'
     if equipment_repo.get_equipment_by_id(conn, equipment_id) is None:
@@ -146,12 +147,13 @@ def add_equipment_link(conn: sqlite3.Connection, ticket_id: int, equipment_id: i
         # Тот же паттерн, что в create_ticket для location/crew: get_by_id
         # в репозитории, проверка is None → возврат (False, текст).
         return False, f'Оборудование с id={equipment_id} не найдено — возможно, было удалено. Обновите форму и попробуйте снова.'
-    incident_equipment_repo.add_relation(conn, ticket_id, equipment_id)
+    incident_equipment_repo.add_relation(conn, ticket_id, equipment_id, actor=actor)
     return True, None
 
 
-def remove_equipment_link(conn: sqlite3.Connection, ticket_id: int, equipment_id: int) -> tuple[bool, str | None]:
-    ok = incident_equipment_repo.remove_relation(conn, ticket_id, equipment_id)
+def remove_equipment_link(conn: sqlite3.Connection, ticket_id: int, equipment_id: int,
+                           actor: dict | None = None) -> tuple[bool, str | None]:
+    ok = incident_equipment_repo.remove_relation(conn, ticket_id, equipment_id, actor=actor)
     if not ok:
         return False, 'Связь не найдена'
     return True, None

@@ -4,18 +4,21 @@ import pytest
 
 
 class TestFailureModeRepo:
-    def test_list_empty(self, db_conn):
+    def test_list_returns_seed(self, db_conn):
+        """init_db предзаполняет failure_mode справочником (seed) — список не пуст."""
         from repositories.knowledge_repo import list_failure_modes
         rows = list_failure_modes(db_conn)
-        assert rows == []
+        assert isinstance(rows, list)
+        assert len(rows) > 0
 
     def test_create_and_list(self, db_conn):
         from repositories.knowledge_repo import create_failure_mode, list_failure_modes
         create_failure_mode(db_conn, code="FM01", name="Перегрев", description="Тест")
         rows = list_failure_modes(db_conn)
-        assert len(rows) == 1
-        assert rows[0]["code"] == "FM01"
-        assert rows[0]["name"] == "Перегрев"
+        # Таблица предзаполнена seed — ищем созданный код среди записей
+        created = [r for r in rows if r["code"] == "FM01"]
+        assert len(created) == 1
+        assert created[0]["name"] == "Перегрев"
 
     def test_in_use_false(self, db_conn):
         from repositories.knowledge_repo import create_failure_mode, failure_mode_in_use
@@ -25,7 +28,7 @@ class TestFailureModeRepo:
     def test_in_use_true(self, db_conn):
         from repositories.knowledge_repo import create_failure_mode, create_article, failure_mode_in_use
         mid = create_failure_mode(db_conn, code="FM03", name="Тест")
-        create_article(db_conn, {"title": "Статья", "failure_mode_id": mid})
+        create_article(db_conn, {"title": "Статья", "symptom": "Симптом", "failure_mode_id": mid})
         assert failure_mode_in_use(db_conn, mid) is True
 
     def test_delete(self, db_conn):
@@ -36,17 +39,20 @@ class TestFailureModeRepo:
 
 
 class TestFailureCauseRepo:
-    def test_list_empty(self, db_conn):
+    def test_list_returns_seed(self, db_conn):
+        """init_db предзаполняет failure_cause справочником (seed) — список не пуст."""
         from repositories.knowledge_repo import list_failure_causes
         rows = list_failure_causes(db_conn)
-        assert rows == []
+        assert isinstance(rows, list)
+        assert len(rows) > 0
 
     def test_create_and_list(self, db_conn):
         from repositories.knowledge_repo import create_failure_cause, list_failure_causes
         create_failure_cause(db_conn, code="CC01", name="Износ")
         rows = list_failure_causes(db_conn)
-        assert len(rows) == 1
-        assert rows[0]["code"] == "CC01"
+        created = [r for r in rows if r["code"] == "CC01"]
+        assert len(created) == 1
+        assert created[0]["name"] == "Износ"
 
     def test_in_use_false(self, db_conn):
         from repositories.knowledge_repo import create_failure_cause, failure_cause_in_use
@@ -56,7 +62,7 @@ class TestFailureCauseRepo:
     def test_in_use_true(self, db_conn):
         from repositories.knowledge_repo import create_failure_cause, create_article, failure_cause_in_use
         cid = create_failure_cause(db_conn, code="CC03", name="Тест")
-        create_article(db_conn, {"title": "Статья", "cause_ids": [cid]})
+        create_article(db_conn, {"title": "Статья", "symptom": "Симптом", "cause_ids": [cid]})
         assert failure_cause_in_use(db_conn, cid) is True
 
     def test_delete(self, db_conn):
@@ -64,6 +70,8 @@ class TestFailureCauseRepo:
         cid = create_failure_cause(db_conn, code="CC04", name="Удалить")
         result = delete_failure_cause(db_conn, cid)
         assert result is True
+
+
 class TestKnowledgeArticleRepo:
     def test_get_by_id_nonexistent(self, db_conn):
         from repositories.knowledge_repo import get_article_by_id
@@ -89,18 +97,16 @@ class TestKnowledgeArticleRepo:
 
     def test_list_articles_returns_all(self, db_conn):
         from repositories.knowledge_repo import create_article, list_articles
-        create_article(db_conn, {"title": "Статья 1"})
-        create_article(db_conn, {"title": "Статья 2"})
+        create_article(db_conn, {"title": "Статья 1", "symptom": "Симптом 1"})
+        create_article(db_conn, {"title": "Статья 2", "symptom": "Симптом 2"})
         rows = list_articles(db_conn)
         assert len(rows) == 2
 
-    def test_list_articles_filter_by_failure_mode(self, db_conn):
-        from repositories.knowledge_repo import create_failure_mode, create_article, list_articles
-        mid1 = create_failure_mode(db_conn, code="FM10", name="Режим 1")
-        mid2 = create_failure_mode(db_conn, code="FM11", name="Режим 2")
-        create_article(db_conn, {"title": "А1", "failure_mode_id": mid1})
-        create_article(db_conn, {"title": "А2", "failure_mode_id": mid2})
-        rows = list_articles(db_conn, failure_mode_id=mid1)
+    def test_list_articles_filter_by_symptom(self, db_conn):
+        from repositories.knowledge_repo import create_article, list_articles
+        create_article(db_conn, {"title": "А1", "symptom": "Перегрев", "failure_mode_id": None})
+        create_article(db_conn, {"title": "А2", "symptom": "Вибрация", "failure_mode_id": None})
+        rows = list_articles(db_conn, symptom_query="Перегрев")
         assert len(rows) == 1
         assert rows[0]["title"] == "А1"
 

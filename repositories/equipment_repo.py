@@ -11,6 +11,34 @@ from repositories import location_repo
 from modules.audit import log_field_changes, log_creation, log_deletion
 
 
+# ---------------------------------------------------------------------
+# Самовосстанавливающаяся миграция: колонки last_edited_by/last_edited_at
+# ---------------------------------------------------------------------
+# "Изменил" — см. подробное обоснование в engine_repo.py::
+# _ensure_last_edited_columns (тот же паттерн, отдельно на каждую
+# таблицу — точечная правка репозитория вместо общей миграции в
+# modules/db.py).
+#
+# Состояние проверяется ПРИ КАЖДОМ ВЫЗОВЕ через PRAGMA table_info (без
+# модульного флага-кэша) — см. engine_repo.py::_ensure_last_edited_columns:
+# флаг ломал in-memory тестовые БД, PRAGMA дёшев.
+
+
+def _ensure_last_edited_columns(conn) -> None:
+    columns = [row[1] for row in conn.execute('PRAGMA table_info(equipment)').fetchall()]
+    if 'last_edited_by' not in columns:
+        conn.execute('ALTER TABLE equipment ADD COLUMN last_edited_by TEXT')
+    if 'last_edited_at' not in columns:
+        conn.execute('ALTER TABLE equipment ADD COLUMN last_edited_at TEXT')
+    conn.commit()
+
+
+def _actor_display_name(actor: dict | None) -> str | None:
+    if not actor:
+        return None
+    return actor.get('display_name') or actor.get('username')
+
+
 def _row_to_dict(row):
     if row is None:
         return None
@@ -226,6 +254,7 @@ EQUIPMENT_SORT_COLUMNS = {
     'equipment_type_name': 'et.name',
     'article': 'e.article',
     'criticality': 'e.criticality',
+    'last_edited_by': 'e.last_edited_by',
 }
 
 
@@ -280,6 +309,7 @@ def list_equipment(conn, equipment_type_id=None, search: str = '', location_node
     (workshop/location_node.name) — см. комментарий в ТЗ: workshop
     переходное поле, не гарантированно заполнено у новых записей, а
     навигация по месту уже полностью закрыта деревом слева (3.1)."""
+    _ensure_last_edited_columns(conn)
     cur = conn.cursor()
     conditions = []
     params = []
@@ -451,20 +481,24 @@ def get_equipment_location_counts(conn) -> dict:
 
 def create_equipment(conn, data: dict, actor: dict | None = None) -> int:
     """actor — dict текущего пользователя (request.current_user), для
-    журнала изменений (modules/audit.py::log_creation)."""
+    журнала изменений (modules/audit.py::log_creation) и для колонки
+    "Изменил" (last_edited_by/last_edited_at)."""
+    _ensure_last_edited_columns(conn)
     now = datetime.now().isoformat()
+    editor_name = _actor_display_name(actor)
     cur = conn.cursor()
     cur.execute('''
         INSERT INTO equipment
             (equipment_type_id, name, article, manufacturer,
              workshop, location, location_node_id, criticality, installed_at,
-             specs_json, note, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             specs_json, note, created_at, updated_at, last_edited_by, last_edited_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
         data.get('workshop'), data.get('location'), data.get('location_node_id'),
         data.get('criticality'), data.get('installed_at'),
         json.dumps(data.get('specs', {}), ensure_ascii=False), data.get('note'), now, now,
+        editor_name, now,
     ))
     equipment_id = cur.lastrowid
     log_creation(conn, 'equipment', equipment_id, actor, data.get('name'))
@@ -474,9 +508,13 @@ def create_equipment(conn, data: dict, actor: dict | None = None) -> int:
 
 def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = None) -> bool:
     """actor — dict текущего пользователя (request.current_user), для
-    журнала изменений (modules/audit.py::log_field_changes). None —
-    правка без привязки к пользователю."""
+    журнала изменений (modules/audit.py::log_field_changes) и для
+    колонки "Изменил" (last_edited_by/last_edited_at — пишется на
+    КАЖДОЕ сохранение, синхронно с updated_at). None — правка без
+    привязки к пользователю."""
+    _ensure_last_edited_columns(conn)
     now = datetime.now().isoformat()
+    editor_name = _actor_display_name(actor)
 
     new_specs_json = json.dumps(data.get('specs', {}), ensure_ascii=False)
     changed_input = {
@@ -509,13 +547,13 @@ def update_equipment(conn, equipment_id: int, data: dict, actor: dict | None = N
         UPDATE equipment SET
             equipment_type_id = ?, name = ?, article = ?, manufacturer = ?,
             workshop = ?, location = ?, location_node_id = ?, criticality = ?, installed_at = ?,
-            specs_json = ?, note = ?, updated_at = ?
+            specs_json = ?, note = ?, updated_at = ?, last_edited_by = ?, last_edited_at = ?
         WHERE id = ?
     ''', (
         data['equipment_type_id'], data['name'], data.get('article'), data.get('manufacturer'),
         data.get('workshop'), data.get('location'), data.get('location_node_id'),
         data.get('criticality'), data.get('installed_at'),
-        new_specs_json, data.get('note'), now, equipment_id,
+        new_specs_json, data.get('note'), now, editor_name, now, equipment_id,
     ))
     conn.commit()
     return cur.rowcount > 0

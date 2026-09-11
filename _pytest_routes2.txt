@@ -1,0 +1,983 @@
+FFFF....F.FFFFFFFFFFFFFF.............................................FFF [ 55%]
+FFF.......F....F.F........FF.......F.F........F.F........                [100%]
+================================== FAILURES ===================================
+________________________ TestLogin.test_login_success _________________________
+
+args = (<test_auth_routes.TestLogin object at 0x000002BF79C77ED0>,)
+keywargs = {'client': <FlaskClient <Flask 'test_auth_routes'>>}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1418: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unittest.mock._patch object at 0x000002BF79DA0980>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'modules.auth.auth' from 'C:\\motors_project\\modules\\auth\\auth.py'> does not have the attribute 'login'
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1480: AttributeError
+_____________________ TestLogin.test_login_existing_user ______________________
+
+args = (<test_auth_routes.TestLogin object at 0x000002BF79DCC410>,)
+keywargs = {'client': <FlaskClient <Flask 'test_auth_routes'>>}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1418: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unittest.mock._patch object at 0x000002BF79D179B0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'modules.auth.auth' from 'C:\\motors_project\\modules\\auth\\auth.py'> does not have the attribute 'login'
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1480: AttributeError
+____________________ TestLogin.test_login_bad_password_401 ____________________
+
+self = <test_auth_routes.TestLogin object at 0x000002BF79D05CD0>
+m_db = <MagicMock name='db_connection' id='3019674740320'>
+m_get_user = <MagicMock name='get_user_by_username' id='3019674739648'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.get_user_by_username')
+    @patch('routes.auth.db_connection')
+    def test_login_bad_password_401(self, m_db, m_get_user, client):
+        m_get_user.return_value = {'id': 1, 'username': 'existing', 'password_hash': 'hash123', 'role': 'user', 'source': 'db'}
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/auth/login', json={'username': 'existing', 'password': 'wrong'})
+        assert r.status_code == 401
+        data = r.get_json()
+>       assert data['error'] == '\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c'
+E       AssertionError: assert '\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043b\u043e\u0433\u0438\u043d \u0438\u043b\u0438 \u043f\u0430\u0440\u043e\u043b\u044c' == '\u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c'
+E         
+E         - \u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043f\u0430\u0440\u043e\u043b\u044c
+E         + \u041d\u0435\u0432\u0435\u0440\u043d\u044b\u0439 \u043b\u043e\u0433\u0438\u043d \u0438\u043b\u0438 \u043f\u0430\u0440\u043e\u043b\u044c
+E         ?          ++++++++++
+
+tests\test_routes\test_auth_routes.py:82: AssertionError
+_____________________ TestLogin.test_login_empty_body_400 _____________________
+
+self = <test_auth_routes.TestLogin object at 0x000002BF79D05F30>
+m_db = <MagicMock name='db_connection' id='3019674744688'>
+m_get_user = <MagicMock name='get_user_by_username' id='3019674746032'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.get_user_by_username')
+    @patch('routes.auth.db_connection')
+    def test_login_empty_body_400(self, m_db, m_get_user, client):
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/auth/login', json={})
+>       assert r.status_code == 400
+E       assert 401 == 400
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:92: AssertionError
+_________________ TestAdminUsersList.test_list_users_success __________________
+
+self = <test_auth_routes.TestAdminUsersList object at 0x000002BF79DCCE10>
+m_db = <MagicMock name='db_connection' id='3019678324048'>
+m_require_admin = <MagicMock name='_require_admin' id='3019678328080'>
+m_list_users = <MagicMock name='list_users' id='3019678328416'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.list_users')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_list_users_success(self, m_db, m_require_admin, m_list_users, client):
+        m_require_admin.return_value = None  # admin
+        m_list_users.return_value = [
+            {'id': 1, 'username': 'user1', 'role': 'user'},
+            {'id': 2, 'username': 'admin1', 'role': 'admin'},
+        ]
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.get('/api/auth/admin/users')
+        assert r.status_code == 200
+        data = r.get_json()
+>       assert len(data['users']) == 2
+                   ^^^^^^^^^^^^^
+E       TypeError: list indices must be integers or slices, not str
+
+tests\test_routes\test_auth_routes.py:175: TypeError
+________________ TestAdminCreateUser.test_create_user_success _________________
+
+self = <test_auth_routes.TestAdminCreateUser object at 0x000002BF79DCD090>
+m_db = <MagicMock name='db_connection' id='3019674746368'>
+m_require_admin = <MagicMock name='_require_admin' id='3019674744688'>
+m_hash = <MagicMock name='hash_password' id='3019674746032'>
+m_create = <MagicMock name='create_user' id='3019674743008'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.create_user')
+    @patch('routes.auth.auth_module.hash_password')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_create_user_success(self, m_db, m_require_admin, m_hash, m_create, client):
+        m_require_admin.return_value = None  # admin
+        m_hash.return_value = 'hashed'
+        m_create.return_value = 3  # id \u043d\u043e\u0432\u043e\u0433\u043e \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/auth/admin/users', json={
+            'username': 'newuser',
+            'password': 'secret',
+        })
+>       assert r.status_code == 201
+E       assert 401 == 201
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:204: AssertionError
+_______________ TestAdminCreateUser.test_create_user_forbidden ________________
+
+self = <test_auth_routes.TestAdminCreateUser object at 0x000002BF79DCCB90>
+m_require_admin = <MagicMock name='_require_admin' id='3021397906096'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    def test_create_user_forbidden(self, m_require_admin, client):
+        m_require_admin.return_value = ({'error': '\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d'}, 403)
+    
+        r = client.post('/api/auth/admin/users', json={'username': 'newuser', 'password': 'secret'})
+>       assert r.status_code == 403
+E       assert 401 == 403
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:216: AssertionError
+___________ TestAdminCreateUser.test_create_user_empty_username_400 ___________
+
+self = <test_auth_routes.TestAdminCreateUser object at 0x000002BF79D06190>
+m_db = <MagicMock name='db_connection' id='3019674739648'>
+m_require_admin = <MagicMock name='_require_admin' id='3019674743344'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_create_user_empty_username_400(self, m_db, m_require_admin, client):
+        m_require_admin.return_value = None
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/auth/admin/users', json={'username': ''})
+>       assert r.status_code == 400
+E       assert 401 == 400
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:227: AssertionError
+______________ TestAdminUserEdit.test_edit_user_crew_id_success _______________
+
+self = <test_auth_routes.TestAdminUserEdit object at 0x000002BF79DCC7D0>
+m_db = <MagicMock name='db_connection' id='3019674738976'>
+m_require_admin = <MagicMock name='_require_admin' id='3019674737296'>
+m_crew_repo = <MagicMock name='crew_repo' id='3019674738304'>
+m_get_user = <MagicMock name='get_user_by_id' id='3019674739312'>
+m_update = <MagicMock name='update_user_crew_id' id='3019674732256'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.update_user_crew_id')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth.crew_repo')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_edit_user_crew_id_success(self, m_db, m_require_admin, m_crew_repo, m_get_user, m_update, client):
+        m_require_admin.return_value = None  # admin
+        m_get_user.return_value = {'id': 1, 'username': 'edituser', 'role': 'user', 'source': 'db'}
+        m_crew_repo.get_by_id.return_value = {'id': 100, 'name': 'Test Crew'}
+        m_update.return_value = True
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.patch('/api/auth/admin/users/1', json={'crew_id': 100})
+>       assert r.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:249: AssertionError
+_________________ TestAdminUserEdit.test_edit_user_forbidden __________________
+
+self = <test_auth_routes.TestAdminUserEdit object at 0x000002BF79DCC190>
+m_require_admin = <MagicMock name='_require_admin' id='3019678327744'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    def test_edit_user_forbidden(self, m_require_admin, client):
+        m_require_admin.return_value = ({'error': '\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d'}, 403)
+    
+        r = client.patch('/api/auth/admin/users/1', json={'crew_id': 100})
+>       assert r.status_code == 403
+E       assert 401 == 403
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:259: AssertionError
+____________ TestAdminUserEdit.test_edit_user_invalid_crew_id_400 _____________
+
+self = <test_auth_routes.TestAdminUserEdit object at 0x000002BF79D05E00>
+m_db = <MagicMock name='db_connection' id='3019678325392'>
+m_require_admin = <MagicMock name='_require_admin' id='3019678323712'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_edit_user_invalid_crew_id_400(self, m_db, m_require_admin, client):
+        m_require_admin.return_value = None
+        conn = MagicMock()
+>       m_db.return_value.__enter__ = MagicMock.return_value(conn)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'property' object is not callable
+
+tests\test_routes\test_auth_routes.py:266: TypeError
+________________ TestAdminUserDelete.test_delete_user_success _________________
+
+self = <test_auth_routes.TestAdminUserDelete object at 0x000002BF79DCD1D0>
+m_db = <MagicMock name='db_connection' id='3019678324384'>
+m_is_admin = <MagicMock name='_is_admin_role' id='3019678326064'>
+m_require_admin = <MagicMock name='_require_admin' id='3019678319344'>
+m_get_user = <MagicMock name='get_user_by_id' id='3019678323376'>
+m_delete = <MagicMock name='delete_user' id='3019678319680'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.delete_user')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth._is_admin_role')
+    @patch('routes.auth.db_connection')
+    def test_delete_user_success(self, m_db, m_is_admin, m_require_admin, m_get_user, m_delete, client):
+        m_require_admin.return_value = None  # admin
+        m_is_admin.return_value = False  # \u0443\u0434\u0430\u043b\u044f\u0435\u043c\u044b\u0439 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u043d\u0435 admin
+        m_get_user.return_value = {'id': 1, 'username': 'todelete', 'role': 'user', 'source': 'db'}
+        m_delete.return_value = True
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.delete('/api/auth/admin/users/1')
+>       assert r.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:292: AssertionError
+_______________ TestAdminUserDelete.test_delete_user_forbidden ________________
+
+self = <test_auth_routes.TestAdminUserDelete object at 0x000002BF79DCD310>
+m_require_admin = <MagicMock name='_require_admin' id='3019678321360'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    def test_delete_user_forbidden(self, m_require_admin, client):
+        m_require_admin.return_value = ({'error': '\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d'}, 403)
+    
+        r = client.delete('/api/auth/admin/users/1')
+>       assert r.status_code == 403
+E       assert 401 == 403
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:302: AssertionError
+_____________ TestAdminUserDelete.test_delete_user_not_found_404 ______________
+
+self = <test_auth_routes.TestAdminUserDelete object at 0x000002BF79D05BA0>
+m_db = <MagicMock name='db_connection' id='3019678320688'>
+m_require_admin = <MagicMock name='_require_admin' id='3019678320352'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_delete_user_not_found_404(self, m_db, m_require_admin, client):
+        m_require_admin.return_value = None
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.delete('/api/auth/admin/users/999')
+>       assert r.status_code == 404
+E       assert 401 == 404
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:313: AssertionError
+_____________ TestAdminUserPassword.test_change_password_success ______________
+
+self = <test_auth_routes.TestAdminUserPassword object at 0x000002BF79DCD450>
+m_db = <MagicMock name='db_connection' id='3019678333120'>
+m_require_admin = <MagicMock name='_require_admin' id='3019678333456'>
+m_get_user = <MagicMock name='get_user_by_id' id='3019678333792'>
+m_update = <MagicMock name='update_user_password' id='3019678334128'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.update_user_password')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_change_password_success(self, m_db, m_require_admin, m_get_user, m_update, client):
+        m_require_admin.return_value = None  # admin
+        m_get_user.return_value = {'id': 1, 'username': 'user1', 'role': 'user', 'source': 'db'}
+        m_update.return_value = True
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/auth/admin/users/1/password', json={'password': 'newpass123'})
+>       assert r.status_code == 200
+E       assert 401 == 200
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:333: AssertionError
+____________ TestAdminUserPassword.test_change_password_forbidden _____________
+
+self = <test_auth_routes.TestAdminUserPassword object at 0x000002BF79DCD590>
+m_require_admin = <MagicMock name='_require_admin' id='3019697276304'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    def test_change_password_forbidden(self, m_require_admin, client):
+        m_require_admin.return_value = ({'error': '\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d'}, 403)
+    
+        r = client.post('/api/auth/admin/users/1/password', json={'password': 'newpass'})
+>       assert r.status_code == 403
+E       assert 401 == 403
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:343: AssertionError
+____________ TestAdminUserPassword.test_change_password_short_400 _____________
+
+self = <test_auth_routes.TestAdminUserPassword object at 0x000002BF79D063F0>
+m_db = <MagicMock name='db_connection' id='3019697276976'>
+m_require_admin = <MagicMock name='_require_admin' id='3019697277312'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_change_password_short_400(self, m_db, m_require_admin, client):
+        m_require_admin.return_value = None
+        conn = MagicMock()
+>       m_db.return_value.__enter__ = MagicMock.return_value(conn)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'property' object is not callable
+
+tests\test_routes\test_auth_routes.py:350: TypeError
+___________________ TestAdminUserRevoke.test_revoke_success ___________________
+
+self = <test_auth_routes.TestAdminUserRevoke object at 0x000002BF79DCD6D0>
+m_db = <MagicMock name='db_connection' id='3019678334464'>
+m_require_admin = <MagicMock name='_require_admin' id='3019678333120'>
+m_revoke = <MagicMock name='revoke_all_for_user' id='3019678334128'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth.auth_module.revoke_all_for_user')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.db_connection')
+    def test_revoke_success(self, m_db, m_require_admin, m_revoke, client):
+        m_require_admin.return_value = None  # admin
+        m_revoke.return_value = None
+    
+        conn = MagicMock()
+>       m_db.return_value.__enter__ = MagicMock.return_value(conn)
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'property' object is not callable
+
+tests\test_routes\test_auth_routes.py:368: TypeError
+__________________ TestAdminUserRevoke.test_revoke_forbidden __________________
+
+self = <test_auth_routes.TestAdminUserRevoke object at 0x000002BF79DCD810>
+m_require_admin = <MagicMock name='_require_admin' id='3019678327408'>
+client = <FlaskClient <Flask 'test_auth_routes'>>
+
+    @patch('routes.auth._require_admin')
+    def test_revoke_forbidden(self, m_require_admin, client):
+        m_require_admin.return_value = ({'error': '\u0414\u043e\u0441\u0442\u0443\u043f \u0437\u0430\u043f\u0440\u0435\u0449\u0451\u043d'}, 403)
+    
+        r = client.post('/api/auth/admin/users/1/revoke')
+>       assert r.status_code == 403
+E       assert 401 == 403
+E        +  where 401 = <WrapperTestResponse streamed [401 UNAUTHORIZED]>.status_code
+
+tests\test_routes\test_auth_routes.py:382: AssertionError
+____________________ TestImportFolder.test_success_import _____________________
+
+self = <test_import_routes.TestImportFolder object at 0x000002BF129711D0>
+m_db = <MagicMock name='db_connection' id='3019678329424'>
+m_extract = <MagicMock name='extract_images_from_excel' id='3019678327408'>
+m_parse = <MagicMock name='parse_file_fast' id='3019678328752'>
+client = <FlaskClient <Flask 'test_import_routes'>>
+
+    @patch('routes.import_routes.parse_file_fast')
+    @patch('routes.import_routes.extract_images_from_excel')
+    @patch('routes.import_routes.db_connection')
+    @patch('routes.import_routes.MOTORS_FOLDER', '/tmp/mock_motors')
+    def test_success_import(self, m_db, m_extract, m_parse, client):
+        m_parse.return_value = {
+            'success': True,
+            'filename': 'test.xlsx',
+            'engine_id': 1,
+            'modes': [{'mode_id': 1, 'value': '1500'}],
+            'works': [{'work_id': 1, 'description': '\u0417\u0430\u043c\u0435\u043d\u0430 \u043c\u0430\u0441\u043b\u0430'}],
+        }
+        m_extract.return_value = []
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/import-folder')
+>       assert r.status_code == 200
+E       assert 400 == 200
+E        +  where 400 = <WrapperTestResponse streamed [400 BAD REQUEST]>.status_code
+
+tests\test_routes\test_import_routes.py:66: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[2026-09-10 22:45:42] ======================================================================\n[2026-09-10 22:45:42] \u0417\u0410\u041f\u0423\u0421\u041a \u0418\u041c\u041f\u041e\u0420\u0422\u0410
+_________________ TestImportFolder.test_parser_error_reported _________________
+
+self = <test_import_routes.TestImportFolder object at 0x000002BF12A08180>
+m_db = <MagicMock name='db_connection' id='3019678320016'>
+m_extract = <MagicMock name='extract_images_from_excel' id='3019678320352'>
+m_parse = <MagicMock name='parse_file_fast' id='3019678320688'>
+client = <FlaskClient <Flask 'test_import_routes'>>
+
+    @patch('routes.import_routes.parse_file_fast')
+    @patch('routes.import_routes.extract_images_from_excel')
+    @patch('routes.import_routes.db_connection')
+    @patch('routes.import_routes.MOTORS_FOLDER', '/tmp/mock_motors')
+    def test_parser_error_reported(self, m_db, m_extract, m_parse, client):
+        m_parse.return_value = {
+            'success': False,
+            'filename': 'test.xlsx',
+            'error': '\u041d\u0435\u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u044b\u0439 \u0444\u043e\u0440\u043c\u0430\u0442 \u0444\u0430\u0439\u043b\u0430',
+        }
+        m_extract.return_value = []
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/import-folder')
+        assert r.status_code == 400
+        data = r.get_json()
+        assert data['success'] is False
+>       assert data['file_reports'][0]['status'] == 'error'
+               ^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'file_reports'
+
+tests\test_routes\test_import_routes.py:94: KeyError
+---------------------------- Captured stdout call -----------------------------
+[2026-09-10 22:45:42] ======================================================================\n[2026-09-10 22:45:42] \u0417\u0410\u041f\u0423\u0421\u041a \u0418\u041c\u041f\u041e\u0420\u0422\u0410
+_______________ TestImportFolder.test_parser_exception_reported _______________
+
+self = <test_import_routes.TestImportFolder object at 0x000002BF12A082B0>
+m_db = <MagicMock name='db_connection' id='3019674745696'>
+m_extract = <MagicMock name='extract_images_from_excel' id='3019674743344'>
+m_parse = <MagicMock name='parse_file_fast' id='3019674738976'>
+client = <FlaskClient <Flask 'test_import_routes'>>
+
+    @patch('routes.import_routes.parse_file_fast')
+    @patch('routes.import_routes.extract_images_from_excel')
+    @patch('routes.import_routes.db_connection')
+    @patch('routes.import_routes.MOTORS_FOLDER', '/tmp/mock_motors')
+    def test_parser_exception_reported(self, m_db, m_extract, m_parse, client):
+        m_parse.side_effect = RuntimeError('Unexpected crash')
+        m_extract.return_value = []
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.post('/api/import-folder')
+        assert r.status_code == 400
+        data = r.get_json()
+        assert data['success'] is False
+>       assert data['file_reports'][0]['status'] == 'error'
+               ^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'file_reports'
+
+tests\test_routes\test_import_routes.py:112: KeyError
+---------------------------- Captured stdout call -----------------------------
+[2026-09-10 22:45:42] ======================================================================\n[2026-09-10 22:45:42] \u0417\u0410\u041f\u0423\u0421\u041a \u0418\u041c\u041f\u041e\u0420\u0422\u0410
+________________ TestImportFolder.test_photo_upload_on_success ________________
+
+args = (<test_import_routes.TestImportFolder object at 0x000002BF129E9010>,)
+keywargs = {'client': <FlaskClient <Flask 'test_import_routes'>>}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1418: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unittest.mock._patch object at 0x000002BF1299B690>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'routes.import_routes' from 'C:\\motors_project\\routes\\import_routes.py'> does not have the attribute 'photo_manager'
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1480: AttributeError
+________________________ TestClear.test_clear_success _________________________
+
+args = (<test_import_routes.TestClear object at 0x000002BF12971BD0>,)
+keywargs = {'client': <FlaskClient <Flask 'test_import_routes'>>}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1418: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unittest.mock._patch object at 0x000002BF1299B930>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'routes.import_routes' from 'C:\\motors_project\\routes\\import_routes.py'> does not have the attribute 'photo_manager'
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1480: AttributeError
+______________________ TestClear.test_clear_db_error_500 ______________________
+
+args = (<test_import_routes.TestClear object at 0x000002BF12971A90>,)
+keywargs = {'client': <FlaskClient <Flask 'test_import_routes'>>}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+>       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1436: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:141: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1418: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\contextlib.py:530: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1510: in __enter__
+    original, local = self.get_original()
+                      ^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <unittest.mock._patch object at 0x000002BF1299BAF0>
+
+    def get_original(self):
+        target = self.getter()
+        name = self.attribute
+    
+        original = DEFAULT
+        local = False
+    
+        try:
+            original = target.__dict__[name]
+        except (AttributeError, KeyError):
+            original = getattr(target, name, DEFAULT)
+        else:
+            local = True
+    
+        if name in _builtins and isinstance(target, ModuleType):
+            self.create = True
+    
+        if not self.create and original is DEFAULT:
+>           raise AttributeError(
+                "%s does not have the attribute %r" % (target, name)
+            )
+E           AttributeError: <module 'routes.import_routes' from 'C:\\motors_project\\routes\\import_routes.py'> does not have the attribute 'photo_manager'
+
+C:\Users\KIPIA\AppData\Local\Python\pythoncore-3.14-64\Lib\unittest\mock.py:1480: AttributeError
+_________ TestFailureModeAdminRoutes.test_delete_failure_mode_success _________
+
+self = <test_knowledge_routes.TestFailureModeAdminRoutes object at 0x000002BF12A08640>
+m_db = <MagicMock name='db_connection' id='3021397905424'>
+m_require = <MagicMock name='_require_superadmin' id='3019678330768'>
+client = <FlaskClient <Flask 'test_knowledge_routes'>>
+
+    @patch('routes.knowledge_routes._require_superadmin')
+    @patch('routes.knowledge_routes.db_connection')
+    def test_delete_failure_mode_success(self, m_db, m_require, client):
+        m_require.return_value = None
+        conn = MagicMock()
+        conn.cursor.return_value.rowcount = 1
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.delete('/api/knowledge/failure-modes/1')
+>       assert r.status_code == 200
+E       assert 400 == 200
+E        +  where 400 = <WrapperTestResponse streamed [400 BAD REQUEST]>.status_code
+
+tests\test_routes\test_knowledge_routes.py:100: AssertionError
+________ TestFailureCauseAdminRoutes.test_delete_failure_cause_success ________
+
+self = <test_knowledge_routes.TestFailureCauseAdminRoutes object at 0x000002BF12A089D0>
+m_db = <MagicMock name='db_connection' id='3019678331440'>
+m_require = <MagicMock name='_require_superadmin' id='3019678325728'>
+client = <FlaskClient <Flask 'test_knowledge_routes'>>
+
+    @patch('routes.knowledge_routes._require_superadmin')
+    @patch('routes.knowledge_routes.db_connection')
+    def test_delete_failure_cause_success(self, m_db, m_require, client):
+        m_require.return_value = None
+        conn = MagicMock()
+        conn.cursor.return_value.rowcount = 1
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.delete('/api/knowledge/failure-causes/1')
+>       assert r.status_code == 200
+E       assert 400 == 200
+E        +  where 400 = <WrapperTestResponse streamed [400 BAD REQUEST]>.status_code
+
+tests\test_routes\test_knowledge_routes.py:167: AssertionError
+______________ TestArticlesAdminRoutes.test_get_articles_success ______________
+
+self = <test_knowledge_routes.TestArticlesAdminRoutes object at 0x000002BF12973390>
+m_db = <MagicMock name='db_connection' id='3021397906096'>
+m_require = <MagicMock name='_require_superadmin' id='3021397905760'>
+client = <FlaskClient <Flask 'test_knowledge_routes'>>
+
+    @patch('routes.knowledge_routes._require_superadmin')
+    @patch('routes.knowledge_routes.db_connection')
+    def test_get_articles_success(self, m_db, m_require, client):
+        m_require.return_value = None
+        conn = MagicMock()
+        conn.cursor.return_value.fetchall.return_value = [
+            {'id': 1, 'title': '\u0421\u0442\u0430\u0442\u044c\u044f \u0410'},
+        ]
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.get('/api/knowledge/articles')
+>       assert r.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+
+tests\test_routes\test_knowledge_routes.py:192: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    routes.knowledge_routes:knowledge_routes.py:153 get_articles failed
+Traceback (most recent call last):
+  File "C:\motors_project\routes\knowledge_routes.py", line 150, in get_articles
+    articles = list_articles(conn, symptom_query=symptom_query, equipment_type_id=equipment_type_id)
+TypeError: list_articles() got an unexpected keyword argument 'equipment_type_id'
+____________ TestArticlesAdminRoutes.test_update_article_not_found ____________
+
+self = <test_knowledge_routes.TestArticlesAdminRoutes object at 0x000002BF129BE5D0>
+m_db = <MagicMock name='db_connection' id='3019674745360'>
+m_require = <MagicMock name='_require_superadmin' id='3019674741664'>
+client = <FlaskClient <Flask 'test_knowledge_routes'>>
+
+    @patch('routes.knowledge_routes._require_superadmin')
+    @patch('routes.knowledge_routes.db_connection')
+    def test_update_article_not_found(self, m_db, m_require, client):
+        m_require.return_value = None
+        conn = MagicMock()
+        conn.cursor.return_value.fetchone.return_value = None
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.put('/api/knowledge/article/99999', json={'title': 'Updated'})
+>       assert r.status_code == 404
+E       assert 400 == 404
+E        +  where 400 = <WrapperTestResponse streamed [400 BAD REQUEST]>.status_code
+
+tests\test_routes\test_knowledge_routes.py:304: AssertionError
+_____________ TestArticlesAdminRoutes.test_delete_article_success _____________
+
+self = <test_knowledge_routes.TestArticlesAdminRoutes object at 0x000002BF129BE3F0>
+m_db = <MagicMock name='db_connection' id='3019677336304'>
+m_require = <MagicMock name='_require_superadmin' id='3019677336640'>
+client = <FlaskClient <Flask 'test_knowledge_routes'>>
+
+    @patch('routes.knowledge_routes._require_superadmin')
+    @patch('routes.knowledge_routes.db_connection')
+    def test_delete_article_success(self, m_db, m_require, client):
+        m_require.return_value = None
+        conn = MagicMock()
+        conn.cursor.return_value.fetchone.return_value = {'id': 1}
+        conn.cursor.return_value.rowcount = 1
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.delete('/api/knowledge/article/1')
+>       assert r.status_code == 200
+E       assert 500 == 200
+E        +  where 500 = <WrapperTestResponse streamed [500 INTERNAL SERVER ERROR]>.status_code
+
+tests\test_routes\test_knowledge_routes.py:317: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    routes.knowledge_routes:knowledge_routes.py:218 delete_article_route failed
+Traceback (most recent call last):
+  File "C:\motors_project\routes\knowledge_routes.py", line 214, in delete_article_route
+    delete_article(conn, article_id, actor=getattr(request, 'current_user', None))
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\motors_project\repositories\knowledge_repo.py", line 238, in delete_article
+    log_deletion(conn, 'knowledge_article', article_id, actor, old_row['title'])
+                                                               ~~~~~~~^^^^^^^^^
+KeyError: 'title'
+________________ TestUploadEnginePhotos.test_upload_delegates _________________
+
+self = <test_photos.TestUploadEnginePhotos object at 0x000002BF12973D90>
+m_upload = <MagicMock name='upload_engine_photos' id='3019674744688'>
+m_db = <MagicMock name='db_connection' id='3019674733936'>
+client = <FlaskClient <Flask 'test_photos'>>
+
+    @patch('routes.photos.db_connection')
+    @patch('routes.photos.photo_manager.upload_engine_photos')
+    def test_upload_delegates(self, m_upload, m_db, client):
+        m_upload.return_value = ({'success': True, 'uploaded': 1}, 200)
+        m_conn = m_db.return_value.__enter__.return_value
+>       data = {'photos': (BytesIO(b'data'), 'a.png')}
+                           ^^^^^^^
+E       NameError: name 'BytesIO' is not defined
+
+tests\test_routes\test_photos.py:72: NameError
+________________ TestReplaceEnginePhoto.test_replace_delegates ________________
+
+self = <test_photos.TestReplaceEnginePhoto object at 0x000002BF12A88050>
+m_replace = <MagicMock name='replace_engine_photo' id='3019674735280'>
+client = <FlaskClient <Flask 'test_photos'>>
+
+    @patch('routes.photos.photo_manager.replace_engine_photo')
+    def test_replace_delegates(self, m_replace, client):
+        m_replace.return_value = ({'success': True, 'filename': 'ID1_1.png'}, 200)
+>       data = {'photo': (BytesIO(b'data'), 'x.png')}
+                          ^^^^^^^
+E       NameError: name 'BytesIO' is not defined
+
+tests\test_routes\test_photos.py:97: NameError
+_______ TestTicketUpdateDeleteRoutes.test_update_ticket_status_success ________
+
+self = <test_ticket_routes.TestTicketUpdateDeleteRoutes object at 0x000002BF12A88E10>
+m_update_status = <MagicMock name='update_ticket_status' id='3019674738976'>
+m_user_id = <MagicMock name='_current_user_id' id='3019674732928'>
+m_db = <MagicMock name='db_connection' id='3019674735952'>
+client = <FlaskClient <Flask 'test_ticket_routes'>>
+
+    @patch('routes.ticket_routes.db_connection')
+    @patch('routes.ticket_routes._current_user_id')
+    @patch('routes.ticket_routes.update_ticket_status')
+    def test_update_ticket_status_success(self, m_update_status, m_user_id, m_db, client):
+        m_user_id.return_value = 1
+        m_update_status.return_value = True
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.patch('/api/ticket/1/status', json={'status': 'closed'})
+>       assert r.status_code == 200
+E       assert 405 == 200
+E        +  where 405 = <WrapperTestResponse streamed [405 METHOD NOT ALLOWED]>.status_code
+
+tests\test_routes\test_ticket_routes.py:194: AssertionError
+__________ TestTicketUpdateDeleteRoutes.test_delete_ticket_not_found __________
+
+self = <test_ticket_routes.TestTicketUpdateDeleteRoutes object at 0x000002BF12A09E00>
+m_delete = <MagicMock name='delete_ticket' id='3019678330096'>
+m_db = <MagicMock name='db_connection' id='3019678321360'>
+client = <FlaskClient <Flask 'test_ticket_routes'>>
+
+    @patch('routes.ticket_routes.db_connection')
+    @patch('routes.ticket_routes.delete_ticket')
+    def test_delete_ticket_not_found(self, m_delete, m_db, client):
+        m_delete.return_value = False
+    
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+    
+        r = client.delete('/api/ticket/99999')
+>       assert r.status_code == 404
+E       assert 200 == 404
+E        +  where 200 = <WrapperTestResponse streamed [200 OK]>.status_code
+
+tests\test_routes\test_ticket_routes.py:224: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_routes/test_auth_routes.py::TestLogin::test_login_success
+FAILED tests/test_routes/test_auth_routes.py::TestLogin::test_login_existing_user
+FAILED tests/test_routes/test_auth_routes.py::TestLogin::test_login_bad_password_401
+FAILED tests/test_routes/test_auth_routes.py::TestLogin::test_login_empty_body_400
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUsersList::test_list_users_success
+FAILED tests/test_routes/test_auth_routes.py::TestAdminCreateUser::test_create_user_success
+FAILED tests/test_routes/test_auth_routes.py::TestAdminCreateUser::test_create_user_forbidden
+FAILED tests/test_routes/test_auth_routes.py::TestAdminCreateUser::test_create_user_empty_username_400
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserEdit::test_edit_user_crew_id_success
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserEdit::test_edit_user_forbidden
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserEdit::test_edit_user_invalid_crew_id_400
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserDelete::test_delete_user_success
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserDelete::test_delete_user_forbidden
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserDelete::test_delete_user_not_found_404
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserPassword::test_change_password_success
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserPassword::test_change_password_forbidden
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserPassword::test_change_password_short_400
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserRevoke::test_revoke_success
+FAILED tests/test_routes/test_auth_routes.py::TestAdminUserRevoke::test_revoke_forbidden
+FAILED tests/test_routes/test_import_routes.py::TestImportFolder::test_success_import
+FAILED tests/test_routes/test_import_routes.py::TestImportFolder::test_parser_error_reported
+FAILED tests/test_routes/test_import_routes.py::TestImportFolder::test_parser_exception_reported
+FAILED tests/test_routes/test_import_routes.py::TestImportFolder::test_photo_upload_on_success
+FAILED tests/test_routes/test_import_routes.py::TestClear::test_clear_success
+FAILED tests/test_routes/test_import_routes.py::TestClear::test_clear_db_error_500
+FAILED tests/test_routes/test_knowledge_routes.py::TestFailureModeAdminRoutes::test_delete_failure_mode_success
+FAILED tests/test_routes/test_knowledge_routes.py::TestFailureCauseAdminRoutes::test_delete_failure_cause_success
+FAILED tests/test_routes/test_knowledge_routes.py::TestArticlesAdminRoutes::test_get_articles_success
+FAILED tests/test_routes/test_knowledge_routes.py::TestArticlesAdminRoutes::test_update_article_not_found
+FAILED tests/test_routes/test_knowledge_routes.py::TestArticlesAdminRoutes::test_delete_article_success
+FAILED tests/test_routes/test_photos.py::TestUploadEnginePhotos::test_upload_delegates
+FAILED tests/test_routes/test_photos.py::TestReplaceEnginePhoto::test_replace_delegates
+FAILED tests/test_routes/test_ticket_routes.py::TestTicketUpdateDeleteRoutes::test_update_ticket_status_success
+FAILED tests/test_routes/test_ticket_routes.py::TestTicketUpdateDeleteRoutes::test_delete_ticket_not_found
+34 failed, 95 passed in 3.09s

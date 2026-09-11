@@ -1,9 +1,13 @@
-"""Тесты HTTP-слоя членов экипажа (routes/crew_routes.py).
+"""Тесты HTTP-слоя справочника людей (routes/crew_routes.py).
 
-crew_bp — /api/crew, /api/crew/<id>.
+crew_bp — /api/crew (GET список, POST создание), /api/crew/search (GET),
+/api/crew/<id> (PUT, DELETE). GET /api/crew/<id> в API НЕТ — только PUT/DELETE.
 
-Модуль crew_repo покрыт тестами в test_repositories/test_crew_repo.py —
-здесь проверяем HTTP-уровень: коды ответов, сообщения, работу guard'ов.
+Ролевых проверок в этом blueprint нет (ТЗ раздел 2.1.3: оба пользователя
+полноправны, общий гейт «залогинен» висит на auth_bp.before_app_request).
+
+Repo-функции покрыты тестами в test_repositories/test_crew_repo.py —
+здесь проверяем HTTP-уровень: коды ответов, сообщения об ошибках.
 """
 
 from unittest.mock import patch, MagicMock
@@ -33,179 +37,200 @@ def client(app):
     return app.test_client()
 
 
-class TestGetCrew:
+class TestListCrew:
     @patch("routes.crew_routes.crew_repo")
     @patch("routes.crew_routes.db_connection")
-    def test_get_crew_success(self, m_db, m_repo, client):
+    def test_list_crew_success(self, m_db, m_repo, client):
         m_repo.list_all.return_value = [
-            (1, "Член 1", "engineer"),
+            {"id": 1, "full_name": "Член 1", "position": "engineer",
+             "workshop": None, "created_at": "2026-01-01T00:00:00"},
         ]
         m_db.return_value = _conn_context_mock()
         r = client.get("/api/crew")
         assert r.status_code == 200
         data = r.get_json()
-        assert len(data["members"]) == 1
-        assert data["members"][0]["id"] == 1
-        assert data["members"][0]["name"] == "Член 1"
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == 1
+        assert data[0]["full_name"] == "Член 1"
+
+
+class TestSearchCrew:
+    @patch("routes.crew_routes.crew_repo")
+    @patch("routes.crew_routes.db_connection")
+    def test_search_returns_matches(self, m_db, m_repo, client):
+        m_repo.search.return_value = [
+            {"id": 2, "full_name": "Иван Иванов", "position": "engineer",
+             "workshop": "Цех 1"},
+        ]
+        m_db.return_value = _conn_context_mock()
+        r = client.get("/api/crew/search", query_string={"q": "иван"})
+        assert r.status_code == 200
+        data = r.get_json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == 2
+        assert m_repo.search.call_args.args[1] == "иван"
+
+    def test_search_empty_query_returns_empty_list(self, client):
+        r = client.get("/api/crew/search")
+        assert r.status_code == 200
+        assert r.get_json() == []
 
 
 class TestCreateCrewMember:
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_create_success_as_admin(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None  # admin
+    def test_create_success(self, m_db, m_repo, client):
         m_repo.create.return_value = 10
         m_db.return_value = _conn_context_mock()
         r = client.post("/api/crew", json={
-            "name": "Новый член",
-            "role": "engineer",
-            "phone": "123",
+            "full_name": "Новый член",
+            "position": "engineer",
+            "workshop": "Цех 1",
         })
-        assert r.status_code == 201
+        assert r.status_code == 200
         data = r.get_json()
-        assert data["member"]["id"] == 10
-        assert data["member"]["name"] == "Новый член"
-        m_repo.create.assert_called_once_with(
-            MagicMock(), "Новый член", "engineer", "123"
-        )
-
-    @patch("routes.crew_routes._require_admin")
-    def test_create_forbidden_non_admin(self, m_require_admin, client):
-        m_require_admin.return_value = ("Доступ запрещён", 403)
-        r = client.post("/api/crew", json={
-            "name": "Член",
-        })
-        assert r.status_code == 403
+        assert data["success"] is True
+        assert data["id"] == 10
+        assert m_repo.create.call_count == 1
+        args, kwargs = m_repo.create.call_args
+        assert args[1] == "Новый член"  # full_name
+        assert args[2] == "engineer"    # position
+        assert args[3] == "Цех 1"       # workshop
 
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_create_empty_name_400(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None
+    def test_create_position_and_workshop_optional(self, m_db, m_repo, client):
+        m_repo.create.return_value = 11
         m_db.return_value = _conn_context_mock()
-        r = client.post("/api/crew", json={
-            "name": "",
-            "role": "engineer",
-        })
+        r = client.post("/api/crew", json={"full_name": "Без должности"})
+        assert r.status_code == 200
+        args, kwargs = m_repo.create.call_args
+        assert args[1] == "Без должности"
+        assert args[2] is None
+        assert args[3] is None
+
+    @patch("routes.crew_routes.crew_repo")
+    @patch("routes.crew_routes.db_connection")
+    def test_create_missing_name_400(self, m_db, m_repo, client):
+        r = client.post("/api/crew", json={})
         assert r.status_code == 400
+        data = r.get_json()
+        assert "ФИО обязательно" in data["error"]
+        m_repo.create.assert_not_called()
 
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_create_duplicate_name_409(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None
-        m_repo.create.side_effect = Exception("UNIQUE constraint failed")
-        m_db.return_value = _conn_context_mock()
-        r = client.post("/api/crew", json={
-            "name": "Уже существует",
-            "role": "engineer",
-        })
-        assert r.status_code == 409
-
+    def test_create_blank_name_400(self, m_db, m_repo, client):
+        r = client.post("/api/crew", json={"full_name": "   "})
+        assert r.status_code == 400
+        m_repo.create.assert_not_called()
 
 class TestUpdateCrewMember:
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_update_success_as_admin(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None  # admin
+    def test_update_success(self, m_db, m_repo, client):
+        m_repo.get_by_id.return_value = {"id": 1, "full_name": "Член 1"}
         m_repo.update.return_value = True
         m_db.return_value = _conn_context_mock()
-        r = client.put("/api/crew/1", json={
-            "name": "Обновлённый",
-            "role": "technician",
-        })
+        r = client.put("/api/crew/1", json={"full_name": "Новое ФИО"})
         assert r.status_code == 200
-        m_repo.update.assert_called_once_with(
-            MagicMock(), 1, "Обновлённый", "technician", None
-        )
-
-    @patch("routes.crew_routes._require_admin")
-    def test_update_forbidden_non_admin(self, m_require_admin, client):
-        m_require_admin.return_value = ("Доступ запрещён", 403)
-        r = client.put("/api/crew/1", json={"name": "Новый"})
-        assert r.status_code == 403
+        data = r.get_json()
+        assert data["success"] is True
+        assert m_repo.update.call_count == 1
+        args, kwargs = m_repo.update.call_args
+        assert args[1] == 1
+        assert kwargs.get("full_name") == "Новое ФИО"
 
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_update_not_found_404(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None
-        m_repo.update.return_value = False
+    def test_update_not_found_404(self, m_db, m_repo, client):
+        m_repo.get_by_id.return_value = None
         m_db.return_value = _conn_context_mock()
-        r = client.put("/api/crew/99999", json={"name": "Новый"})
+        r = client.put("/api/crew/99999", json={"full_name": "Новый"})
         assert r.status_code == 404
+        data = r.get_json()
+        assert "не найден" in data["error"].lower()
+        m_repo.update.assert_not_called()
 
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_update_empty_name_400(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None
+    def test_update_empty_name_400(self, m_db, m_repo, client):
+        m_repo.get_by_id.return_value = {"id": 1, "full_name": "Член 1"}
         m_db.return_value = _conn_context_mock()
-        r = client.put("/api/crew/1", json={
-            "name": "",
-        })
+        r = client.put("/api/crew/1", json={"full_name": "   "})
         assert r.status_code == 400
+        data = r.get_json()
+        assert "пустым" in data["error"].lower()
+        m_repo.update.assert_not_called()
+
+    @patch("routes.crew_routes.crew_repo")
+    @patch("routes.crew_routes.db_connection")
+    def test_update_nothing_to_change_400(self, m_db, m_repo, client):
+        m_repo.get_by_id.return_value = {"id": 1, "full_name": "Член 1"}
+        m_repo.update.return_value = False  # полей для обновления не передано
+        m_db.return_value = _conn_context_mock()
+        r = client.put("/api/crew/1", json={})
+        assert r.status_code == 400
+        data = r.get_json()
+        assert "нечего обновлять" in data["error"].lower()
 
 
 class TestDeleteCrewMember:
+    @patch("routes.crew_routes.incident_service")
+    @patch("routes.crew_routes.auth_module")
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_delete_success_as_admin(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None  # admin
-        m_repo.delete.return_value = True
+    def test_delete_success(self, m_db, m_repo, m_auth, m_incident_service, client):
+        m_repo.get_by_id.return_value = {"id": 1, "full_name": "Член 1"}
+        m_auth.is_file_crew_referenced.return_value = False
+        m_incident_service.delete_crew.return_value = (True, None)
         m_db.return_value = _conn_context_mock()
         r = client.delete("/api/crew/1")
         assert r.status_code == 200
         data = r.get_json()
         assert data["success"] is True
-        m_repo.delete.assert_called_once_with(MagicMock(), 1)
-
-    @patch("routes.crew_routes._require_admin")
-    def test_delete_forbidden_non_admin(self, m_require_admin, client):
-        m_require_admin.return_value = ("Доступ запрещён", 403)
-        r = client.delete("/api/crew/1")
-        assert r.status_code == 403
+        m_incident_service.delete_crew.assert_called_once()
+        assert m_incident_service.delete_crew.call_args.args[1] == 1
 
     @patch("routes.crew_routes.crew_repo")
     @patch("routes.crew_routes.db_connection")
     def test_delete_not_found_404(self, m_db, m_repo, client):
-        m_repo.delete.return_value = False
+        m_repo.get_by_id.return_value = None
         m_db.return_value = _conn_context_mock()
         r = client.delete("/api/crew/99999")
         assert r.status_code == 404
+        data = r.get_json()
+        assert "не найден" in data["error"].lower()
 
+    @patch("routes.crew_routes.incident_service")
+    @patch("routes.crew_routes.auth_module")
     @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes._require_admin")
     @patch("routes.crew_routes.db_connection")
-    def test_delete_referenced_raises_400(self, m_db, m_require_admin, m_repo, client):
-        m_require_admin.return_value = None
-        m_repo.is_referenced.return_value = True
+    def test_delete_file_user_referenced_400(self, m_db, m_repo, m_auth, m_incident_service, client):
+        m_repo.get_by_id.return_value = {"id": 2, "full_name": "Привязан к учётке"}
+        m_auth.is_file_crew_referenced.return_value = True
         m_db.return_value = _conn_context_mock()
-        r = client.delete("/api/crew/1")
+        r = client.delete("/api/crew/2")
         assert r.status_code == 400
         data = r.get_json()
-        assert "используется" in data["error"].lower() or "referenced" in data["error"].lower()
+        assert "привязан" in data["error"].lower()
+        m_incident_service.delete_crew.assert_not_called()
 
-
-class TestGetCrewMember:
+    @patch("routes.crew_routes.incident_service")
+    @patch("routes.crew_routes.auth_module")
     @patch("routes.crew_routes.crew_repo")
     @patch("routes.crew_routes.db_connection")
-    def test_get_crew_member_success(self, m_db, m_repo, client):
-        m_repo.get_by_id.return_value = (1, "Член 1", "engineer", "123")
+    def test_delete_referenced_in_incident_400(self, m_db, m_repo, m_auth, m_incident_service, client):
+        m_repo.get_by_id.return_value = {"id": 3, "full_name": "В заявке"}
+        m_auth.is_file_crew_referenced.return_value = False
+        m_incident_service.delete_crew.return_value = (
+            False, "Человек указан хотя бы в одной заявке — удаление невозможно"
+        )
         m_db.return_value = _conn_context_mock()
-        r = client.get("/api/crew/1")
-        assert r.status_code == 200
+        r = client.delete("/api/crew/3")
+        assert r.status_code == 400
         data = r.get_json()
-        assert data["member"]["id"] == 1
-        assert data["member"]["name"] == "Член 1"
+        assert "заявке" in data["error"].lower()
 
-    @patch("routes.crew_routes.crew_repo")
-    @patch("routes.crew_routes.db_connection")
-    def test_get_crew_member_not_found_404(self, m_db, m_repo, client):
-        m_repo.get_by_id.return_value = None
-        m_db.return_value = _conn_context_mock()
-        r = client.get("/api/crew/99999")
-        assert r.status_code == 404

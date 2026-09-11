@@ -10,11 +10,26 @@ create_work, delete_work, list_maintenance_action_types.
 import pytest
 
 
+def _create_equipment(db_conn, equipment_id=1):
+    """Создаёт equipment_type и equipment с заданным id для FK-тестов."""
+    db_conn.execute(
+        "INSERT INTO equipment_type (id, code, name) VALUES (?, ?, ?)",
+        (1, "test", "Test Type"),
+    )
+    db_conn.execute(
+        "INSERT INTO equipment (id, equipment_type_id, name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        (equipment_id, 1, f"Equipment {equipment_id}", "2026-01-01", "2026-01-01"),
+    )
+    db_conn.commit()
+    return equipment_id
+
+
 class TestTicketRepo:
-    def test_create_ticket(self, conn):
+    def test_create_ticket(self, db_conn):
         from repositories.ticket_repo import create_ticket
 
-        ticket_id = create_ticket(conn, {
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
             "title": "Поиск неисправности двигателя",
             "created_by_user_id": 1,
             "equipment_id": 1,
@@ -23,7 +38,7 @@ class TestTicketRepo:
         })
         assert ticket_id > 0
 
-        row = conn.execute(
+        row = db_conn.execute(
             "SELECT * FROM ticket WHERE id = ?", (ticket_id,)
         ).fetchone()
         assert row is not None
@@ -31,208 +46,282 @@ class TestTicketRepo:
         assert row["status"] == "new"
         assert row["priority"] == "high"
 
-    def test_list_tickets_empty(self, conn):
+    def test_list_tickets_empty(self, db_conn):
         from repositories.ticket_repo import list_tickets
 
-        tickets = list_tickets(conn)
+        tickets = list_tickets(db_conn)
         assert tickets == []
 
-    def test_list_tickets_filtered_by_status(self, conn):
-        from repositories.ticket_repo import create_ticket, list_tickets
+    def test_list_tickets_filtered_by_status(self, db_conn):
+        from repositories.ticket_repo import create_ticket, update_ticket_status, list_tickets
 
-        create_ticket(conn, {
+        _create_equipment(db_conn, 1)
+        # create_ticket всегда создаёт со status='new' (хардкод в SQL)
+        ticket1 = create_ticket(db_conn, {
             "title": "Новая заявка",
             "created_by_user_id": 1,
-            "status": "new",
+            "equipment_id": 1,
         })
-        create_ticket(conn, {
+        ticket2 = create_ticket(db_conn, {
             "title": "В процессе",
             "created_by_user_id": 1,
-            "status": "in_progress",
+            "equipment_id": 1,
         })
-        create_ticket(conn, {
+        ticket3 = create_ticket(db_conn, {
             "title": "Закрыта",
             "created_by_user_id": 1,
-            "status": "closed",
+            "equipment_id": 1,
         })
+        # Меняем статусы после создания
+        update_ticket_status(db_conn, ticket2, status="in_progress")
+        update_ticket_status(db_conn, ticket3, status="closed")
 
         # Фильтр по статусу
-        new_tickets = list_tickets(conn, status="new")
+        new_tickets = list_tickets(db_conn, status="new")
         assert len(new_tickets) == 1
         assert new_tickets[0]["title"] == "Новая заявка"
 
-    def test_get_ticket_by_id(self, conn):
+    def test_get_ticket_by_id(self, db_conn):
         from repositories.ticket_repo import create_ticket, get_ticket_by_id
 
-        ticket_id = create_ticket(conn, {
+        ticket_id = create_ticket(db_conn, {
             "title": "Тестовая заявка",
             "created_by_user_id": 1,
         })
-        ticket = get_ticket_by_id(conn, ticket_id)
+        ticket = get_ticket_by_id(db_conn, ticket_id)
         assert ticket is not None
         assert ticket["id"] == ticket_id
         assert ticket["title"] == "Тестовая заявка"
         assert ticket["failure_ids"] == []
 
-    def test_get_ticket_by_id_nonexistent(self, conn):
+    def test_get_ticket_by_id_nonexistent(self, db_conn):
         from repositories.ticket_repo import get_ticket_by_id
-        assert get_ticket_by_id(conn, 99999) is None
+        assert get_ticket_by_id(db_conn, 99999) is None
 
-    def test_update_ticket(self, conn):
+    def test_update_ticket(self, db_conn):
         from repositories.ticket_repo import create_ticket, update_ticket
 
-        ticket_id = create_ticket(conn, {
+        ticket_id = create_ticket(db_conn, {
             "title": "Исходная заявка",
             "created_by_user_id": 1,
         })
-        update_ticket(conn, ticket_id, {
+        update_ticket(db_conn, ticket_id, {
             "title": "Обновлённая заявка",
-            "description": "Новое описание",
         })
 
-        ticket = conn.execute(
-            "SELECT title, description FROM ticket WHERE id = ?", (ticket_id,)
+        row = db_conn.execute(
+            "SELECT title FROM ticket WHERE id = ?", (ticket_id,)
         ).fetchone()
-        assert ticket["title"] == "Обновлённая заявка"
-        assert ticket["description"] == "Новое описание"
+        assert row["title"] == "Обновлённая заявка"
 
-    def test_update_ticket_status(self, conn):
+    def test_update_ticket_status(self, db_conn):
         from repositories.ticket_repo import create_ticket, update_ticket_status
 
-        ticket_id = create_ticket(conn, {
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
+            "title": "Заявка",
+            "created_by_user_id": 1,
+            "equipment_id": 1,
+        })
+        update_ticket_status(db_conn, ticket_id, status="in_progress")
+
+        row = db_conn.execute(
+            "SELECT status FROM ticket WHERE id = ?", (ticket_id,)
+        ).fetchone()
+        assert row["status"] == "in_progress"
+
+    def test_delete_ticket(self, db_conn):
+        from repositories.ticket_repo import create_ticket, delete_ticket
+
+        ticket_id = create_ticket(db_conn, {
             "title": "Заявка",
             "created_by_user_id": 1,
         })
-        update_ticket_status(conn, ticket_id, "in_progress")
+        delete_ticket(db_conn, ticket_id)
 
-        row = conn.execute(
-            "SELECT status, updated_at FROM ticket WHERE id = ?", (ticket_id,)
-        ).fetchone()
-        assert row["status"] == "in_progress"
-        assert row["updated_at"] is not None
-
-    def test_delete_ticket(self, conn):
-        from repositories.ticket_repo import create_ticket, delete_ticket
-
-        ticket_id = create_ticket(conn, {
-            "title": "Заявка для удаления",
-            "created_by_user_id": 1,
-        })
-        delete_ticket(conn, ticket_id)
-
-        row = conn.execute(
+        row = db_conn.execute(
             "SELECT id FROM ticket WHERE id = ?", (ticket_id,)
         ).fetchone()
         assert row is None
 
+def test_delete_ticket_cascades_failures_works_and_logs(self, db_conn):
+        """delete_ticket удаляет связанные failure и equipment_work,
+        а также пишет log_deletion в audit_log."""
+        from repositories.ticket_repo import (
+            create_ticket, create_failure, create_work, delete_ticket,
+        )
+
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
+            "title": "Заявка с отказом",
+            "created_by_user_id": 1,
+            "equipment_id": 1,
+        })
+        failure_id = create_failure(db_conn, {
+            "ticket_id": ticket_id,
+            "equipment_id": 1,
+            "symptom": "перегрев",
+            "description": "Описание",
+        })
+        work_id = create_work(db_conn, {
+            "failure_id": failure_id,
+            "action_type_id": 1,
+            "description": "Ремонт",
+        })
+
+        delete_ticket(db_conn, ticket_id, actor={'id': 1, 'username': 'admin', 'display_name': 'Админ'})
+
+        # Тикет, failure и work удалены каскадом
+        assert db_conn.execute("SELECT id FROM ticket WHERE id = ?", (ticket_id,)).fetchone() is None
+        assert db_conn.execute("SELECT id FROM failure WHERE id = ?", (failure_id,)).fetchone() is None
+        assert db_conn.execute("SELECT id FROM equipment_work WHERE id = ?", (work_id,)).fetchone() is None
+
+        # В аудите — строка удаления с названием заявки и актором
+        row = db_conn.execute(
+            "SELECT field_name, new_value, changed_by_display_name FROM audit_log "
+            "WHERE entity_type = 'ticket' AND entity_id = ? ORDER BY id DESC LIMIT 1",
+            (ticket_id,),
+        ).fetchone()
+        assert row is not None
+        assert row["field_name"] == "__deleted__"
+        assert row["changed_by_display_name"] == "Админ"
+        assert row["new_value"] == "Заявка с отказом"
+
+    def test_delete_ticket_not_found_false(self, db_conn):
+        from repositories.ticket_repo import delete_ticket
+        assert delete_ticket(db_conn, 99999) is False
 
 class TestFailureRepo:
-    def test_create_failure(self, conn):
+    def test_create_failure(self, db_conn):
         from repositories.ticket_repo import create_ticket, create_failure
 
-        ticket_id = create_ticket(conn, {
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
             "title": "Заявка",
             "created_by_user_id": 1,
+            "equipment_id": 1,
         })
-        failure_id = create_failure(conn, {
+        failure_id = create_failure(db_conn, {
             "ticket_id": ticket_id,
-            "failure_type": "технологическая",
-            "failure_description": "Поломка узла",
-            "symptom": "Не запускается",
-            "description": "Подробное описание",
-            "confirmed": True,
+            "equipment_id": 1,
+            "symptom": "технологическая",
+            "description": "Описание отказа",
         })
         assert failure_id > 0
 
-        failure = conn.execute(
+        failure = db_conn.execute(
             "SELECT * FROM failure WHERE id = ?", (failure_id,)
         ).fetchone()
         assert failure["ticket_id"] == ticket_id
-        assert failure["failure_type"] == "технологическая"
+        assert failure["symptom"] == "технологическая"
 
-    def test_get_failure_by_id(self, conn):
+    def test_get_failure_by_id(self, db_conn):
         from repositories.ticket_repo import create_ticket, create_failure, get_failure_by_id
 
-        ticket_id = create_ticket(conn, {"title": "Заявка", "created_by_user_id": 1})
-        failure_id = create_failure(conn, {
-            "ticket_id": ticket_id,
-            "failure_type": "технологическая",
-            "failure_description": "Описание",
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
+            "title": "Заявка",
+            "created_by_user_id": 1,
+            "equipment_id": 1,
         })
-        failure = get_failure_by_id(conn, failure_id)
+        failure_id = create_failure(db_conn, {
+            "ticket_id": ticket_id,
+            "equipment_id": 1,
+            "symptom": "технологическая",
+            "description": "Описание",
+        })
+        failure = get_failure_by_id(db_conn, failure_id)
         assert failure is not None
         assert failure["id"] == failure_id
 
-    def test_update_failure(self, conn):
+    def test_update_failure(self, db_conn):
         from repositories.ticket_repo import create_ticket, create_failure, update_failure
 
-        ticket_id = create_ticket(conn, {"title": "Заявка", "created_by_user_id": 1})
-        failure_id = create_failure(conn, {
-            "ticket_id": ticket_id,
-            "failure_type": "A",
-            "failure_description": "Исходное",
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
+            "title": "Заявка",
+            "created_by_user_id": 1,
+            "equipment_id": 1,
         })
-        update_failure(conn, failure_id, {
-            "failure_type": "B",
-            "failure_description": "Обновлённое",
+        failure_id = create_failure(db_conn, {
+            "ticket_id": ticket_id,
+            "equipment_id": 1,
+            "symptom": "A",
+            "description": "Исходное",
+        })
+        update_failure(db_conn, failure_id, {
+            "symptom": "B",
+            "description": "Обновлённое",
         })
 
-        failure = conn.execute(
-            "SELECT failure_type, failure_description FROM failure WHERE id = ?",
+        failure = db_conn.execute(
+            "SELECT symptom, description FROM failure WHERE id = ?",
             (failure_id,),
         ).fetchone()
-        assert failure["failure_type"] == "B"
-        assert failure["failure_description"] == "Обновлённое"
+        assert failure["symptom"] == "B"
+        assert failure["description"] == "Обновлённое"
 
 
 class TestWorkRepo:
-    def test_create_work(self, conn):
+    def test_create_work(self, db_conn):
         from repositories.ticket_repo import create_ticket, create_failure, create_work
 
-        ticket_id = create_ticket(conn, {"title": "Заявка", "created_by_user_id": 1})
-        failure_id = create_failure(conn, {
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
+            "title": "Заявка",
+            "created_by_user_id": 1,
+            "equipment_id": 1,
+        })
+        failure_id = create_failure(db_conn, {
             "ticket_id": ticket_id,
+            "equipment_id": 1,
             "failure_type": "A",
             "failure_description": "Описание",
         })
-        work_id = create_work(conn, {
+        work_id = create_work(db_conn, {
             "failure_id": failure_id,
             "action_type_id": 1,
             "description": "Ремонт",
         })
         assert work_id > 0
 
-        work = conn.execute(
+        work = db_conn.execute(
             "SELECT * FROM equipment_work WHERE id = ?", (work_id,)
         ).fetchone()
         assert work["failure_id"] == failure_id
         assert work["description"] == "Ремонт"
 
-    def test_delete_work(self, conn):
+    def test_delete_work(self, db_conn):
         from repositories.ticket_repo import create_ticket, create_failure, create_work, delete_work
 
-        ticket_id = create_ticket(conn, {"title": "Заявка", "created_by_user_id": 1})
-        failure_id = create_failure(conn, {
+        _create_equipment(db_conn, 1)
+        ticket_id = create_ticket(db_conn, {
+            "title": "Заявка",
+            "created_by_user_id": 1,
+            "equipment_id": 1,
+        })
+        failure_id = create_failure(db_conn, {
             "ticket_id": ticket_id,
+            "equipment_id": 1,
             "failure_type": "A",
             "failure_description": "Описание",
         })
-        work_id = create_work(conn, {
+        work_id = create_work(db_conn, {
             "failure_id": failure_id,
             "action_type_id": 1,
             "description": "Ремонт",
         })
-        delete_work(conn, work_id)
+        delete_work(db_conn, work_id)
 
-        row = conn.execute(
+        row = db_conn.execute(
             "SELECT id FROM equipment_work WHERE id = ?", (work_id,)
         ).fetchone()
         assert row is None
 
-    def test_list_maintenance_action_types(self, conn):
+    def test_list_maintenance_action_types(self, db_conn):
         from repositories.ticket_repo import list_maintenance_action_types
 
-        types = list_maintenance_action_types(conn)
+        types = list_maintenance_action_types(db_conn)
         assert isinstance(types, list)
         assert all("id" in t for t in types)
         assert all("name" in t for t in types)

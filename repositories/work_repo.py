@@ -2,6 +2,8 @@
 
 Содержит ТОЛЬКО SQL-запросы. Бизнес-логика — в services/.
 """
+from modules.audit import log_field_changes
+
 WORK_COLUMNS = frozenset([
     'work_number', 'date', 'work_description', 'isolation', 'inspection', 'signature', 'status'
 ])
@@ -11,6 +13,25 @@ def _row_to_dict(row):
     if row is None:
         return None
     return {k: row[k] for k in row.keys()}
+
+
+def _summarize_works(works: list[dict]) -> str:
+    """Компактная сводка списка работ — тот же принцип, что
+    mode_repo.py::_summarize_modes (works тоже заменяются целиком через
+    replace_all, без стабильных id между сохранениями)."""
+    if not works:
+        return ''
+    parts = []
+    for w in works:
+        bits = []
+        if w.get('date'):
+            bits.append(w['date'])
+        if w.get('work_number'):
+            bits.append(f"№{w['work_number']}")
+        if w.get('work_description'):
+            bits.append(w['work_description'][:30])
+        parts.append(' '.join(bits) if bits else '(пусто)')
+    return '; '.join(parts)
 
 
 def get_all(conn, engine_id: int):
@@ -31,8 +52,16 @@ def get_all(conn, engine_id: int):
     return [_row_to_dict(row) for row in cur.fetchall()]
 
 
-def replace_all(conn, engine_id: int, works: list[dict]) -> None:
-    """Заменить все работы двигателя (удалить старые, вставить новые)."""
+def replace_all(conn, engine_id: int, works: list[dict], actor: dict | None = None) -> None:
+    """Заменить все работы двигателя (удалить старые, вставить новые).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (см. _summarize_works выше)."""
+    old_summary = _summarize_works(get_all(conn, engine_id))
+    new_summary = _summarize_works(works)
+    log_field_changes(conn, 'engine', engine_id, actor,
+                       {'works': old_summary}, {'works': new_summary})
+
     cur = conn.cursor()
     cur.execute('DELETE FROM maintenance_works WHERE engine_id = ?', (engine_id,))
     if works:

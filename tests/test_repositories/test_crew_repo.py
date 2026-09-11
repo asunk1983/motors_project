@@ -7,112 +7,123 @@ import pytest
 
 
 class TestCrewRepo:
-    def test_list_all_empty(self, conn):
+    def test_list_all_empty(self, db_conn):
         from repositories.crew_repo import list_all
-        members = list_all(conn)
+        members = list_all(db_conn)
         assert members == []
 
-    def test_list_all(self, conn):
+    def test_list_all(self, db_conn):
         from repositories.crew_repo import create, list_all
-        create(conn, name='Член 1', role='engineer')
-        create(conn, name='Член 2', role='technician')
-        members = list_all(conn)
+        create(db_conn, full_name='Член 1', position='engineer')
+        create(db_conn, full_name='Член 2', position='technician')
+        members = list_all(db_conn)
         assert len(members) == 2
-        assert members[0]['name'] == 'Член 1'
-        assert members[1]['name'] == 'Член 2'
+        assert members[0]['full_name'] == 'Член 1'
+        assert members[1]['full_name'] == 'Член 2'
 
-    def test_get_by_id_success(self, conn):
+    def test_get_by_id_success(self, db_conn):
         from repositories.crew_repo import create, get_by_id
-        member_id = create(conn, name='Иван Иванов', role='engineer', phone='123')
-        member = get_by_id(conn, member_id)
+        member_id = create(db_conn, full_name='Иван Иванов', position='engineer', workshop='Цех 1')
+        member = get_by_id(db_conn, member_id)
         assert member is not None
         assert member['id'] == member_id
-        assert member['name'] == 'Иван Иванов'
+        assert member['full_name'] == 'Иван Иванов'
 
         # Несуществующий
-        assert get_by_id(conn, 99999) is None
+        assert get_by_id(db_conn, 99999) is None
 
-    def test_create_success(self, conn):
+    def test_create_success(self, db_conn):
         from repositories.crew_repo import create
-        member_id = create(conn, name='Сотрудник 1', role='engineer', phone='123')
+        member_id = create(db_conn, full_name='Сотрудник 1', position='engineer', workshop='Цех 1')
         assert member_id > 0
 
-        row = conn.execute(
-            "SELECT id, name, role, phone FROM crew WHERE id = ?",
+        row = db_conn.execute(
+            "SELECT id, full_name, position, workshop FROM crew WHERE id = ?",
             (member_id,),
         ).fetchone()
         assert row is not None
         assert row[1] == 'Сотрудник 1'
         assert row[2] == 'engineer'
 
-    def test_create_duplicate_name_raises(self, conn):
+    def test_create_duplicate_name(self, db_conn):
+        """crew не имеет UNIQUE по full_name — дубликат разрешён."""
         from repositories.crew_repo import create
-        create(conn, name='Уникальный', role='engineer')
-        with pytest.raises(Exception):
-            create(conn, name='Уникальный', role='technician')
+        id1 = create(db_conn, full_name='Уникальный', position='engineer')
+        id2 = create(db_conn, full_name='Уникальный', position='technician')
+        assert id1 > 0
+        assert id2 > 0
 
-    def test_update_success(self, conn):
+    def test_update_success(self, db_conn):
         from repositories.crew_repo import create, update
-        member_id = create(conn, name='Старое имя', role='engineer')
-        ok = update(conn, member_id, name='Новое имя', role='technician')
+        member_id = create(db_conn, full_name='Старое имя', position='engineer')
+        ok = update(db_conn, member_id, full_name='Новое имя', position='technician')
         assert ok is True
 
-        row = conn.execute(
-            "SELECT name, role FROM crew WHERE id = ?",
+        row = db_conn.execute(
+            "SELECT full_name, position FROM crew WHERE id = ?",
             (member_id,),
         ).fetchone()
         assert row[0] == 'Новое имя'
         assert row[1] == 'technician'
 
-    def test_update_nonexistent(self, conn):
+    def test_update_nonexistent(self, db_conn):
         from repositories.crew_repo import update
-        ok = update(conn, 99999, name='Новое имя', role='engineer')
+        ok = update(db_conn, 99999, full_name='Новое имя', position='engineer')
         assert ok is False
 
-    def test_delete_success(self, conn):
+    def test_delete_success(self, db_conn):
         from repositories.crew_repo import create, delete
-        member_id = create(conn, name='Удаляемый', role='engineer')
-        ok = delete(conn, member_id)
+        member_id = create(db_conn, full_name='Удаляемый', position='engineer')
+        ok, err = delete(db_conn, member_id)
         assert ok is True
+        assert err is None
 
-        row = conn.execute(
+        row = db_conn.execute(
             "SELECT id FROM crew WHERE id = ?",
             (member_id,),
         ).fetchone()
         assert row is None
 
-    def test_delete_nonexistent(self, conn):
+    def test_delete_nonexistent(self, db_conn):
         from repositories.crew_repo import delete
-        ok = delete(conn, 99999)
-        assert ok is True  # silent
+        ok, err = delete(db_conn, 99999)
+        assert ok is False
 
-    def test_is_referenced_false(self, conn):
+    def test_is_referenced_false(self, db_conn):
         from repositories.crew_repo import create, is_referenced
-        member_id = create(conn, name='Не используемый', role='engineer')
-        assert is_referenced(conn, member_id) is False
+        member_id = create(db_conn, full_name='Не используемый', position='engineer')
+        assert is_referenced(db_conn, member_id) is False
 
-    def test_is_referenced_true(self, conn):
-        from repositories.crew_repo import create, is_referenced, add_relation_to_incident
-        member_id = create(conn, name='Используемый', role='engineer')
-        # Добавляем связь с заявкой инцидента
-        incident_id = 1  # может не существовать, но в репозитории это просто FOREIGN KEY
-        try:
-            add_relation_to_incident(conn, incident_id=incident_id, crew_id=member_id)
-            assert is_referenced(conn, member_id) is True
-        except Exception:
-            # Foreign key constraint failed — но is_referenced должен вернуть False,
-            # так как связь не была создана. Пусть тест пройдёт.
-            assert is_referenced(conn, member_id) is False
+    def test_is_referenced_true(self, db_conn):
+        from repositories.crew_repo import create, is_referenced
+        # Создаём crew-запись и напрямую добавляем связь в incident_ticket_initiator
+        member_id = create(db_conn, full_name='Используемый', position='engineer')
+        # Нужен существующий ticket — создаём location_node и ticket
+        cur = db_conn.execute(
+            "INSERT INTO location_node (name, node_type) VALUES (?, ?)",
+            ("Тестовый узел", "workshop"),
+        )
+        db_conn.commit()
+        location_id = cur.lastrowid
+        db_conn.execute(
+            "INSERT INTO incident_ticket (location_node_id, problem, created_by_user_id) VALUES (?, ?, ?)",
+            (location_id, "Тестовая заявка", 1),
+        )
+        db_conn.execute(
+            "INSERT INTO incident_ticket_initiator (ticket_id, crew_id) VALUES (?, ?)",
+            (1, member_id),
+        )
+        db_conn.commit()
+        assert is_referenced(db_conn, member_id) is True
 
 
 class TestCrewRepoGuards:
-    def test_delete_referenced_raises(self, conn):
+    def test_delete_referenced_raises(self, db_conn):
         from repositories.crew_repo import create, is_referenced, delete
-        member_id = create(conn, name='Используемый', role='engineer')
+        member_id = create(db_conn, full_name='Используемый', position='engineer')
         # Проверяем, что is_referenced возвращает False (пока нет связей)
-        assert is_referenced(conn, member_id) is False
+        assert is_referenced(db_conn, member_id) is False
 
-        # Если бы была связь с заявкой инцидента, delete вызвал бы ошибку.
-        # Здесь мы проверяем, что delete работает, когда member не используется.
-        ok = delete(conn, member_id)
+        # delete работает, когда member не используется
+        ok, err = delete(db_conn, member_id)
         assert ok is True

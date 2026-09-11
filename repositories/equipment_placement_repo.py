@@ -15,6 +15,7 @@
 import sqlite3
 
 from repositories import location_repo
+from modules.audit import log_creation, log_deletion
 
 
 def list_by_equipment(conn: sqlite3.Connection, equipment_id: int) -> list[dict]:
@@ -49,13 +50,24 @@ def designation_exists_in_location(conn: sqlite3.Connection, location_node_id: i
 
 
 def create(conn: sqlite3.Connection, equipment_id: int, location_node_id: int,
-           designation: str | None = None, note: str | None = None) -> int:
+           designation: str | None = None, note: str | None = None,
+           actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation). Логируется как
+    отдельная сущность 'equipment_placement' (не как поле у equipment) —
+    у каждого места установки свой стабильный id, в отличие от
+    modes/works (см. mode_repo.py/work_repo.py — там replace_all без
+    стабильных id, поэтому сводка одной строкой у родителя)."""
     cur = conn.execute('''
         INSERT INTO equipment_placement (equipment_id, location_node_id, designation, note, created_at)
         VALUES (?, ?, ?, ?, datetime('now'))
     ''', (equipment_id, location_node_id, designation, note))
+    placement_id = cur.lastrowid
+    location_path = location_repo.get_breadcrumb_text(conn, location_node_id)
+    summary = f"{designation or '(без обозначения)'} — {location_path}"
+    log_creation(conn, 'equipment_placement', placement_id, actor, summary)
     conn.commit()
-    return cur.lastrowid
+    return placement_id
 
 
 def get_by_id(conn: sqlite3.Connection, placement_id: int) -> dict | None:
@@ -68,7 +80,14 @@ def get_by_id(conn: sqlite3.Connection, placement_id: int) -> dict | None:
     return dict(row) if row else None
 
 
-def delete(conn: sqlite3.Connection, placement_id: int) -> bool:
+def delete(conn: sqlite3.Connection, placement_id: int, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion)."""
+    old_row = get_by_id(conn, placement_id)
     cur = conn.execute('DELETE FROM equipment_placement WHERE id = ?', (placement_id,))
+    if old_row is not None:
+        location_path = location_repo.get_breadcrumb_text(conn, old_row['location_node_id'])
+        summary = f"{old_row.get('designation') or '(без обозначения)'} — {location_path}"
+        log_deletion(conn, 'equipment_placement', placement_id, actor, summary)
     conn.commit()
     return cur.rowcount > 0

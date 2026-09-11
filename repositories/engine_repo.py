@@ -9,6 +9,38 @@ from modules.db import ENGINE_COLUMNS_ORDERED
 from modules.audit import log_field_changes, log_creation, log_deletion
 
 
+# ---------------------------------------------------------------------
+# Самовосстанавливающаяся миграция: колонки last_edited_by/last_edited_at
+# ---------------------------------------------------------------------
+# "Изменил" — отдельная колонка таблицы (не читается из audit_log,
+# независима от политики хранения журнала — см. договорённость по
+# архитектуре журнала изменений), пишется параллельно с updated_at в
+# create()/update(). Тот же паттерн самовосстанавливающейся миграции,
+# что incident_ticket_repo.py::_ensure_updated_at_column — точечная
+# правка репозитория вместо общей миграции в modules/db.py.
+#
+# Состояние проверяется ПРИ КАЖДОМ вызове через PRAGMA table_info (без
+# модульного флага-кэша): PRAGMA-запрос дёшев, а флаг на модуль ломал
+# in-memory тестовые БД (каждый тест получает свежую схему, а флаг
+# «уже применено» остаётся висеть с предыдущего). Накладные расходы
+# на живой БД — один PRAGMA на запрос, это микросекунды.
+
+
+def _ensure_last_edited_columns(conn) -> None:
+    columns = [row[1] for row in conn.execute('PRAGMA table_info(engines)').fetchall()]
+    if 'last_edited_by' not in columns:
+        conn.execute('ALTER TABLE engines ADD COLUMN last_edited_by TEXT')
+    if 'last_edited_at' not in columns:
+        conn.execute('ALTER TABLE engines ADD COLUMN last_edited_at TEXT')
+    conn.commit()
+
+
+def _actor_display_name(actor: dict | None) -> str | None:
+    if not actor:
+        return None
+    return actor.get('display_name') or actor.get('username')
+
+
 def _row_to_dict(row):
     """Преобразует sqlite3.Row в dict."""
     if row is None:
@@ -76,6 +108,7 @@ def get_all(conn, limit: int = 30, offset: int = 0,
     Неизвестный sort_by молча откатывается на 'location' (как и раньше
     было дефолтом для отсутствующего ключа в sort_map).
     """
+    _ensure_last_edited_columns(conn)
     # Прямые колонки engines — сортировка по алиасу e.<col>.
     BASE_SORT_COLUMNS = {
         'id': 'e.id',
@@ -98,6 +131,7 @@ def get_all(conn, limit: int = 30, offset: int = 0,
         'photo_count': 'e.photo_count',
         'created_at': 'e.created_at',
         'updated_at': 'e.updated_at',
+        'last_edited_by': 'e.last_edited_by',
         # 'status' — вычисляемый алиас из SELECT-list (COALESCE
         # last_work_status), не колонка engines. SQLite разрешает
         # ORDER BY по алиасу результата — дублировать выражение здесь
@@ -198,7 +232,7 @@ def get_all(conn, limit: int = 30, offset: int = 0,
                e.bearing_front, e.bearing_rear, e.shaft_diameter,
                e.protection_class, e.mounting_type, e.temp_sensor,
                e.encoder, e.cooling, e.note, e.photo_count,
-               e.created_at, e.updated_at,
+               e.created_at, e.updated_at, e.last_edited_by,
                COALESCE(lw.last_work_status, 'reserve') AS status,
                e.status AS engines_status,
 
@@ -320,13 +354,17 @@ def create(conn, data: dict, actor: dict | None = None) -> int:
     create() в обход роута.
 
     actor — dict текущего пользователя (request.current_user), для
-    журнала изменений (modules/audit.py::log_creation)."""
+    журнала изменений (modules/audit.py::log_creation) и для колонки
+    "Изменил" (last_edited_by/last_edited_at — независимая от журнала
+    отдельная колонка, см. _ensure_last_edited_columns)."""
+    _ensure_last_edited_columns(conn)
     now = datetime.now().isoformat()
+    editor_name = _actor_display_name(actor)
     data_columns = [k for k in ENGINE_COLUMNS_ORDERED if k != 'id' and k in data]
-    all_columns = data_columns + ['created_at', 'updated_at']
+    all_columns = data_columns + ['created_at', 'updated_at', 'last_edited_by', 'last_edited_at']
     col_names = ', '.join(['id'] + all_columns)
     placeholders = ', '.join(['?'] * (len(all_columns) + 1))
-    values = [data[k] for k in data_columns] + [now, now]
+    values = [data[k] for k in data_columns] + [now, now, editor_name, now]
 
     cur = conn.cursor()
     cur.execute('BEGIN IMMEDIATE')
@@ -356,10 +394,15 @@ def update(conn, engine_id: int, data: dict, actor: dict | None = None) -> bool:
     payload заранее, т.к. отсутствует в ENGINE_COLUMNS_ORDERED).
 
     actor — dict текущего пользователя (request.current_user), для
-    журнала изменений (modules/audit.py::log_field_changes). None —
-    правка без привязки к пользователю (тогда changed_by_* в audit_log
+    журнала изменений (modules/audit.py::log_field_changes) и для колонки
+    "Изменил" (last_edited_by/last_edited_at — пишется на КАЖДОЕ
+    сохранение, синхронно с updated_at, независимо от того, изменилось
+    ли хоть одно поле по факту). None — правка без привязки к
+    пользователю (тогда changed_by_* в audit_log и last_edited_by
     пишутся NULL)."""
+    _ensure_last_edited_columns(conn)
     now = datetime.now().isoformat()
+    editor_name = _actor_display_name(actor)
     set_parts = []
     values = []
     changed_input = {}
@@ -376,6 +419,10 @@ def update(conn, engine_id: int, data: dict, actor: dict | None = None) -> bool:
         log_field_changes(conn, 'engine', engine_id, actor, old_row, changed_input)
 
     set_parts.append('updated_at = ?')
+    values.append(now)
+    set_parts.append('last_edited_by = ?')
+    values.append(editor_name)
+    set_parts.append('last_edited_at = ?')
     values.append(now)
 
     values.append(engine_id)

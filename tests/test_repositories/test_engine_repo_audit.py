@@ -6,9 +6,10 @@ modules/audit.py::log_field_changes.
 from repositories.engine_repo import create, update, update_status, update_photo_count, get_locations_tree
 
 
-def _entries(conn):
-    cur = conn.cursor()
-    cur.execute('SELECT * FROM audit_log ORDER BY id')
+def _entries(db_conn):
+    """Возвращает audit-записи, исключая __created__ (лог создания отдельно)."""
+    cur = db_conn.cursor()
+    cur.execute("SELECT * FROM audit_log WHERE field_name != '__created__' ORDER BY id")
     return [dict(r) for r in cur.fetchall()]
 
 

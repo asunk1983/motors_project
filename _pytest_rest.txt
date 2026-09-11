@@ -1,0 +1,79 @@
+................................................F.F............F........ [ 66%]
+....................................                                     [100%]
+================================== FAILURES ===================================
+_____ TestLocationValueLabel.test_location_node_id_resolved_to_breadcrumb _____
+
+self = <tests.test_audit.test_audit_repo.TestLocationValueLabel object at 0x0000022C94355590>
+db_conn = <sqlite3.Connection object at 0x0000022C94AEFB50>
+
+    def test_location_node_id_resolved_to_breadcrumb(self, db_conn):
+        from repositories.location_repo import create
+        root = create(db_conn, '\u0426\u0435\u0445 \u21161', 'workshop')
+        zone = create(db_conn, '\u0417\u043e\u043d\u0430 3', 'zone', parent_id=root)
+        cur = db_conn.cursor()
+        cur.execute(
+            'INSERT INTO audit_log (entity_type, entity_id, field_name, old_value, new_value, changed_at) '
+            'VALUES (?, ?, ?, ?, ?, ?)',
+            ('engine', 1, 'location_node_id', str(root), str(zone), '2026-09-01T10:00:00'))
+        db_conn.commit()
+        rows, _ = audit_repo.list_entries(db_conn)
+>       assert rows[0]['old_value_display'] == '\u0426\u0435\u0445 \u21161'
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'old_value_display'
+
+tests\test_audit\test_audit_repo.py:83: KeyError
+----------------------------- Captured log setup ------------------------------
+WARNING  modules.db:db.py:606 \u0421\u043e\u0437\u0434\u0430\u043d \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c admin (\u0440\u043e\u043b\u044c: admin). \u0421\u043c\u0435\u043d\u0438\u0442\u0435 \u043f\u0430\u0440\u043e\u043b\u044c!
+______________________ TestGrowthStats.test_growth_stats ______________________
+
+self = <tests.test_audit.test_audit_repo.TestGrowthStats object at 0x0000022C94355810>
+db_conn = <sqlite3.Connection object at 0x0000022C94B3F3D0>
+
+    def test_growth_stats(self, db_conn):
+        today = datetime.now().date().isoformat()
+        _add_audit(db_conn, changed_at=f'{today}T10:00:00')
+        _add_audit(db_conn, changed_at=f'{today}T12:00:00')
+        _add_audit(db_conn, changed_at='2000-01-01T10:00:00')
+>       stats = audit_repo.growth_stats(db_conn, days=90)
+                ^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'repositories.audit_repo' has no attribute 'growth_stats'
+
+tests\test_audit\test_audit_repo.py:104: AttributeError
+----------------------------- Captured log setup ------------------------------
+WARNING  modules.db:db.py:606 \u0421\u043e\u0437\u0434\u0430\u043d \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c admin (\u0440\u043e\u043b\u044c: admin). \u0421\u043c\u0435\u043d\u0438\u0442\u0435 \u043f\u0430\u0440\u043e\u043b\u044c!
+______________ TestDisplayName.test_missing_crew_record_fallback ______________
+
+self = <tests.test_auth.test_db_users.TestDisplayName object at 0x0000022C94A2C8A0>
+db_conn = <sqlite3.Connection object at 0x0000022C94B3FB50>
+file_users_env = {'users': 'C:\\Users\\KIPIA\\AppData\\Local\\Temp\\pytest-of-KIPIA\\pytest-53\\test_missing_crew_record_fallb0\\users....s': 'C:\\Users\\KIPIA\\AppData\\Local\\Temp\\pytest-of-KIPIA\\pytest-53\\test_missing_crew_record_fallb0\\tokens.json'}
+
+    def test_missing_crew_record_fallback(self, db_conn, file_users_env):
+>       create_user(db_conn, 'petrov', 'pass123', crew_id=4242)
+
+tests\test_auth\test_db_users.py:62: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+conn = <sqlite3.Connection object at 0x0000022C94B3FB50>, username = 'petrov'
+password = 'pass123', role = 'user', crew_id = 4242
+
+    def create_user(conn, username, password, role='user', crew_id=None):
+        """\u0421\u043e\u0437\u0434\u0430\u0451\u0442 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f \u0432 \u0411\u0414. \u0412\u043e\u0437\u0432\u0440\u0430\u0449\u0430\u0435\u0442 id \u0438\u043b\u0438 \u043a\u0438\u0434\u0430\u0435\u0442 \u0438\u0441\u043a\u043b\u044e\u0447\u0435\u043d\u0438\u0435
+        \u043f\u0440\u0438 \u043d\u0430\u0440\u0443\u0448\u0435\u043d\u0438\u0438 \u0443\u043d\u0438\u043a\u0430\u043b\u044c\u043d\u043e\u0441\u0442\u0438 username. crew_id \u2014 \u043e\u043f\u0446\u0438\u043e\u043d\u0430\u043b\u044c\u043d\u0430\u044f \u043f\u0440\u0438\u0432\u044f\u0437\u043a\u0430
+        \u043a \u0437\u0430\u043f\u0438\u0441\u0438 \u0441\u043f\u0440\u0430\u0432\u043e\u0447\u043d\u0438\u043a\u0430 crew (None = \u0431\u0435\u0437 \u043f\u0440\u0438\u0432\u044f\u0437\u043a\u0438)."""
+        now = datetime.now().isoformat()
+        cur = conn.cursor()
+>       cur.execute(
+            'INSERT INTO users (username, password_hash, role, created_at, last_edit, crew_id) '
+            'VALUES (?, ?, ?, ?, ?, ?)',
+            (username, hash_password(password), role, now, now, crew_id)
+        )
+E       sqlite3.IntegrityError: FOREIGN KEY constraint failed
+
+modules\auth\db_users.py:66: IntegrityError
+----------------------------- Captured log setup ------------------------------
+WARNING  modules.db:db.py:606 \u0421\u043e\u0437\u0434\u0430\u043d \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c admin (\u0440\u043e\u043b\u044c: admin). \u0421\u043c\u0435\u043d\u0438\u0442\u0435 \u043f\u0430\u0440\u043e\u043b\u044c!
+=========================== short test summary info ===========================
+FAILED tests/test_audit/test_audit_repo.py::TestLocationValueLabel::test_location_node_id_resolved_to_breadcrumb
+FAILED tests/test_audit/test_audit_repo.py::TestGrowthStats::test_growth_stats
+FAILED tests/test_auth/test_db_users.py::TestDisplayName::test_missing_crew_record_fallback
+3 failed, 105 passed in 12.53s

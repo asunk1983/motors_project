@@ -90,9 +90,9 @@ def create_engine():
         with db_connection() as conn:
             engine_id = engine_create(conn, clean, actor=getattr(request, 'current_user', None))
             if data.get('modes'):
-                replace_modes(conn, engine_id, data['modes'])
+                replace_modes(conn, engine_id, data['modes'], actor=getattr(request, 'current_user', None))
             if data.get('works'):
-                replace_works(conn, engine_id, data['works'])
+                replace_works(conn, engine_id, data['works'], actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'id': engine_id, 'message': 'Двигатель создан'})
     except Exception as e:
@@ -120,9 +120,9 @@ def update_engine(engine_id):
             # 'in', а не truthy — иначе отправка пустого списка (пользователь
             # удалил все строки и сохранил) не сотрёт старые записи.
             if 'modes' in data:
-                replace_modes(conn, engine_id, data['modes'])
+                replace_modes(conn, engine_id, data['modes'], actor=getattr(request, 'current_user', None))
             if 'works' in data:
-                replace_works(conn, engine_id, data['works'])
+                replace_works(conn, engine_id, data['works'], actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'message': 'Двигатель обновлён'})
     except Exception as e:
@@ -185,7 +185,7 @@ def update_engine_modes(engine_id):
         with db_connection() as conn:
             if not get_by_id(conn, engine_id):
                 return jsonify({'error': 'Двигатель не найден'}), 404
-            replace_modes(conn, engine_id, modes)
+            replace_modes(conn, engine_id, modes, actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'message': 'Режимы работы обновлены'})
     except Exception as e:
@@ -206,7 +206,7 @@ def update_engine_works(engine_id):
         with db_connection() as conn:
             if not get_by_id(conn, engine_id):
                 return jsonify({'error': 'Двигатель не найден'}), 404
-            replace_works(conn, engine_id, works)
+            replace_works(conn, engine_id, works, actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'message': 'Произведённые работы обновлены'})
     except Exception as e:

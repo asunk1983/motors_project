@@ -95,7 +95,7 @@ function renderIncidentsList() {
     const body = document.getElementById('incidentsListBody');
     if (!body) return;
     if (incidentsList.length === 0) {
-        body.innerHTML = '<tr><td colspan="8" class="no-data">Заявок пока нет</td></tr>';
+        body.innerHTML = '<tr><td colspan="9" class="no-data">Заявок пока нет</td></tr>';
         updateIncidentExportButton();
         return;
     }
@@ -109,6 +109,7 @@ function renderIncidentsList() {
             <td onclick="openIncidentModal(${t.id})"><span class="incident-status-badge incident-status-${t.status}">${escapeHtml(INCIDENT_STATUS_LABEL[t.status] || t.status)}</span></td>
             <td onclick="openIncidentModal(${t.id})">${escapeHtml((t.initiators || []).map(i => i.full_name).join(', ') || '—')}</td>
             <td onclick="openIncidentModal(${t.id})">${escapeHtml((t.created_at || '').slice(0, 16).replace('T', ' '))}</td>
+            <td onclick="openIncidentModal(${t.id})">${escapeHtml(t.last_edited_by || '—')}</td>
         </tr>
     `).join('');
     updateIncidentExportButton();

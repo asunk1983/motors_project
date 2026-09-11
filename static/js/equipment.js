@@ -611,6 +611,7 @@ function renderEquipmentTableHeaders() {
     });
     html += `
         <th class="sortable" onclick="sortEquipmentTable('criticality')">Критичность${_equipmentSortArrow('criticality')}</th>
+        <th class="sortable" onclick="sortEquipmentTable('last_edited_by')">Изменил${_equipmentSortArrow('last_edited_by')}</th>
     `;
     theadRow.innerHTML = html;
 }
@@ -625,12 +626,12 @@ function renderEquipmentTable() {
     if (!body) return;
     // Синхронизировано с renderEquipmentTableHeaders: при выбранном типе
     // колонка "Тип" скрыта, динамических — equipmentDisplayAttrs.length.
-    // 6 = базовые колонки (чекбокс + Наименование + Тип + Артикул + Место
-    // + Критичность); минус 1 для "Тип" если тип выбран. Колонка
+    // 7 = базовые колонки (чекбокс + Наименование + Тип + Артикул + Место
+    // + Критичность + Изменил); минус 1 для "Тип" если тип выбран. Колонка
     // "Действия" в таблице больше не показывается (правки/удаления —
     // через открытую карточку).
     const typeSelected = equipmentDisplayAttrs.length > 0;
-    const baseColCount = 6 - (typeSelected ? 1 : 0);
+    const baseColCount = 7 - (typeSelected ? 1 : 0);
     if (!allEquipment.length) {
         const colspan = baseColCount + equipmentDisplayAttrs.length;
         body.innerHTML = `<tr><td colspan="${colspan}" class="no-data">Оборудования пока нет</td></tr>`;
@@ -693,6 +694,7 @@ function renderEquipmentTable() {
                 <td>${locationDisplay}</td>
                 ${dynamicCells}
                 <td>${e.criticality ? '●'.repeat(e.criticality) + '○'.repeat(5 - e.criticality) : '—'}</td>
+                <td>${escapeHtml(e.last_edited_by || '—')}</td>
             </tr>
         `;
     }).join('');

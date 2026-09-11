@@ -36,6 +36,33 @@ def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
 
 
 # ---------------------------------------------------------------------
+# Самовосстанавливающаяся миграция: колонки last_edited_by/last_edited_at
+# ---------------------------------------------------------------------
+# "Изменил" — та же логика, что _ensure_updated_at_column выше, отдельный
+# флаг/функция под свою пару колонок.
+_last_edited_columns_ensured = False
+
+
+def _ensure_last_edited_columns(conn: sqlite3.Connection) -> None:
+    global _last_edited_columns_ensured
+    if _last_edited_columns_ensured:
+        return
+    cols = [row[1] for row in conn.execute('PRAGMA table_info(incident_ticket)').fetchall()]
+    if 'last_edited_by' not in cols:
+        conn.execute('ALTER TABLE incident_ticket ADD COLUMN last_edited_by TEXT')
+    if 'last_edited_at' not in cols:
+        conn.execute('ALTER TABLE incident_ticket ADD COLUMN last_edited_at TEXT')
+    conn.commit()
+    _last_edited_columns_ensured = True
+
+
+def _actor_display_name(actor: dict | None) -> str | None:
+    if not actor:
+        return None
+    return actor.get('display_name') or actor.get('username')
+
+
+# ---------------------------------------------------------------------
 # Самовосстанавливающаяся миграция: снятие FK incident_ticket.created_by_user_id -> users.id
 # ---------------------------------------------------------------------
 # В проекте два независимых хранилища пользователей: таблица users (БД)
@@ -173,6 +200,7 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
 
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
+    _ensure_last_edited_columns(conn)
     # created_by_display_name — резолвленное «человеческое» имя автора:
     # если у пользователя есть crew_id и запись в crew существует, берём
     # crew.full_name, иначе fallback на username. created_by_username
@@ -181,6 +209,7 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
         f'''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
                t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
+               t.last_edited_by,
                ln.name AS location_name,
                u.username AS created_by_username,
                COALESCE(c.full_name, u.username) AS created_by_display_name
@@ -211,10 +240,12 @@ def list_all(conn: sqlite3.Connection, status: str | None = None, priority: str 
 def get_by_id(conn: sqlite3.Connection, ticket_id: int) -> dict | None:
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
+    _ensure_last_edited_columns(conn)
     cur = conn.execute(
         '''
         SELECT t.id, t.location_node_id, t.problem, t.solution, t.priority, t.status,
                t.created_at, t.updated_at, t.closed_at, t.created_by_user_id,
+               t.last_edited_by,
                ln.name AS location_name,
                u.username AS created_by_username,
                COALESCE(c.full_name, u.username) AS created_by_display_name
@@ -243,17 +274,20 @@ def create(conn: sqlite3.Connection, location_node_id: int, problem: str, create
            solution: str | None = None, priority: str = 'medium', status: str = 'in_progress',
            closed_at: str | None = None, actor: dict | None = None) -> int:
     """actor — dict текущего пользователя (request.current_user), для
-    журнала изменений (modules/audit.py::log_creation)."""
+    журнала изменений (modules/audit.py::log_creation) и для колонки
+    "Изменил" (last_edited_by/last_edited_at)."""
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
+    _ensure_last_edited_columns(conn)
+    editor_name = _actor_display_name(actor)
     cur = conn.execute(
         '''
         INSERT INTO incident_ticket
             (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id,
-             created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+             created_at, updated_at, last_edited_by, last_edited_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), ?, datetime('now'))
         ''',
-        (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id)
+        (location_node_id, problem, solution, priority, status, closed_at, created_by_user_id, editor_name)
     )
     ticket_id = cur.lastrowid
     log_creation(conn, 'incident_ticket', ticket_id, actor, problem)
@@ -268,10 +302,13 @@ def update(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None, 
     для этого используется отдельный именованный параметр).
 
     actor — dict текущего пользователя (request.current_user), для
-    журнала изменений (modules/audit.py::log_field_changes). None —
-    правка без привязки к пользователю."""
+    журнала изменений (modules/audit.py::log_field_changes) и для
+    колонки "Изменил" (last_edited_by/last_edited_at — пишется вместе с
+    updated_at, при том же условии — есть хотя бы одно поле для SET).
+    None — правка без привязки к пользователю."""
     _ensure_no_users_fk(conn)
     _ensure_updated_at_column(conn)
+    _ensure_last_edited_columns(conn)
     allowed = {'location_node_id', 'problem', 'solution', 'priority', 'status'}
     set_parts, params = [], []
     changed_input = {}
@@ -302,6 +339,9 @@ def update(conn: sqlite3.Connection, ticket_id: int, actor: dict | None = None, 
     # держим актуальным на любое реальное изменение — тот же принцип, что
     # updated_at у equipment (см. update_equipment в equipment_repo.py).
     set_parts.append("updated_at = datetime('now')")
+    set_parts.append('last_edited_by = ?')
+    params.append(_actor_display_name(actor))
+    set_parts.append("last_edited_at = datetime('now')")
     params.append(ticket_id)
     cur = conn.execute(f'UPDATE incident_ticket SET {", ".join(set_parts)} WHERE id = ?', params)
     conn.commit()
@@ -345,24 +385,49 @@ def get_executors(conn: sqlite3.Connection, ticket_id: int) -> list[dict]:
     return [dict(row) for row in cur.fetchall()]
 
 
-def set_initiators(conn: sqlite3.Connection, ticket_id: int, crew_ids: list[int]) -> None:
+def _summarize_crew_names(rows: list[dict]) -> str:
+    """Компактная сводка списка людей (инициаторы/исполнители) — та же
+    логика, что mode_repo.py::_summarize_modes: набор полностью
+    заменяется (DELETE+INSERT), стабильных id связи нет, поэтому дифф —
+    одна строка на весь список, а не по одному человеку."""
+    return ', '.join(r['full_name'] for r in rows)
+
+
+def set_initiators(conn: sqlite3.Connection, ticket_id: int, crew_ids: list[int],
+                    actor: dict | None = None) -> None:
     """Полная замена набора — проще и надёжнее точечного diff при
     редактировании тег-инпута на фронте (тот же паттерн, что уже принят
-    в проекте для modes/works двигателя — DELETE+INSERT)."""
+    в проекте для modes/works двигателя — DELETE+INSERT).
+
+    actor — dict текущего пользователя (request.current_user), для
+    журнала изменений — логируется как поле 'initiators' сущности
+    'incident_ticket' (см. _summarize_crew_names)."""
+    old_summary = _summarize_crew_names(get_initiators(conn, ticket_id))
     conn.execute('DELETE FROM incident_ticket_initiator WHERE ticket_id = ?', (ticket_id,))
     conn.executemany(
         'INSERT INTO incident_ticket_initiator (ticket_id, crew_id) VALUES (?, ?)',
         [(ticket_id, cid) for cid in dict.fromkeys(crew_ids)]  # dedup, сохраняя порядок
     )
+    new_summary = _summarize_crew_names(get_initiators(conn, ticket_id))
+    log_field_changes(conn, 'incident_ticket', ticket_id, actor,
+                       {'initiators': old_summary}, {'initiators': new_summary})
     conn.commit()
 
 
-def set_executors(conn: sqlite3.Connection, ticket_id: int, crew_ids: list[int]) -> None:
+def set_executors(conn: sqlite3.Connection, ticket_id: int, crew_ids: list[int],
+                   actor: dict | None = None) -> None:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений — логируется как поле 'executors' (см.
+    set_initiators выше)."""
+    old_summary = _summarize_crew_names(get_executors(conn, ticket_id))
     conn.execute('DELETE FROM incident_ticket_executor WHERE ticket_id = ?', (ticket_id,))
     conn.executemany(
         'INSERT INTO incident_ticket_executor (ticket_id, crew_id) VALUES (?, ?)',
         [(ticket_id, cid) for cid in dict.fromkeys(crew_ids)]
     )
+    new_summary = _summarize_crew_names(get_executors(conn, ticket_id))
+    log_field_changes(conn, 'incident_ticket', ticket_id, actor,
+                       {'executors': old_summary}, {'executors': new_summary})
     conn.commit()
 
 
