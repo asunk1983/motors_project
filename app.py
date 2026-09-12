@@ -27,6 +27,12 @@ logging.basicConfig(level=logging.INFO)
 
 register_blueprints(app)
 
+# init_db() вызывается на уровне модуля (не только в __main__), потому что
+# gunicorn импортирует объект app напрямую и не исполняет блок __main__ —
+# раньше это приводило к тому, что новые таблицы (например audit_log)
+# не создавались на проде после деплоя.
+init_db()
+
 
 if __name__ == '__main__':
     if not os.path.exists('static'):
@@ -34,5 +40,4 @@ if __name__ == '__main__':
     if not os.path.exists('templates'):
         os.makedirs('templates')
 
-    init_db()
     app.run(debug=True, port=5000, host='0.0.0.0')
