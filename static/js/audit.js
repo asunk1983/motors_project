@@ -115,10 +115,12 @@ function _auditFilterParams() {
     if (entityType) params.set('entity_type', entityType);
     if (actor) params.set('actor', actor);
     if (dateFrom) params.set('date_from', dateFrom);
-    // Конец диапазона включительно — без времени date_to сравнился бы как
-    // '2026-09-08' <= '2026-09-08T14:30:00', что исключило бы весь день
-    // (кроме ровно полуночи). Дописываем конец суток.
-    if (dateTo) params.set('date_to', dateTo + ' 23:59:59');
+    // Конец диапазона включительно. changed_at пишется через
+    // datetime.now().isoformat() с разделителем 'T' ('2026-09-08T14:30:00'),
+    // поэтому конец суток дописываем тоже через 'T'. Пробел (' 23:59:59')
+    // больше 'T' при байтовом сравнении строк, и условие
+    // changed_at <= '2026-09-08 23:59:59' исключало бы весь выбранный день.
+    if (dateTo) params.set('date_to', dateTo + 'T23:59:59');
     params.set('limit', AUDIT_PAGE_SIZE);
     params.set('offset', (auditPage - 1) * AUDIT_PAGE_SIZE);
     return params;
