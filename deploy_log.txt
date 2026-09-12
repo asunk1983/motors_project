@@ -1,0 +1,10 @@
+remote: =========================================        
+remote: Deploying to production...        
+remote: =========================================        
+remote: Already on 'main'        
+remote: Restarting service...        
+remote: =========================================        
+remote: Deployment complete!        
+remote: =========================================        
+To 192.168.1.140:/home/kipia/repos/motors_project.git
+   4ca3144..7b6e49a  main -> main
