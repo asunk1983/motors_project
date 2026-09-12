@@ -16,6 +16,7 @@ const AUDIT_ENTITY_LABELS = {
     engine: 'Двигатели',
     equipment: 'Оборудование',
     incident_ticket: 'Инциденты',
+    equipment_placement: 'Размещение',
     crew: 'Люди',
     location_node: 'Места',
     ticket: 'Заявки',
