@@ -1,107 +1,110 @@
-ЗАДАЧА: перенести init_db() из if __name__ == "__main__": на уровень модуля в app.py
-Чтобы схема БД применялась при каждом импорте приложения (в т.ч. под gunicorn).
-Дата: 12.09.2026 | Коммит НЕ выполнялся (ждёт подтверждения).
+ПРОВЕРКА ПЕРЕД КОММИТОМ: логическая проверка правок static/js/audit.js (П1-П3)
+Дата: 12.09.2026 | Ничего не менялось, коммитов нет
 
 ====================================================================
-1. ИТОГОВЫЙ app.py (43 строки)
+1. ТЕКУЩИЙ КОД ФУНКЦИЙ (полностью, после правок)
 ====================================================================
-# app.py
-"""Точка входа в приложение Motors.
+function loadAuditTab() {
+    if (!auditEntityTypesLoaded) {
+        loadAuditEntityTypes();
+    }
+    auditPage = 1;
+    loadAuditEntries();
+}
 
-Создаёт Flask-приложение, регистрирует blueprint-ы (через routes/__init__.py)
-и инициализирует БД при запуске. Вся роут-логика вынесена в routes/.
-"""
-import os
-import logging
-
-from flask import Flask
-from flask_cors import CORS
-
-from modules.db import init_db
-from routes import register_blueprints
-from config.settings import PHOTOS_FOLDER, MOTORS_FOLDER, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER
-
-app = Flask(__name__, static_folder=''static'', template_folder=''templates'')
-CORS(app, resources={r"/*": {"origins": "*"}})
-app.config[''MAX_CONTENT_LENGTH''] = 500 * 1024 * 1024  # 500 MB на запрос
-
-for folder in [PHOTOS_FOLDER, MOTORS_FOLDER, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER]:
-    if not os.path.exists(folder):
-        os.makedirs(folder)
-
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
-
-register_blueprints(app)
-
-# init_db() вызывается на уровне модуля (не только в __main__), потому что
-# gunicorn импортирует объект app напрямую и не исполняет блок __main__ —
-# раньше это приводило к тому, что новые таблицы (например audit_log)
-# не создавались на проде после деплоя.
-init_db()
-
-
-if __name__ == ''__main__'':
-    if not os.path.exists(''static''):
-        os.makedirs(''static'')
-    if not os.path.exists(''templates''):
-        os.makedirs(''templates'')
-
-    app.run(debug=True, port=5000, host=''0.0.0.0'')
-
-init_db() вызывается РОВНО ОДИН РАЗ при импорте модуля (после
-register_blueprints(app), до __main__); из __main__ вызов УДАЛЁН.
+function loadAuditEntityTypes() {
+    apiFetch('/api/audit/entity-types')
+        .then(r => r.json())
+        .then(types => {
+            if (!Array.isArray(types)) throw new Error('Некорректный ответ сервера');
+            const select = document.getElementById('auditEntityTypeFilter');
+            if (!select) return;
+            types.forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = AUDIT_ENTITY_LABELS[t] || t;
+                select.appendChild(opt);
+            });
+            auditEntityTypesLoaded = true;
+        })
+        .catch(e => {
+            // Не глотаем ошибку: сбрасываем флаг (вкладка повторит запрос при
+            // следующем открытии) и показываем пользователю, что пошло не так.
+            auditEntityTypesLoaded = false;
+            if (typeof showToast === 'function') {
+                showToast('Не удалось загрузить разделы журнала: ' + (e.message || e), 'error', 'icon-cancel');
+            }
+        });
+}
 
 ====================================================================
-2. ПРОВЕРКА: python -X utf8 -c "import app"
+2. СЦЕНАРИЙ ПОШАГОВО (первое открытие вкладки + ошибка + повторное открытие)
 ====================================================================
-exit_code=0 — прошло без ошибок.
-В stderr: INFO:modules.db:База данных готова — init_db() реально отработал
-при обычном импорте (то же произойдёт под gunicorn при импорте app:app).
+ШАГ 0 — загрузка страницы: audit.js выполняется сверху вниз; строка 8
+  ставит let auditEntityTypesLoaded = false. В конце файла только
+  document.addEventListener('keydown', ...) — регистрация обработчика,
+  вызовов loadAudit*() при оценке скрипта НЕТ.
+
+ШАГ 1 — пользователь открывает вкладку "Журнал" (id=audit):
+  static/js/catalog.js:92 -> loadAuditTab().
+
+ШАГ 2 — loadAuditTab():
+  - auditEntityTypesLoaded == false -> входим в if;
+  - вызывается loadAuditEntityTypes() (async, без await, флаг тут НЕ ставится -
+    строка установки перенесена внутрь promise-цепочки);
+  - auditPage = 1;
+  - loadAuditEntries() — параллельный запрос /api/audit/log (независим от
+    запроса разделов, by design).
+
+ШАГ 3 — ответ /api/audit/entity-types:
+  - УСПЕХ (200, JSON-массив): .then() -> Array.isArray(types) true ->
+    наполняем <select>, ставим auditEntityTypesLoaded = true. Фильтр =
+    «Все разделы» + найденные разделы.
+  - ОШИБКА: любые варианты — HTTP 500/4xx, r.json() упал (HTML/пусто),
+    или !Array.isArray(types) (throw 'Некорректный ответ сервера') ->
+    .catch(e => ...): auditEntityTypesLoaded = false И showToast
+    «Не удалось загрузить разделы журнала: ...».
+
+ШАГ 4 — пользователь ушёл на другую вкладку и вернулся на "Журнал":
+  снова loadAuditTab():
+  - auditEntityTypesLoaded == false (сброшен в catch) -> if(true) ->
+    ЗАПРОС ПОВТОРЯЕТСЯ. Зависнуть в «недогружено, но не пробуем снова»
+    НЕВОЗМОЖНО: флаг остаётся false до успеха.
+  - снова ошибка -> тот же путь (флаг false, toast);
+  - успех -> флаг true, дальнейшие открытия вкладки запрос не повторяют
+    (до перезагрузки страницы).
+
+КРАЕВОЙ СЛУЧАЙ: types = [] (пустой журнал) — Array.isArray true, forEach
+  пуст, флаг = true. Фильтр остаётся «Все разделы» (ожидаемо: разделы
+  появятся с первой реальной записью), повторный запрос в сессии не нужен.
+
+ВЫВОД: сброс флага в catch + установка только в успехе даёт ровно
+требуемое поведение: сбой -> toast + повторный запрос при следующем
+открытии вкладки; успех -> однократная загрузка до F5.
 
 ====================================================================
-3. DIFF
+3. ОБЪЯВЛЕНИЕ auditEntityTypesLoaded И ОТСУТСТВИЕ ИСПОЛЬЗОВАНИЯ ДО ОБЪЯВЛЕНИЯ
 ====================================================================
-diff --git a/app.py b/app.py
-index aafa22a..967ffa3 100644
---- a/app.py
-+++ b/app.py
-@@ -27,6 +27,12 @@ logging.basicConfig(level=logging.INFO)
- 
- register_blueprints(app)
- 
-+# init_db() вызывается на уровне модуля (не только в __main__), потому что
-+# gunicorn импортирует объект app напрямую и не исполняет блок __main__ —
-+# раньше это приводило к тому, что новые таблицы (например audit_log)
-+# не создавались на проде после деплоя.
-+init_db()
-+
- 
- if __name__ == ''__main__'':
-     if not os.path.exists(''static''):
-@@ -34,5 +40,4 @@ if __name__ == ''__main__'':
-     if not os.path.exists(''templates''):
-         os.makedirs(''templates'')
- 
--    init_db()
-     app.run(debug=True, port=5000, host=''0.0.0.0'')
+ОБЪЯВЛЕНИЕ (строка 8, верх файла, НЕ менялась правками П1-П3):
+  let auditEntityTypesLoaded = false;
 
-====================================================================
-4. GIT STATUS (после правки, до коммита)
-====================================================================
- M app.py          <- правка этой задачи
- M summary.txt     <- файл был перезаписан по запросу (пред. задача)
+ВСЕ МЕСТА ИСПОЛЬЗОВАНИЯ (после правок):
+  стр. 8    let auditEntityTypesLoaded = false;   <- объявление
+  стр. 86   if (!auditEntityTypesLoaded)           <- чтение в loadAuditTab
+  стр. 106  auditEntityTypesLoaded = true;        <- запись (успех)
+  стр. 111  auditEntityTypesLoaded = false;       <- запись (catch)
 
-====================================================================
-5. ВАЖНО ДЛЯ ПРОДА (следующий шаг, не входит в этот дифф)
-====================================================================
-Прод-запуск gunicorn -w 4 БЕЗ --preload (HANDOFF.md:34). Теперь init_db()
-выполнится при импорте в каждом из 4 воркеров ОДНОВРЕМЕННО — известная
-гонка на запись в SQLite при старте. Рекомендация: включить gunicorn
---preload на проде (импорт один раз в мастер-процессе до fork) — это
-отдельное изменение в серверном запуске (deploy.sh/systemd вне репозитория),
-требует решения пользователя.
+ДО ПРАВОК (исходный код) использования были:
+  стр. 8    let auditEntityTypesLoaded = false;
+  loadAuditTab(): if (!auditEntityTypesLoaded) { loadAuditEntityTypes();
+                 auditEntityTypesLoaded = true; }
+  в loadAuditEntityTypes() флаг не читался и не писался (.catch(() => {}));
 
-====================================================================
-Примечания: код/БД не менялись сверх правки app.py; коммит НЕ выполнялся;
-ждёт подтверждения на коммит.
+ПРОВЕРКА «использование до объявления»:
+  - объявление — top-level, строка 8, до ВСЕХ функций;
+  - все чтения/записи внутри функций, которые вызываются ТОЛЬКО по действию
+    пользователя (catalog.js:92 при активации вкладки) — то есть после
+    полной оценки скрипта;
+  - в момент оценки скрипта вызовов loadAudit*() нет;
+  => обращения к аудитEntityTypesLoaded до её инициализации НЕТ
+  (нет ни обращения в TDZ-зоне let, ни undefined).
