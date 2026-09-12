@@ -1,110 +1,104 @@
-ПРОВЕРКА ПЕРЕД КОММИТОМ: логическая проверка правок static/js/audit.js (П1-П3)
-Дата: 12.09.2026 | Ничего не менялось, коммитов нет
+ПРОБЛЕМА: после разворачивания старой БД в комбобокс «Все разделы» журнала не добавляются
+разделы скорректированных записей; «внесённые изменения» в старую базу не доезжают.
+Дата: 2026-09-12. Режим: Act (правка применена, коммит не делал).
 
-====================================================================
-1. ТЕКУЩИЙ КОД ФУНКЦИЙ (полностью, после правок)
-====================================================================
-function loadAuditTab() {
-    if (!auditEntityTypesLoaded) {
-        loadAuditEntityTypes();
-    }
-    auditPage = 1;
-    loadAuditEntries();
-}
+======================== ДИАГНОЗ — ДВЕ РАЗНЫЕ ПРИЧИНЫ ========================
 
-function loadAuditEntityTypes() {
-    apiFetch('/api/audit/entity-types')
-        .then(r => r.json())
-        .then(types => {
-            if (!Array.isArray(types)) throw new Error('Некорректный ответ сервера');
-            const select = document.getElementById('auditEntityTypeFilter');
-            if (!select) return;
-            types.forEach(t => {
-                const opt = document.createElement('option');
-                opt.value = t;
-                opt.textContent = AUDIT_ENTITY_LABELS[t] || t;
-                select.appendChild(opt);
-            });
-            auditEntityTypesLoaded = true;
-        })
-        .catch(e => {
-            // Не глотаем ошибку: сбрасываем флаг (вкладка повторит запрос при
-            // следующем открытии) и показываем пользователю, что пошло не так.
-            auditEntityTypesLoaded = false;
-            if (typeof showToast === 'function') {
-                showToast('Не удалось загрузить разделы журнала: ' + (e.message || e), 'error', 'icon-cancel');
-            }
-        });
-}
+ПРИЧИНА 1 (главная, ИСПРАВЛЕНА): разовый кэш-флаг auditEntityTypesLoaded.
 
-====================================================================
-2. СЦЕНАРИЙ ПОШАГОВО (первое открытие вкладки + ошибка + повторное открытие)
-====================================================================
-ШАГ 0 — загрузка страницы: audit.js выполняется сверху вниз; строка 8
-  ставит let auditEntityTypesLoaded = false. В конце файла только
-  document.addEventListener('keydown', ...) — регистрация обработчика,
-  вызовов loadAudit*() при оценке скрипта НЕТ.
+Комбобокс «Все разделы» строится из SELECT DISTINCT entity_type FROM audit_log
+(audit_repo.py:119-126) — разделы появляются «по мере появления записей».
+Но в static/js/audit.js стояла защита от повторной загрузки:
 
-ШАГ 1 — пользователь открывает вкладку "Журнал" (id=audit):
-  static/js/catalog.js:92 -> loadAuditTab().
+    if (!auditEntityTypesLoaded) { loadAuditEntityTypes(); }
 
-ШАГ 2 — loadAuditTab():
-  - auditEntityTypesLoaded == false -> входим в if;
-  - вызывается loadAuditEntityTypes() (async, без await, флаг тут НЕ ставится -
-    строка установки перенесена внутрь promise-цепочки);
-  - auditPage = 1;
-  - loadAuditEntries() — параллельный запрос /api/audit/log (независим от
-    запроса разделов, by design).
+— список разделов запрашивался ровно ОДИН раз за открытие страницы.
 
-ШАГ 3 — ответ /api/audit/entity-types:
-  - УСПЕХ (200, JSON-массив): .then() -> Array.isArray(types) true ->
-    наполняем <select>, ставим auditEntityTypesLoaded = true. Фильтр =
-    «Все разделы» + найденные разделы.
-  - ОШИБКА: любые варианты — HTTP 500/4xx, r.json() упал (HTML/пусто),
-    или !Array.isArray(types) (throw 'Некорректный ответ сервера') ->
-    .catch(e => ...): auditEntityTypesLoaded = false И showToast
-    «Не удалось загрузить разделы журнала: ...».
+Сценарий (воспроизведён по коду шаг за шагом):
+1. Открыл вкладку «Журнал» — разделы загрузились (или пусто / только текущие), флаг=true.
+2. Отредактировал/создал записи — в audit_log появились новые entity_type,
+   но список разделов НЕ перезапросился.
+3. Повторно открыл вкладку — loadAuditTab() увидел флаг=true, пропустил загрузку
+   разделов -> новые разделы в комбобоксе не появились до F5/перезагрузки страницы.
 
-ШАГ 4 — пользователь ушёл на другую вкладку и вернулся на "Журнал":
-  снова loadAuditTab():
-  - auditEntityTypesLoaded == false (сброшен в catch) -> if(true) ->
-    ЗАПРОС ПОВТОРЯЕТСЯ. Зависнуть в «недогружено, но не пробуем снова»
-    НЕВОЗМОЖНО: флаг остаётся false до успеха.
-  - снова ошибка -> тот же путь (флаг false, toast);
-  - успех -> флаг true, дальнейшие открытия вкладки запрос не повторяют
-    (до перезагрузки страницы).
+ИСПРАВЛЕНИЕ (static/js/audit.js, изолированный дифф):
+- Убран флаг-кэш auditEntityTypesLoaded (объявление + все чтения/записи).
+- loadAuditTab() теперь ВСЕГДА вызывает loadAuditEntityTypes().
+- loadAuditEntityTypes(): пересобирает <select> заново (статика «Все разделы» +
+  актуальный DISTINCT) — без дубликатов; сохраняет текущий выбор пользователя,
+  если раздел ещё существует; при ошибке — toast, список перезапросится при
+  следующем открытии вкладки (флага, блокирующего повтор, больше нет).
 
-КРАЕВОЙ СЛУЧАЙ: types = [] (пустой журнал) — Array.isArray true, forEach
-  пуст, флаг = true. Фильтр остаётся «Все разделы» (ожидаемо: разделы
-  появятся с первой реальной записью), повторный запрос в сессии не нужен.
+ПРИЧИНА 2 (НЕ баг кода): «внесённые изменения» в старую базу не доезжают.
 
-ВЫВОД: сброс флага в catch + установка только в успехе даёт ровно
-требуемое поведение: сбой -> toast + повторный запрос при следующем
-открытии вкладки; успех -> однократная загрузка до F5.
+- Журнал хранит историю БУДУЩИХ правок. Старая боевая БД, скачанная/восстанов-
+  ленная ДО включения в код аудита equipment_work и полноценных сводок
+  modes/works, в audit_log этих записей уже не имеет и иметь не может —
+  в момент тех правок логирование ещё не было включено. Это не «потерялось»,
+  этого никогда не фиксировалось.
+- Восстановленная БД актуализируется схемой через init_db() (CREATE TABLE
+  IF NOT EXISTS, backup.py:573) — таблица audit_log появится, но ЗАПИСЕЙ в ней
+  не будет, пока не начнёшь править записи во вновь развёрнутой базе.
 
-====================================================================
-3. ОБЪЯВЛЕНИЕ auditEntityTypesLoaded И ОТСУТСТВИЕ ИСПОЛЬЗОВАНИЯ ДО ОБЪЯВЛЕНИЯ
-====================================================================
-ОБЪЯВЛЕНИЕ (строка 8, верх файла, НЕ менялась правками П1-П3):
-  let auditEntityTypesLoaded = false;
+============================= ПРАВКА (diff) =================================
 
-ВСЕ МЕСТА ИСПОЛЬЗОВАНИЯ (после правок):
-  стр. 8    let auditEntityTypesLoaded = false;   <- объявление
-  стр. 86   if (!auditEntityTypesLoaded)           <- чтение в loadAuditTab
-  стр. 106  auditEntityTypesLoaded = true;        <- запись (успех)
-  стр. 111  auditEntityTypesLoaded = false;       <- запись (catch)
+Файл: static/js/audit.js
 
-ДО ПРАВОК (исходный код) использования были:
-  стр. 8    let auditEntityTypesLoaded = false;
-  loadAuditTab(): if (!auditEntityTypesLoaded) { loadAuditEntityTypes();
-                 auditEntityTypesLoaded = true; }
-  в loadAuditEntityTypes() флаг не читался и не писался (.catch(() => {}));
+-let auditEntityTypesLoaded = false;
 
-ПРОВЕРКА «использование до объявления»:
-  - объявление — top-level, строка 8, до ВСЕХ функций;
-  - все чтения/записи внутри функций, которые вызываются ТОЛЬКО по действию
-    пользователя (catalog.js:92 при активации вкладки) — то есть после
-    полной оценки скрипта;
-  - в момент оценки скрипта вызовов loadAudit*() нет;
-  => обращения к аудитEntityTypesLoaded до её инициализации НЕТ
-  (нет ни обращения в TDZ-зоне let, ни undefined).
+ function loadAuditTab() {
+-    if (!auditEntityTypesLoaded) {
+-        loadAuditEntityTypes();
+-    }
++    // Список разделов всегда перезапрашиваем: он зависит от содержимого
++    // журнала и мог измениться с прошлого открытия вкладки. Разовый
++    // кэш-флаг заставлял бы повторно открывать вкладку с пустым
++    // комбобоксом до перезагрузки страницы.
++    loadAuditEntityTypes();
+     auditPage = 1;
+     loadAuditEntries();
+ }
+
+ function loadAuditEntityTypes() {
+     ...apiFetch('/api/audit/entity-types')...
+     const select = document.getElementById('auditEntityTypeFilter');
+     if (!select) return;
++    const prevValue = select.value;
++    // Пересобираем options: статический «Все разделы» + актуальный DISTINCT
++    select.innerHTML = '<option value="">Все разделы</option>';
+     types.forEach(t => {
+         ... select.appendChild(opt);
+     });
+-    auditEntityTypesLoaded = true;
++    // Сохраняем выбор пользователя, если раздел всё ещё существует
++    if (Array.from(select.options).some(o => o.value === prevValue)) {
++        select.value = prevValue;
++    }
+     ...
+     .catch(e => {
+-        auditEntityTypesLoaded = false;
++        // флага-кэша больше нет, повторится при следующем открытии вкладки
+         ... toast ...
+     })
+
+=============================== ПРОВЕРКИ ===================================
+
+- Остатков auditEntityTypesLoaded в файле нет (findstr -> пусто).
+- Баланс скобок static/js/audit.js — BALANCE OK (временный скрипт удалён).
+- Временные файлы (_diag_tmp.py, _diag_brace.py) удалены.
+- Коммит НЕ выполнялся.
+
+============================= СТАТУС / ДАЛЬШЕ =============================
+
+git status: M static/js/audit.js
+(+ накопленные незакоммиченные: repositories/incident_ticket_repo.py,
+ repositories/mode_repo.py, repositories/ticket_repo.py, repositories/work_repo.py,
+ routes/ticket_routes.py, summary.txt).
+
+Предложенное разбиение на коммиты (ждёт подтверждения):
+1. fix(audit): список разделов в комбобоксе перезапрашивается при каждом
+   открытии вкладки (убран разовый кэш-флаг) -> только static/js/audit.js.
+2. Отдельно — накопленные фиксы (аудит equipment_work, дифф modes/works,
+   подписи П7).
+
+Push не делан.
