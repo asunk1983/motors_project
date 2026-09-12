@@ -215,7 +215,7 @@ def create_work_route(failure_id):
         with db_connection() as conn:
             if not get_failure_by_id(conn, failure_id):
                 return jsonify({'error': 'Отказ не найден'}), 404
-            work_id = create_work(conn, clean)
+            work_id = create_work(conn, clean, actor=getattr(request, 'current_user', None))
         return jsonify({'success': True, 'id': work_id, 'message': 'Работа добавлена'})
     except Exception as e:
         logger.exception('create_work_route failed')
@@ -226,7 +226,7 @@ def create_work_route(failure_id):
 def delete_work_route(work_id):
     try:
         with db_connection() as conn:
-            deleted = delete_work(conn, work_id)
+            deleted = delete_work(conn, work_id, actor=getattr(request, 'current_user', None))
         if not deleted:
             return jsonify({'error': 'Работа не найдена'}), 404
         return jsonify({'success': True, 'message': 'Работа удалена'})

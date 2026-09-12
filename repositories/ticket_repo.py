@@ -265,7 +265,32 @@ def get_work_for_failure(conn, failure_id: int):
     return [_row_to_dict(row) for row in cur.fetchall()]
 
 
-def create_work(conn, data: dict) -> int:
+def _work_summary(conn, row) -> str:
+    """Короткая человекочитаемая сводка работы для журнала изменений — тот же
+    паттерн, что log_creation/log_deletion в остальных repo проекта (summary
+    вместо голого id). Формат: "Тип действия: описание"."""
+    if not isinstance(row, dict):
+        row = {k: row[k] for k in row.keys()}
+    action_name = row.get('action_type_name')
+    if not action_name and row.get('action_type_id'):
+        r = conn.execute(
+            'SELECT name FROM maintenance_action_type WHERE id = ?',
+            (row['action_type_id'],)
+        ).fetchone()
+        action_name = r['name'] if r else None
+    description = (row.get('description') or '').strip()
+    if action_name and description:
+        return f'{action_name}: {description}'
+    if action_name:
+        return action_name
+    if description:
+        return description
+    return '(пусто)'
+
+
+def create_work(conn, data: dict, actor: dict | None = None) -> int:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_creation)."""
     now = datetime.now().isoformat()
     cur = conn.cursor()
     cur.execute('''
@@ -280,13 +305,26 @@ def create_work(conn, data: dict) -> int:
         data.get('version_from'), data.get('version_to'), data.get('parameter_changed'),
         data.get('old_value'), data.get('new_value'), now,
     ))
+    work_id = cur.lastrowid
+    log_creation(conn, 'equipment_work', work_id, actor, _work_summary(conn, data))
     conn.commit()
-    return cur.lastrowid
+    return work_id
 
 
-def delete_work(conn, work_id: int) -> bool:
+def delete_work(conn, work_id: int, actor: dict | None = None) -> bool:
+    """actor — dict текущего пользователя (request.current_user), для
+    журнала изменений (modules/audit.py::log_deletion). Сводку собираем
+    ДО удаления — после DELETE читать запись уже нечего."""
+    old_row = conn.execute(
+        'SELECT ew.*, mat.name AS action_type_name FROM equipment_work ew '
+        'LEFT JOIN maintenance_action_type mat ON mat.id = ew.action_type_id '
+        'WHERE ew.id = ?',
+        (work_id,)
+    ).fetchone()
     cur = conn.cursor()
     cur.execute('DELETE FROM equipment_work WHERE id = ?', (work_id,))
+    if cur.rowcount > 0 and old_row is not None:
+        log_deletion(conn, 'equipment_work', work_id, actor, _work_summary(conn, old_row))
     conn.commit()
     return cur.rowcount > 0
 

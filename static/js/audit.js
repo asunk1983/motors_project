@@ -5,7 +5,6 @@ let auditEntries = [];
 let auditTotal = 0;
 let auditPage = 1;
 const AUDIT_PAGE_SIZE = 50;
-let auditEntityTypesLoaded = false;
 
 // Человекочитаемые подписи разделов — дополняется по мере того, как
 // логирование добавляется в новые repo (см. modules/audit.py).
@@ -17,6 +16,7 @@ const AUDIT_ENTITY_LABELS = {
     equipment: 'Оборудование',
     incident_ticket: 'Инциденты',
     equipment_placement: 'Размещение',
+    equipment_work: 'Работы по отказам',
     crew: 'Люди',
     location_node: 'Места',
     ticket: 'Заявки',
@@ -80,12 +80,39 @@ const AUDIT_FIELD_LABELS = {
     confirmed: 'Подтверждён',
     occurred_at: 'Дата возникновения',
     restored_at: 'Дата восстановления',
+    // Вложенные таблицы — логируются как summary-поля родителя
+    // (work_repo/mode_repo: 'works'/'modes' у engine;
+    // incident_ticket_repo: 'initiators'/'executors' у incident_ticket;
+    // incident_equipment_repo: 'equipment_link' у incident_ticket).
+    // В колонке «Раздел» для них показываем составную метку
+    // "Родитель · Подпись поля" (см. _auditSectionLabel).
+    works: 'Произведённые работы',
+    modes: 'Режимы работы',
+    initiators: 'Инициаторы',
+    executors: 'Исполнители',
+    equipment_link: 'Оборудование заявки',
 };
 
-function loadAuditTab() {
-    if (!auditEntityTypesLoaded) {
-        loadAuditEntityTypes();
+// Поля, которые в журнале являются вложенными таблицами родителя:
+// works/modes — Двигатели; initiators/executors/equipment_link — Инциденты.
+const AUDIT_SUBSECTION_FIELDS = new Set(['works', 'modes', 'initiators', 'executors', 'equipment_link']);
+
+function _auditSectionLabel(e) {
+    if (AUDIT_SUBSECTION_FIELDS.has(e.field_name)) {
+        const parent = AUDIT_ENTITY_LABELS[e.entity_type] || e.entity_type;
+        const field = AUDIT_FIELD_LABELS[e.field_name] || e.field_name;
+        return `${parent} · ${field}`;
     }
+    return AUDIT_ENTITY_LABELS[e.entity_type] || e.entity_type;
+}
+
+function loadAuditTab() {
+    // Список разделов всегда перезапрашиваем: он зависит от содержимого
+    // журнала и мог измениться с прошлого открытия вкладки (пользователь
+    // мог отредактировать записи в другом разделе). Разовый кэш-флаг
+    // заставлял бы повторно открывать вкладку с пустым комбобоксом до
+    // перезагрузки страницы.
+    loadAuditEntityTypes();
     auditPage = 1;
     loadAuditEntries();
 }
@@ -97,18 +124,26 @@ function loadAuditEntityTypes() {
             if (!Array.isArray(types)) throw new Error('Некорректный ответ сервера');
             const select = document.getElementById('auditEntityTypeFilter');
             if (!select) return;
+            const prevValue = select.value;
+            // Пересобираем options: статический «Все разделы» + актуальный
+            // DISTINCT из журнала (чтобы повторные открытия вкладки не
+            // копили дубликаты).
+            select.innerHTML = '<option value="">Все разделы</option>';
             types.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t;
                 opt.textContent = AUDIT_ENTITY_LABELS[t] || t;
                 select.appendChild(opt);
             });
-            auditEntityTypesLoaded = true;
+            // Сохраняем выбор пользователя, если раздел всё ещё существует
+            if (Array.from(select.options).some(o => o.value === prevValue)) {
+                select.value = prevValue;
+            }
         })
         .catch(e => {
-            // Не глотаем ошибку: сбрасываем флаг (вкладка повторит запрос при
-            // следующем открытии) и показываем пользователю, что пошло не так.
-            auditEntityTypesLoaded = false;
+            // Не глотаем ошибку: показываем пользователю, что пошло не так.
+            // Список разделов перезапросится при следующем открытии вкладки —
+            // отдельного флага-кэша больше нет.
             if (typeof showToast === 'function') {
                 showToast('Не удалось загрузить разделы журнала: ' + (e.message || e), 'error', 'icon-cancel');
             }
@@ -163,7 +198,7 @@ function renderAuditTable() {
         tbody.innerHTML = auditEntries.map(e => `
             <tr>
                 <td class="mono">${formatRuDateTime(e.changed_at)}</td>
-                <td>${escapeHtml(AUDIT_ENTITY_LABELS[e.entity_type] || e.entity_type)}</td>
+                <td>${escapeHtml(_auditSectionLabel(e))}</td>
                 <td class="mono">${e.entity_id}</td>
                 <td>${escapeHtml(AUDIT_FIELD_LABELS[e.field_name] || e.field_name)}</td>
                 <td>${escapeHtml(e.old_value_display || e.old_value || '') || '—'}</td>

@@ -387,7 +387,7 @@ def get_executors(conn: sqlite3.Connection, ticket_id: int) -> list[dict]:
 
 def _summarize_crew_names(rows: list[dict]) -> str:
     """Компактная сводка списка людей (инициаторы/исполнители) — та же
-    логика, что mode_repo.py::_summarize_modes: набор полностью
+    логика, что в mode_repo.py::_diff_modes: набор полностью
     заменяется (DELETE+INSERT), стабильных id связи нет, поэтому дифф —
     одна строка на весь список, а не по одному человеку."""
     return ', '.join(r['full_name'] for r in rows)
