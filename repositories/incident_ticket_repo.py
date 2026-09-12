@@ -56,8 +56,10 @@ def _actor_display_name(actor: dict | None) -> str | None:
 # больше не создаётся). На уже существующих БД таблица остаётся — дропаем
 # её одноразовой миграцией. Модульный флаг гарантирует однократность.
 def _ensure_link_table_dropped(conn: sqlite3.Connection) -> None:
-    tables = [r[1] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'").fetchall()]
-    if tables:
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'"
+    ).fetchone() is not None
+    if exists:
         conn.execute('DROP INDEX IF EXISTS idx_link_ticket')
         conn.execute('DROP TABLE IF EXISTS incident_ticket_link')
         conn.commit()
