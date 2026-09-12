@@ -1,104 +1,66 @@
-ПРОБЛЕМА: после разворачивания старой БД в комбобокс «Все разделы» журнала не добавляются
-разделы скорректированных записей; «внесённые изменения» в старую базу не доезжают.
-Дата: 2026-09-12. Режим: Act (правка применена, коммит не делал).
+П11 ВЫПОЛНЕНО: восстановлены режимные колонки и сортировка характеристик двигателей
+Дата: 12.09.2026
+Файл: static/js/catalog.js (единственный изменённый файл)
 
-======================== ДИАГНОЗ — ДВЕ РАЗНЫЕ ПРИЧИНЫ ========================
+=== ПРИЧИНА, ЧТО БЫЛО ПОТЕРЯНО ===
+Коммит 82b7e4e ("9.9.26"), который вводил журнал изменений (audit),
+удалил из ENGINE_COLUMNS 6 режимных колонок и обнулил sortField у
+характеристик двигателя (status, workshop, bearing_*, shaft_diameter,
+protection_class, mounting_type, temp_sensor, encoder, cooling, note).
+Бэкенд (repositories/engine_repo.py) при этом всё время отдавал
+modes_*-поля и поддерживал сортировку по ним (MODE_SORT_COLUMNS,
+BASE_SORT_COLUMNS) — то есть данные приходили, но фронт их не показывал.
 
-ПРИЧИНА 1 (главная, ИСПРАВЛЕНА): разовый кэш-флаг auditEntityTypesLoaded.
+=== ЧТО ВОССТАНОВЛЕНО (static/js/catalog.js) ===
+1. 6 режимных колонок (скрыты по умолчанию, defaultVisible: false):
+   modes_frequency  'Частоты (Гц)'
+   modes_power      'Мощности (кВт)'
+   modes_voltage    'Напряжения (В)'
+   modes_connection_type 'Типы подключения'
+   modes_current    'Токи (А)'
+   modes_rpm        'Обороты (об/мин)'
+   Восстановлены ровно в виде из 32ab40c (label/sortField/thClass/render),
+   с поясняющим комментарием про GROUP_CONCAT + сортировку по MIN.
+2. sortField возвращён 11 полям: status, workshop, bearing_front,
+   bearing_rear, shaft_diameter, protection_class, mounting_type,
+   temp_sensor, encoder, cooling, note (+ thClass 'sortable').
 
-Комбобокс «Все разделы» строится из SELECT DISTINCT entity_type FROM audit_log
-(audit_repo.py:119-126) — разделы появляются «по мере появления записей».
-Но в static/js/audit.js стояла защита от повторной загрузки:
+=== СВЕРКА С БЭКЕНДОМ ===
+Все восстановленные sortField присутствуют в engine_repo:
+  BASE_SORT_COLUMNS: workshop, bearing_front, bearing_rear, shaft_diameter,
+    protection_class, mounting_type, temp_sensor, encoder, cooling, note,
+    status ('status' — алиас из SELECT, ORDER BY по алиасу разрешён в SQLite)
+  MODE_SORT_COLUMNS: все 6 modes_* → алиасы modes_*_sort
+Значит сортировка по клику заработает для всех восстановленных колонок.
 
-    if (!auditEntityTypesLoaded) { loadAuditEntityTypes(); }
+=== ПРОВЕРКИ ===
+- Вставка режимных колонок сначала дала дефект: преждевременный '];'
+  закрывал массив ДО новых объектов → объекты оказывались вне массива.
+  Исправлено удалением преждевременного '];'.
+- node в системе нет → синтаксис проверен структурно: временный скрипт
+  _diag_brace.py (баланс скобок с учётом строк/комментариев) -> BALANCE OK.
+  Временный файл удалён.
+- Итоговая структура: массив ENGINE_COLUMNS (стр. 237) -> ... note (296-303)
+  -> комментарий про режимы (304-308) -> 6 modes_* (309-326) -> '];' (327).
+- git status: M static/js/catalog.js, M summary.txt
 
-— список разделов запрашивался ровно ОДИН раз за открытие страницы.
+=== НЮАНС ПРО LOCALSTORAGE ===
+Пул чекбоксов комбобокса "Столбцы" строится из всех ENGINE_COLUMNS
+(catalog.js:411), поэтому режимные колонки снова в пуле. Но у
+пользователя в localStorage (motors_engine_columns_v1) может лежать
+сохранённый набор без них — тогда они будут в списке НЕотмеченными,
+включаются вручную или кнопкой "Сброс". Это ожидаемое поведение
+(defaultVisible: false).
 
-Сценарий (воспроизведён по коду шаг за шагом):
-1. Открыл вкладку «Журнал» — разделы загрузились (или пусто / только текущие), флаг=true.
-2. Отредактировал/создал записи — в audit_log появились новые entity_type,
-   но список разделов НЕ перезапросился.
-3. Повторно открыл вкладку — loadAuditTab() увидел флаг=true, пропустил загрузку
-   разделов -> новые разделы в комбобоксе не появились до F5/перезагрузки страницы.
+=== ОСТАЛЬНЫЕ ТАБЛИЦЫ ===
+Потерь нет:
+- Оборудование: пул только вырос (+скрытые поля, +"Изменил").
+- Инциденты: пул только вырос (+скрытые поля, +"Изменил").
+Режимные колонки были только у двигателей.
 
-ИСПРАВЛЕНИЕ (static/js/audit.js, изолированный дифф):
-- Убран флаг-кэш auditEntityTypesLoaded (объявление + все чтения/записи).
-- loadAuditTab() теперь ВСЕГДА вызывает loadAuditEntityTypes().
-- loadAuditEntityTypes(): пересобирает <select> заново (статика «Все разделы» +
-  актуальный DISTINCT) — без дубликатов; сохраняет текущий выбор пользователя,
-  если раздел ещё существует; при ошибке — toast, список перезапросится при
-  следующем открытии вкладки (флага, блокирующего повтор, больше нет).
-
-ПРИЧИНА 2 (НЕ баг кода): «внесённые изменения» в старую базу не доезжают.
-
-- Журнал хранит историю БУДУЩИХ правок. Старая боевая БД, скачанная/восстанов-
-  ленная ДО включения в код аудита equipment_work и полноценных сводок
-  modes/works, в audit_log этих записей уже не имеет и иметь не может —
-  в момент тех правок логирование ещё не было включено. Это не «потерялось»,
-  этого никогда не фиксировалось.
-- Восстановленная БД актуализируется схемой через init_db() (CREATE TABLE
-  IF NOT EXISTS, backup.py:573) — таблица audit_log появится, но ЗАПИСЕЙ в ней
-  не будет, пока не начнёшь править записи во вновь развёрнутой базе.
-
-============================= ПРАВКА (diff) =================================
-
-Файл: static/js/audit.js
-
--let auditEntityTypesLoaded = false;
-
- function loadAuditTab() {
--    if (!auditEntityTypesLoaded) {
--        loadAuditEntityTypes();
--    }
-+    // Список разделов всегда перезапрашиваем: он зависит от содержимого
-+    // журнала и мог измениться с прошлого открытия вкладки. Разовый
-+    // кэш-флаг заставлял бы повторно открывать вкладку с пустым
-+    // комбобоксом до перезагрузки страницы.
-+    loadAuditEntityTypes();
-     auditPage = 1;
-     loadAuditEntries();
- }
-
- function loadAuditEntityTypes() {
-     ...apiFetch('/api/audit/entity-types')...
-     const select = document.getElementById('auditEntityTypeFilter');
-     if (!select) return;
-+    const prevValue = select.value;
-+    // Пересобираем options: статический «Все разделы» + актуальный DISTINCT
-+    select.innerHTML = '<option value="">Все разделы</option>';
-     types.forEach(t => {
-         ... select.appendChild(opt);
-     });
--    auditEntityTypesLoaded = true;
-+    // Сохраняем выбор пользователя, если раздел всё ещё существует
-+    if (Array.from(select.options).some(o => o.value === prevValue)) {
-+        select.value = prevValue;
-+    }
-     ...
-     .catch(e => {
--        auditEntityTypesLoaded = false;
-+        // флага-кэша больше нет, повторится при следующем открытии вкладки
-         ... toast ...
-     })
-
-=============================== ПРОВЕРКИ ===================================
-
-- Остатков auditEntityTypesLoaded в файле нет (findstr -> пусто).
-- Баланс скобок static/js/audit.js — BALANCE OK (временный скрипт удалён).
-- Временные файлы (_diag_tmp.py, _diag_brace.py) удалены.
-- Коммит НЕ выполнялся.
-
-============================= СТАТУС / ДАЛЬШЕ =============================
-
-git status: M static/js/audit.js
-(+ накопленные незакоммиченные: repositories/incident_ticket_repo.py,
- repositories/mode_repo.py, repositories/ticket_repo.py, repositories/work_repo.py,
- routes/ticket_routes.py, summary.txt).
-
-Предложенное разбиение на коммиты (ждёт подтверждения):
-1. fix(audit): список разделов в комбобоксе перезапрашивается при каждом
-   открытии вкладки (убран разовый кэш-флаг) -> только static/js/audit.js.
-2. Отдельно — накопленные фиксы (аудит equipment_work, дифф modes/works,
-   подписи П7).
-
-Push не делан.
+=== СТАТУС ===
+ЗАКОММИЧЕНО: 11dfbb2
+fix(catalog): возвращены колонки режимов работы и сортировка характеристик
+двигателей (потеряны в 82b7e4e)
+static/js/catalog.js | 1 file changed, 44 insertions(+), 21 deletions(-)
+Push не выполнен.
