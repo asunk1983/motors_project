@@ -10,9 +10,9 @@ SERVER_USER="kipia"
 SERVER_HOST="192.168.1.140"
 SERVER_PROJECT_DIR="/home/kipia/motors_project"
 
-echo "=== git push ==="
-git push
+echo "=== git push (production) ==="
+git push production main
 
 echo ""
 echo "=== Деплой на сервере ($SERVER_HOST) ==="
-ssh "$SERVER_USER@$SERVER_HOST" "cd $SERVER_PROJECT_DIR && ./deploy.sh"
+ssh -t "$SERVER_USER@$SERVER_HOST" "cd $SERVER_PROJECT_DIR && ./deploy.sh"

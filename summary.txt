@@ -1,0 +1,132 @@
+ДИАГНОСТИКА: вкладка "Инциденты" — список не грузится (фронт получает HTML вместо JSON)
+Дата: 12.09.2026 | БД: engine_data.db (боевая, восстановлена локально)
+
+====================================================================
+1. scripts/diag_schema_mismatch.py — вывод (python -X utf8), Python 3.14.6
+====================================================================
+=== Диагностика: схема боевой БД vs ожидания кода ===
+
+Всего таблиц в БД: 29
+
+--- audit_log ---
+[OK  ] Таблица audit_log существует
+[OK  ] Все ожидаемые колонки на месте
+
+--- engines (last_edited_by/at) ---
+[OK  ] engines.last_edited_by есть
+[OK  ] engines.last_edited_at есть
+
+--- equipment (last_edited_by/at) ---
+[OK  ] equipment.last_edited_by есть
+[OK  ] equipment.last_edited_at есть
+
+--- incident_ticket (полная схема) ---
+[MISS] Все ожидаемые колонки на месте — не хватает: {'rejection_reason', 'last_edited_at', 'last_edited_by'}
+
+--- Вспомогательные таблицы инцидентов ---
+[OK  ] Таблица incident_ticket_initiator существует
+[OK  ] Таблица incident_ticket_executor существует
+[OK  ] Таблица incident_ticket_link существует
+[OK  ] Таблица incident_ticket_equipment существует
+[OK  ] Таблица location_node существует
+
+--- Живой прогон incident_ticket_repo.list_all() ---
+[FAIL] list_all() упал с ошибкой:
+
+--- Живой прогон incident_ticket_repo.get_location_counts() ---
+[OK  ] get_location_counts() выполнился успешно, узлов: 3
+
+=== Готово ===
+
+Traceback (stderr скрипта):
+  File "...\scripts\diag_schema_mismatch.py", line 95, in main
+    result = incident_ticket_repo.list_all(conn)
+  File "...\repositories\incident_ticket_repo.py", line 196, in list_all
+    _ensure_link_table_dropped(conn)
+  File "...\repositories\incident_ticket_repo.py", line 59, in _ensure_link_table_dropped
+    tables = [r[1] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'").fetchall()]
+IndexError: tuple index out of range
+
+====================================================================
+2. Воспроизведение через сервер (Flask, порт 5000)
+====================================================================
+curl http://127.0.0.1:5000/api/incident-tickets -> HTTP 500, HTML-страница Werkzeug Debugger
+(<h1>IndexError</h1> ... IndexError: tuple index out of range) — фронт получает HTML вместо JSON.
+
+Полный traceback из консоли сервера (app.err.log, запрос 12/Sep/2026 13:26:22, GET /api/incident-tickets):
+Traceback (most recent call last):
+  ...
+  File "C:\motors_project\routes\incident_ticket_routes.py", line 47, in list_tickets_route
+    return jsonify(incident_ticket_repo.list_all(
+  File "C:\motors_project\repositories\incident_ticket_repo.py", line 196, in list_all
+    _ensure_link_table_dropped(conn)
+  File "C:\motors_project\repositories\incident_ticket_repo.py", line 59, in _ensure_link_table_dropped
+    tables = [r[1] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'").fetchall()]
+IndexError: tuple index out of range
+
+ПЕРВОПРИЧИНА: баг в коде (не в данных). _ensure_link_table_dropped делает
+SELECT name FROM sqlite_master (одна колонка) и берёт r[1]. Если таблицы
+incident_ticket_link в БД нет — fetchall() пуст, ошибки нет (поэтому на свежих
+БД всё работало). В восстановленной боевой БД legacy-таблица incident_ticket_link
+СУЩЕСТВУЕТ (0 строк, индекс idx_link_ticket) -> строка из 1 элемента -> IndexError
+на каждом вызове list_all()/get_by_id().
+
+====================================================================
+Проверки по всему проекту (единичный ли случай)
+====================================================================
+1) Паттерн r[1]/row[1] for по репозиториям и модулям: 17 вхождений,
+   16 корректных (PRAGMA table_info — 6 колонок; routes/auth.py — 2 колонки).
+   Сломан ровно один: repositories/incident_ticket_repo.py:59.
+2) Полная схема БД (28 пользовательских таблиц) vs modules/db.py (25 объявленных):
+   legacy-таблицы в БД, не объявленные в коде: changelog_entries, wishlist_items,
+   incident_ticket_link. Первые две переведены в JSON (data/*.json), код их не
+   трогает — безвредны. incident_ticket_link — единственная с активным код-путём
+   (drop-миграция) -> именно она роняет список.
+3) incident_ticket: FK только на location_node (FK на users нет -> _ensure_no_users_fk no-op);
+   отсутствуют last_edited_by/last_edited_at (авто-добавляются миграцией
+   _ensure_last_edited_columns, но она вызывается ПОСЛЕ падающей функции и сейчас
+   не достигается) и rejection_reason (в коде инцидентов нигде не используется).
+4) audit_log: колонки ОК, индекс idx_audit_log_entity на месте.
+5) Эндпоинты на восстановленной БД (200 после restore): /api/equipment-types,
+   /api/attribute-definitions, /api/locations, /api/equipment/location-counts,
+   /api/equipment, /api/incident-tickets/location-counts (дерево мест грузится).
+   500 — только /api/incident-tickets; GET /api/incident-tickets/<id> (get_by_id)
+   упадёт тем же путём. Создание заявки (create()) этот вызов НЕ делает.
+
+ВЫВОД: не расхождение схемы по всему проекту, а один точечный баг кода,
+введённый в последнем коммите 08abc3c (git diff это подтверждает).
+
+====================================================================
+3. git log -3 --oneline / git status
+====================================================================
+08abc3c 111
+84f87ba браны временные файлы вывода pytest из репозитория, добавлено правило в .gitignore
+6a594cf временный коммит
+
+On branch main
+Your branch is up to date with 'origin/main'.
+
+Changes not staged for commit:
+	modified:   push-deploy.sh
+
+Untracked files:
+	push-deploy.bat
+	rollback-remote.sh
+	scripts/diag_schema_mismatch.py
+
+====================================================================
+Предлагаемый фикс (НЕ применён — только разведка, ждёт подтверждения)
+====================================================================
+repositories/incident_ticket_repo.py, _ensure_link_table_dropped (строка 59):
+
+    exists = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'"
+    ).fetchone() is not None
+    if exists:
+        conn.execute('DROP INDEX IF EXISTS idx_link_ticket')
+        conn.execute('DROP TABLE IF EXISTS incident_ticket_link')
+        conn.commit()
+
+После фикса list_all() продолжит цепочку миграций: _ensure_last_edited_columns
+добавит last_edited_by/last_edited_at до SELECT, legacy-таблица (0 строк)
+дропнется, вкладка "Инциденты" начнёт отдавать JSON.
