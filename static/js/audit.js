@@ -85,7 +85,6 @@ const AUDIT_FIELD_LABELS = {
 function loadAuditTab() {
     if (!auditEntityTypesLoaded) {
         loadAuditEntityTypes();
-        auditEntityTypesLoaded = true;
     }
     auditPage = 1;
     loadAuditEntries();
@@ -95,16 +94,25 @@ function loadAuditEntityTypes() {
     apiFetch('/api/audit/entity-types')
         .then(r => r.json())
         .then(types => {
+            if (!Array.isArray(types)) throw new Error('Некорректный ответ сервера');
             const select = document.getElementById('auditEntityTypeFilter');
-            if (!select || !Array.isArray(types)) return;
+            if (!select) return;
             types.forEach(t => {
                 const opt = document.createElement('option');
                 opt.value = t;
                 opt.textContent = AUDIT_ENTITY_LABELS[t] || t;
                 select.appendChild(opt);
             });
+            auditEntityTypesLoaded = true;
         })
-        .catch(() => {});
+        .catch(e => {
+            // Не глотаем ошибку: сбрасываем флаг (вкладка повторит запрос при
+            // следующем открытии) и показываем пользователю, что пошло не так.
+            auditEntityTypesLoaded = false;
+            if (typeof showToast === 'function') {
+                showToast('Не удалось загрузить разделы журнала: ' + (e.message || e), 'error', 'icon-cancel');
+            }
+        });
 }
 
 function _auditFilterParams() {
