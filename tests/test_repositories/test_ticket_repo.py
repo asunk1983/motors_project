@@ -144,7 +144,7 @@ class TestTicketRepo:
         ).fetchone()
         assert row is None
 
-def test_delete_ticket_cascades_failures_works_and_logs(self, db_conn):
+    def test_delete_ticket_cascades_failures_works_and_logs(self, db_conn):
         """delete_ticket удаляет связанные failure и equipment_work,
         а также пишет log_deletion в audit_log."""
         from repositories.ticket_repo import (
@@ -178,14 +178,14 @@ def test_delete_ticket_cascades_failures_works_and_logs(self, db_conn):
 
         # В аудите — строка удаления с названием заявки и актором
         row = db_conn.execute(
-            "SELECT field_name, new_value, changed_by_display_name FROM audit_log "
+            "SELECT field_name, old_value, changed_by_display_name FROM audit_log "
             "WHERE entity_type = 'ticket' AND entity_id = ? ORDER BY id DESC LIMIT 1",
             (ticket_id,),
         ).fetchone()
         assert row is not None
         assert row["field_name"] == "__deleted__"
         assert row["changed_by_display_name"] == "Админ"
-        assert row["new_value"] == "Заявка с отказом"
+        assert row["old_value"] == "Заявка с отказом"
 
     def test_delete_ticket_not_found_false(self, db_conn):
         from repositories.ticket_repo import delete_ticket
