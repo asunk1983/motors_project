@@ -1,66 +1,115 @@
-П11 ВЫПОЛНЕНО: восстановлены режимные колонки и сортировка характеристик двигателей
-Дата: 12.09.2026
-Файл: static/js/catalog.js (единственный изменённый файл)
+# Разведка по 4 задачам (motors_project)
+Дата: 2026-09-12 · режим: PLAN (пока без правок) · боевая engine_data.db НЕ открывалась · git commit не делался
 
-=== ПРИЧИНА, ЧТО БЫЛО ПОТЕРЯНО ===
-Коммит 82b7e4e ("9.9.26"), который вводил журнал изменений (audit),
-удалил из ENGINE_COLUMNS 6 режимных колонок и обнулил sortField у
-характеристик двигателя (status, workshop, bearing_*, shaft_diameter,
-protection_class, mounting_type, temp_sensor, encoder, cooling, note).
-Бэкенд (repositories/engine_repo.py) при этом всё время отдавал
-modes_*-поля и поддерживал сортировку по ним (MODE_SORT_COLUMNS,
-BASE_SORT_COLUMNS) — то есть данные приходили, но фронт их не показывал.
+=== ЗАДАЧА 1. Опасные скрипты в корне: audit_test.py / _diag_audit_test.py ===
 
-=== ЧТО ВОССТАНОВЛЕНО (static/js/catalog.js) ===
-1. 6 режимных колонок (скрыты по умолчанию, defaultVisible: false):
-   modes_frequency  'Частоты (Гц)'
-   modes_power      'Мощности (кВт)'
-   modes_voltage    'Напряжения (В)'
-   modes_connection_type 'Типы подключения'
-   modes_current    'Токи (А)'
-   modes_rpm        'Обороты (об/мин)'
-   Восстановлены ровно в виде из 32ab40c (label/sortField/thClass/render),
-   с поясняющим комментарием про GROUP_CONCAT + сортировку по MIN.
-2. sortField возвращён 11 полям: status, workshop, bearing_front,
-   bearing_rear, shaft_diameter, protection_class, mounting_type,
-   temp_sensor, encoder, cooling, note (+ thClass 'sortable').
+1) audit_test.py (83 строки)
+- Шаги: очистка audit_log (DELETE), затем поочерёдно UPDATE записей с id=1:
+  engines (workshop, purpose), equipment (name, criticality), incident_ticket (priority, problem) - с actor;
+  просмотр последних 10 записей журнала; финальный шаг - "фейковые" повторные UPDATE теми же значениями
+  и сравнение COUNT(audit_log) до/после (PASS если 0 новых записей).
+- Обращение к реальной БД НАПРЯМУЮ (не к тестовой):
+    стр.4  DB = r"C:\motors_project\engine_data.db"
+    стр.5  conn = sqlite3.connect(DB)
+- Ссылки из других файлов: только docs/tests.md:38,1039,1040 (сгенерированный мной список) и
+  app.err.log (werkzeug reload при сохранении). .clinerules, scripts/, docs/* - ссылок НЕТ.
 
-=== СВЕРКА С БЭКЕНДОМ ===
-Все восстановленные sortField присутствуют в engine_repo:
-  BASE_SORT_COLUMNS: workshop, bearing_front, bearing_rear, shaft_diameter,
-    protection_class, mounting_type, temp_sensor, encoder, cooling, note,
-    status ('status' — алиас из SELECT, ORDER BY по алиасу разрешён в SQLite)
-  MODE_SORT_COLUMNS: все 6 modes_* → алиасы modes_*_sort
-Значит сортировка по клику заработает для всех восстановленных колонок.
+2) _diag_audit_test.py (141 строка)
+- Шаги: те же (DELETE audit_log -> UPDATE id=1 в engines/equipment/incident_ticket -> вывод журнала ->
+  "ложные изменения" -> подсчёт). Та же семантика, детальнее вывод.
+- Обращение к реальной БД НАПРЯМУЮ:
+    стр.6  DB_PATH = r'C:\motors_project\engine_data.db'
+    стр.7  conn = sqlite3.connect(DB_PATH)
+- Ссылки из других файлов: только docs/tests.md:38,1040 и app.err.log (reload). Больше нигде.
 
-=== ПРОВЕРКИ ===
-- Вставка режимных колонок сначала дала дефект: преждевременный '];'
-  закрывал массив ДО новых объектов → объекты оказывались вне массива.
-  Исправлено удалением преждевременного '];'.
-- node в системе нет → синтаксис проверен структурно: временный скрипт
-  _diag_brace.py (баланс скобок с учётом строк/комментариев) -> BALANCE OK.
-  Временный файл удалён.
-- Итоговая структура: массив ENGINE_COLUMNS (стр. 237) -> ... note (296-303)
-  -> комментарий про режимы (304-308) -> 6 modes_* (309-326) -> '];' (327).
-- git status: M static/js/catalog.js, M summary.txt
+ОЦЕНКА: это одноразовые ручные диагностические заготовки (проверка аудита вручную).
+Реальной зависимости от них нет нигде. НЕ удалял и НЕ изменял. Опасность: оба чистят audit_log
+и мутируют реальные строки id=1 в боевой БД - запускать нельзя без цели "проверить вручную".
+При желании (по отдельному подтверждению) их стоит вынести в scripts/ или удалить.
 
-=== НЮАНС ПРО LOCALSTORAGE ===
-Пул чекбоксов комбобокса "Столбцы" строится из всех ENGINE_COLUMNS
-(catalog.js:411), поэтому режимные колонки снова в пуле. Но у
-пользователя в localStorage (motors_engine_columns_v1) может лежать
-сохранённый набор без них — тогда они будут в списке НЕотмеченными,
-включаются вручную или кнопкой "Сброс". Это ожидаемое поведение
-(defaultVisible: false).
+=== ЗАДАЧА 2. growth_stats в audit_repo ===
 
-=== ОСТАЛЬНЫЕ ТАБЛИЦЫ ===
-Потерь нет:
-- Оборудование: пул только вырос (+скрытые поля, +"Изменил").
-- Инциденты: пул только вырос (+скрытые поля, +"Изменил").
-Режимные колонки были только у двигателей.
+Функции audit_repo.growth_stats (статистики записей по дням) НЕТ нигде в проекте:
+- repositories/audit_repo.py: только list_entries, _resolve_location_label, _attach_value_labels, list_entity_types;
+- routes/audit_routes.py: только GET /api/audit/log и GET /api/audit/entity-types;
+- static/js/audit.js: обычная пагинированная таблица (50/стр.), фильтры, НИКАКОГО графика/подсчёта по дням;
+- grep по growth|by_day|прирост|по дням по всем .py/.js: совпадения ТОЛЬКО в tests/test_audit/test_audit_repo.py
+  (строки 98-108: класс TestGrowthStats, вызов audit_repo.growth_stats(db_conn, days=90), чтение stats['by_day']).
 
-=== СТАТУС ===
-ЗАКОММИЧЕНО: 11dfbb2
-fix(catalog): возвращены колонки режимов работы и сортировка характеристик
-двигателей (потеряны в 82b7e4e)
-static/js/catalog.js | 1 file changed, 44 insertions(+), 21 deletions(-)
-Push не выполнен.
+ВЫВОД: статистику роста журнала нужно либо реализовать с нуля (audit_repo.growth_stats + роут + UI),
+либо удалить тест TestGrowthStats как фантомный. Реализации нет ни под каким другим именем.
+
+=== ЗАДАЧА 4. test_incident_service.py против services/incident_service.py ===
+
+Актуальные сигнатуры сервиса:
+- _now() -> str
+- _resolve_closed_at(old_status, new_status, old_closed_at, explicit_closed_at) -> str|None
+- create_ticket(conn, *, location_node_id, problem, created_by_user_id, solution=None, priority='medium',
+    status='in_progress', initiator_ids=None, executor_ids=None, closed_at=None, actor=None) -> (id|None, err|None)
+- update_ticket(conn, ticket_id, *, location_node_id=None, problem=None, solution=None, priority=None,
+    status=None, initiator_ids=None, executor_ids=None, closed_at=None, closed_at_explicitly_set=False,
+    actor=None) -> (bool, err|None)
+- delete_ticket(conn, ticket_id, actor=None) -> (bool, err|None)
+- add_equipment_link(conn, ticket_id, equipment_id, actor=None) -> (bool, err|None)
+- remove_equipment_link(conn, ticket_id, equipment_id, actor=None) -> (bool, err|None)
+- move_location(conn, node_id, new_parent_id=None) -> (bool, err|None)
+- delete_location(conn, node_id) -> (bool, err|None)
+- delete_crew(conn, crew_id, actor=None) -> (bool, err|None)
+Контракты: ошибки ВОЗВРАЩАЮТСЯ кортежем (None|False, текст), НЕ исключениями; закрывающие статусы
+'resolved'/'rejected' (нет 'closed'); таблица incident_ticket (единственное число).
+
+ВСЕ 12 тестов не соответствуют коду (первым делом TypeError на несуществующем параметре title=...):
+1. test_create_requires_title - ждёт ValueError, а код: TypeError (нет title=), обязательность problem
+   возвращает (None, 'Поле "Проблема" обязательно').
+2. test_create_requires_at_least_one_initiator - TypeError по title; проверка инициаторов есть, но
+   возвратом (None, 'Нужен хотя бы один инициатор').
+3. test_create_success - TypeError; читает таблицу incident_tickets (мн.ч.) с колонками title/description/
+   location_id - реально incident_ticket с location_node_id/problem.
+4. test_create_auto_adds_closed_at_on_closed_status - статус 'closed' невалиден (VALID_STATUSES =
+   {'in_progress','resolved','rejected'}).
+5. test_create_without_location_allows - в реальном API location_node_id обязателен и должен существовать.
+6. test_create_location_nonexistent_raises_error - нет параметра location_id; несуществующее место ->
+   (None, 'Указанное место не найдено'), без исключения.
+7. test_update_status_to_closed_auto_fills_closed_at - 'closed' невалиден.
+8. test_update_status_from_closed_clears_closed_at - 'closed' невалиден; сброс closed_at реально есть,
+   но через _resolve_closed_at и статусы resolved/rejected/in_progress.
+9. test_delete_incident_ticket_success - TypeError в create; сам delete_ticket существует (возвращает кортеж).
+10. test_move_location_nonexistent_location_raises - нет ни ticket_id, ни location_id в move_location
+    (сигнатура (conn, node_id, new_parent_id=None)); move_location перемещает УЗЕЛ ДЕРЕВА, не заявку.
+11. test_delete_location_used_by_incident_raises - нет location_id; guard есть, но в location_repo.delete
+    и через кортеж.
+12. test_delete_crew_used_by_incident_raises - TypeError уже в create; delete_crew есть, возвращает кортеж.
+
+Корректных "как есть" тестов: 0. Сохранить при переписывании стоит интенты:
+- обязательность problem; >=1 инициатор; авто closed_at при закрывающем статусе и сброс при возврате
+  в in_progress; отказ при несуществующем месте; guard удаления места/человека с заявками.
+Не покрыты вообще: add_equipment_link, remove_equipment_link, delete_ticket с несуществующим id,
+closed_at_explicitly_set (ручная очистка даты), валидация priority/status/crew_id.
+
+=== ЗАДАЧА 3. СЛИЯНИЕ ДУБЛЕЙ test_equipment_repo.py + test_equipment_repo_part1.py (ПЛАН; ждёт Act mode) ===
+
+Анализ дублей (по именам и телам):
+- TestEquipmentTypeCRUD (4 теста), TestEquipmentTypeInUseAndDelete (5), TestAttributeDefinition (5,
+  включая delete_attribute_definition_self == delete_attribute_definition) - ИДЕНТИЧНЫ в обоих файлах = 14 дублей.
+- Уникальные в part1 (9): TestAttributeInheritance (5: assigned_only_own, effective_inherits_parent_attributes,
+  effective_child_overrides_parent, effective_parent_without_child_override, show_in_list_effective),
+  TestEquipmentGuardsAndCount (4: equipment_referenced_by_incidents x3, count_all).
+- Уникальные в основном test_equipment_repo.py (14): TestEquipmentCRUD (5), TestGetStockSummary (2),
+  TestUpdateEquipmentTypeMinStockQty (2), TestEquipmentLastEdited (5).
+
+ПЛАН:
+1. База - test_equipment_repo.py (28 тестов), обновить шапку;
+2. Добавить в конец 9 уникальных тестов из part1 (TestAttributeInheritance + TestEquipmentGuardsAndCount)
+   с их исходными телами;
+3. Итог: 28 + 9 = 37 тестов (14 дублей исчезают);
+4. Удалить test_equipment_repo_part1.py (явное подтверждение задачи есть);
+5. Прогнать pytest только по слитому файлу
+   (cd c:\motors_project; python -m pytest tests\test_repositories\test_equipment_repo.py -q) -
+   только in-memory db_conn, боевую БД не трогает;
+6. Прислать результат прогона.
+
+ПРИМЕЧАНИЕ: .clinerules содержит правило "Не гонять pytest/e2e - нерабочие"; по явному запросу
+в задаче 3 pytest будем гонять, интерпретируя падения как возможные предСуществующие.
+
+СТАТУС: задачи 1, 2, 4 - ОТЧЁТЫ ГОТОВЫ. Задача 3 требует переключения в ACT MODE
+(изменение файлов + запуск pytest). Боевая БД не открывалась, git commit не делался.

@@ -1,6 +1,4 @@
 """Тесты чтения журнала изменений (repositories/audit_repo.py)."""
-from datetime import datetime
-
 from repositories import audit_repo
 
 
@@ -93,19 +91,6 @@ class TestLocationValueLabel:
         rows, _ = audit_repo.list_entries(db_conn)
         assert rows[0]['old_value_display'] is None
         assert rows[0]['new_value_display'] is None
-
-
-class TestGrowthStats:
-    def test_growth_stats(self, db_conn):
-        today = datetime.now().date().isoformat()
-        _add_audit(db_conn, changed_at=f'{today}T10:00:00')
-        _add_audit(db_conn, changed_at=f'{today}T12:00:00')
-        _add_audit(db_conn, changed_at='2000-01-01T10:00:00')
-        stats = audit_repo.growth_stats(db_conn, days=90)
-        assert stats['total'] == 3
-        assert stats['days'] == 90
-        assert stats['by_day'][today] == 2
-        assert '2000-01-01' not in stats['by_day']
 
 
 class TestListEntityTypes:

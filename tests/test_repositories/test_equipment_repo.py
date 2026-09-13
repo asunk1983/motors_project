@@ -311,3 +311,133 @@ class TestEquipmentLastEdited:
 
         columns = [r[1] for r in db_conn.execute("PRAGMA table_info(equipment)")]
         assert "last_edited_by" in columns and "last_edited_at" in columns
+
+
+# ---------------------------------------------------------------------
+# Уникальные тесты, перенесённые из test_equipment_repo_part1.py
+# (классы TestAttributeInheritance, TestEquipmentGuardsAndCount).
+# ---------------------------------------------------------------------
+
+class TestAttributeInheritance:
+    """Наследование атрибутов типа: get_assigned_attributes (только свои)
+    vs get_effective_attributes (с наследованием от родителя), переопределение
+    на дочернем уровне (ближе к листу побеждает)."""
+
+    def _make_hierarchy(self, db_conn):
+        from repositories.equipment_repo import (
+            create_equipment_type, create_attribute_definition, set_type_attributes,
+        )
+        parent = create_equipment_type(db_conn, code='pump', name='Насос')
+        child = create_equipment_type(db_conn, code='centrifugal', name='Центробежный', parent_type_id=parent)
+        attr_a = create_attribute_definition(db_conn, {'key': 'flow', 'label': 'Расход', 'weight': 10})
+        attr_b = create_attribute_definition(db_conn, {'key': 'head', 'label': 'Напор', 'weight': 20})
+        attr_c = create_attribute_definition(db_conn, {'key': 'power', 'label': 'Мощность', 'weight': 30})
+
+        # Родитель: a (show_in_list), b; ребёнок: b (переопределён), c.
+        set_type_attributes(db_conn, parent, [
+            {'attribute_definition_id': attr_a, 'show_in_list': True},
+            {'attribute_definition_id': attr_b},
+        ])
+        set_type_attributes(db_conn, child, [
+            {'attribute_definition_id': attr_b, 'is_required': True, 'weight_override': 99},
+            {'attribute_definition_id': attr_c},
+        ])
+        return {'parent': parent, 'child': child, 'a': attr_a, 'b': attr_b, 'c': attr_c}
+
+    def test_assigned_only_own(self, db_conn):
+        from repositories.equipment_repo import get_assigned_attributes
+        ids = self._make_hierarchy(db_conn)
+
+        parent_keys = {a['key'] for a in get_assigned_attributes(db_conn, ids['parent'])}
+        child_keys = {a['key'] for a in get_assigned_attributes(db_conn, ids['child'])}
+        assert parent_keys == {'flow', 'head'}
+        # У ребёнка ТОЛЬКО свои атрибуты — наследования тут нет
+        assert child_keys == {'head', 'power'}
+        assert 'flow' not in child_keys  # атрибут родителя не попадает в assigned
+
+    def test_effective_inherits_parent_attributes(self, db_conn):
+        from repositories.equipment_repo import get_effective_attributes
+        ids = self._make_hierarchy(db_conn)
+
+        attrs = get_effective_attributes(db_conn, ids['child'])
+        keys = {a['key'] for a in attrs}
+        # flow унаследован от родителя, head и power — свои
+        assert keys == {'flow', 'head', 'power'}
+
+    def test_effective_child_overrides_parent(self, db_conn):
+        from repositories.equipment_repo import get_effective_attributes
+        ids = self._make_hierarchy(db_conn)
+
+        attrs = get_effective_attributes(db_conn, ids['child'])
+        by_key = {a['key']: a for a in attrs}
+        # head задан и у родителя (без флагов), и у ребёнка (is_required,
+        # weight_override=99) — ближе к листу побеждает
+        assert by_key['head']['is_required'] == 1
+        assert by_key['head']['weight_override'] == 99
+        # flow пришёл от родителя без переопределения
+        assert by_key['flow']['is_required'] == 0
+        assert by_key['flow']['weight_override'] is None
+
+    def test_effective_parent_without_child_override(self, db_conn):
+        from repositories.equipment_repo import get_effective_attributes
+        ids = self._make_hierarchy(db_conn)
+
+        attrs = get_effective_attributes(db_conn, ids['parent'])
+        assert {a['key'] for a in attrs} == {'flow', 'head'}
+
+    def test_show_in_list_effective(self, db_conn):
+        from repositories.equipment_repo import get_show_in_list_attributes
+        ids = self._make_hierarchy(db_conn)
+
+        shown = get_show_in_list_attributes(db_conn, ids['child'])
+        # show_in_list проставлен только у flow (на родителе) — наследуется
+        assert [s['key'] for s in shown] == ['flow']
+
+
+class TestEquipmentGuardsAndCount:
+    def test_equipment_referenced_by_incidents_false_without_relation(self, db_conn):
+        from repositories.equipment_repo import (
+            create_equipment_type, create_equipment, equipment_referenced_by_incidents,
+        )
+        type_id = create_equipment_type(db_conn, code='pump', name='Насос')
+        eq_id = create_equipment(db_conn, {
+            'equipment_type_id': type_id, 'name': 'EQ100', 'article': 'EQ100',
+        })
+        assert equipment_referenced_by_incidents(db_conn, eq_id) is False
+
+    def test_equipment_referenced_by_incidents_true_with_relation(self, db_conn):
+        from repositories.equipment_repo import (
+            create_equipment_type, create_equipment, equipment_referenced_by_incidents,
+        )
+        from repositories.incident_ticket_repo import create as create_ticket
+        from repositories.incident_equipment_repo import add_relation
+
+        type_id = create_equipment_type(db_conn, code='pump', name='Насос')
+        eq_id = create_equipment(db_conn, {
+            'equipment_type_id': type_id, 'name': 'EQ101', 'article': 'EQ101',
+        })
+        cur = db_conn.execute(
+            "INSERT INTO location_node (name, node_type) VALUES ('Цех', 'workshop')"
+        )
+        db_conn.commit()
+        loc_id = cur.lastrowid
+        ticket_id = create_ticket(
+            db_conn, location_node_id=loc_id, problem='П', created_by_user_id=1,
+        )
+        assert equipment_referenced_by_incidents(db_conn, eq_id) is False
+        add_relation(db_conn, ticket_id, eq_id)
+        assert equipment_referenced_by_incidents(db_conn, eq_id) is True
+
+    def test_equipment_referenced_unknown_id_false(self, db_conn):
+        from repositories.equipment_repo import equipment_referenced_by_incidents
+        assert equipment_referenced_by_incidents(db_conn, 99999) is False
+
+    def test_count_all(self, db_conn):
+        from repositories.equipment_repo import (
+            create_equipment_type, create_equipment, count_all,
+        )
+        assert count_all(db_conn) == 0
+        type_id = create_equipment_type(db_conn, code='pump', name='Насос')
+        create_equipment(db_conn, {'equipment_type_id': type_id, 'name': 'E1', 'article': 'A1'})
+        create_equipment(db_conn, {'equipment_type_id': type_id, 'name': 'E2', 'article': 'A2'})
+        assert count_all(db_conn) == 2
