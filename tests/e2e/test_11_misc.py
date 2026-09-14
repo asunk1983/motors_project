@@ -5,7 +5,7 @@ import zipfile
 
 import pytest
 
-from tests.e2e.conftest import BASE_URL, TEST_ADMIN, TEST_ADMIN_PW
+from tests.e2e.conftest import TEST_ADMIN, TEST_ADMIN_PW
 from tests.e2e.helpers import make_engine, make_test_png
 
 
