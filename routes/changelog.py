@@ -19,7 +19,10 @@ from pathlib import Path
 
 from flask import Blueprint, request, jsonify
 
-from config.settings import BASE_DIR
+from config.settings import (
+    CHANGELOG_JSON_PATH as _CHANGELOG_JSON_PATH_SETTING,
+    WISHLIST_JSON_PATH as _WISHLIST_JSON_PATH_SETTING,
+)
 from modules.db import db_connection
 from modules.auth import auth as auth_module
 
@@ -27,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 changelog_bp = Blueprint('changelog', __name__, url_prefix='/api')
 
-CHANGELOG_JSON_PATH = Path(BASE_DIR) / 'data' / 'changelog.json'
-WISHLIST_JSON_PATH = Path(BASE_DIR) / 'data' / 'wishlist.json'
+CHANGELOG_JSON_PATH = Path(_CHANGELOG_JSON_PATH_SETTING)
+WISHLIST_JSON_PATH = Path(_WISHLIST_JSON_PATH_SETTING)
 
 
 @changelog_bp.route('/changelog', methods=['GET'])
