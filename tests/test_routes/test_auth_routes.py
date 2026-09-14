@@ -27,16 +27,18 @@ def client(app):
 
 
 class TestLogin:
-    @patch('routes.auth.auth_module.login')
+    @patch('routes.auth.auth_module.update_last_login')
+    @patch('routes.auth.auth_module.issue_token')
+    @patch('routes.auth.auth_module.verify_password')
     @patch('routes.auth.auth_module.get_user_by_username')
-    @patch('routes.auth.auth_module.create_user')
-    @patch('routes.auth.auth_module.hash_password')
     @patch('routes.auth.db_connection')
-    def test_login_success(self, m_db, m_hash, m_create, m_get_user, m_login, client):
-        m_get_user.return_value = None  # нет пользователя — создадим
-        m_create.return_value = 1  # id нового пользователя
-        m_hash.return_value = 'hashed'
-        m_login.return_value = {'token': 'abc123', 'username': 'testuser'}
+    def test_login_success(self, m_db, m_get_user, m_verify, m_issue_token, m_update_login, client):
+        # DB-пользователь с верным паролем: роут находит пользователя, проверяет пароль,
+        # выпускает токен через issue_token и обновляет last_login через update_last_login.
+        m_get_user.return_value = {'id': 1, 'username': 'testuser', 'password_hash': 'hash123', 'role': 'user', 'source': 'db'}
+        m_verify.return_value = True
+        m_issue_token.return_value = 'abc123'
+        m_update_login.return_value = None
 
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
@@ -47,14 +49,22 @@ class TestLogin:
         data = r.get_json()
         assert data['success'] is True
         assert data['token'] == 'abc123'
-        m_create.assert_called_once_with(conn, 'testuser', 'hashed', 'user')
+        assert data['user']['id'] == 1
+        m_get_user.assert_called_once_with(conn, 'testuser')
+        m_verify.assert_called_once_with('secret', 'hash123')
+        m_issue_token.assert_called_once_with(conn, 1)
 
+    @patch('routes.auth.auth_module.update_file_user_last_login')
+    @patch('routes.auth.auth_module.issue_token')
+    @patch('routes.auth.auth_module.verify_password')
     @patch('routes.auth.auth_module.get_user_by_username')
-    @patch('routes.auth.auth_module.login')
     @patch('routes.auth.db_connection')
-    def test_login_existing_user(self, m_db, m_login, m_get_user, client):
-        m_get_user.return_value = {'id': 1, 'username': 'existing', 'password_hash': 'hash123', 'role': 'user', 'source': 'db'}
-        m_login.return_value = {'token': 'abc123', 'username': 'existing'}
+    def test_login_existing_user(self, m_db, m_get_user, m_verify, m_issue_token, m_update_file_login, client):
+        # Файловый пользователь (source='file') — last_login обновляется отдельной функцией.
+        m_get_user.return_value = {'id': 1, 'username': 'existing', 'password_hash': 'hash123', 'role': 'user', 'source': 'file'}
+        m_verify.return_value = True
+        m_issue_token.return_value = 'abc123'
+        m_update_file_login.return_value = True
 
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
@@ -65,12 +75,15 @@ class TestLogin:
         data = r.get_json()
         assert data['success'] is True
         assert data['token'] == 'abc123'
-        m_login.assert_called_once_with(conn, {'id': 1, 'username': 'existing', 'password_hash': 'hash123'})
+        m_issue_token.assert_called_once_with(conn, 1)
+        m_update_file_login.assert_called_once_with(1)
 
+    @patch('routes.auth.auth_module.verify_password')
     @patch('routes.auth.auth_module.get_user_by_username')
     @patch('routes.auth.db_connection')
-    def test_login_bad_password_401(self, m_db, m_get_user, client):
+    def test_login_bad_password_401(self, m_db, m_get_user, m_verify, client):
         m_get_user.return_value = {'id': 1, 'username': 'existing', 'password_hash': 'hash123', 'role': 'user', 'source': 'db'}
+        m_verify.return_value = False
 
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
@@ -79,19 +92,23 @@ class TestLogin:
         r = client.post('/api/auth/login', json={'username': 'existing', 'password': 'wrong'})
         assert r.status_code == 401
         data = r.get_json()
-        assert data['error'] == 'Неверный пароль'
+        assert data['error'] == 'Неверный логин или пароль'
 
     @patch('routes.auth.auth_module.get_user_by_username')
     @patch('routes.auth.db_connection')
-    def test_login_empty_body_400(self, m_db, m_get_user, client):
+    def test_login_empty_body_401(self, m_db, m_get_user, client):
+        # Роут login не имеет отдельной валидации пустого тела: пустой username
+        # не находится, пароль не проверяется → 401.
+        m_get_user.return_value = None
+
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
         m_db.return_value.__exit__ = MagicMock(return_value=False)
 
         r = client.post('/api/auth/login', json={})
-        assert r.status_code == 400
+        assert r.status_code == 401
         data = r.get_json()
-        assert 'username' in data['error'] or 'password' in data['error']
+        assert data['error'] == 'Неверный логин или пароль'
 
 
 class TestMe:
@@ -172,8 +189,9 @@ class TestAdminUsersList:
         r = client.get('/api/auth/admin/users')
         assert r.status_code == 200
         data = r.get_json()
-        assert len(data['users']) == 2
-        assert data['users'][0]['username'] == 'user1'
+        # Роут отдаёт jsonify(users) — плоский JSON-массив, без обёртки {'users': [...]}
+        assert len(data) == 2
+        assert data[0]['username'] == 'user1'
 
     @patch('routes.auth._require_admin')
     def test_list_users_forbidden_non_admin(self, m_require_admin, client):
@@ -184,14 +202,16 @@ class TestAdminUsersList:
 
 
 class TestAdminCreateUser:
-    @patch('routes.auth.auth_module.create_user')
-    @patch('routes.auth.auth_module.hash_password')
+    @patch('routes.auth.auth_module.create_file_user')
+    @patch('routes.auth.auth_module.get_user_by_username')
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_create_user_success(self, m_db, m_require_admin, m_hash, m_create, client):
+    def test_create_user_success(self, m_db, m_cur, m_require_admin, m_get_user, m_create_file, client):
         m_require_admin.return_value = None  # admin
-        m_hash.return_value = 'hashed'
-        m_create.return_value = 3  # id нового пользователя
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = None  # пользователя с таким логином нет
+        m_create_file.return_value = 3  # id нового файлового пользователя
 
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
@@ -201,24 +221,27 @@ class TestAdminCreateUser:
             'username': 'newuser',
             'password': 'secret',
         })
-        assert r.status_code == 201
+        assert r.status_code == 200
         data = r.get_json()
         assert data['success'] is True
-        assert data['user']['id'] == 3
-        assert data['user']['username'] == 'newuser'
-        m_create.assert_called_once_with(conn, 'newuser', 'hashed', 'user')
+        assert data['id'] == 3
+        m_create_file.assert_called_once_with('newuser', 'secret', role='user', crew_id=None)
 
     @patch('routes.auth._require_admin')
-    def test_create_user_forbidden(self, m_require_admin, client):
+    @patch('routes.auth.get_current_user')
+    def test_create_user_forbidden(self, m_cur, m_require_admin, client):
         m_require_admin.return_value = ({'error': 'Доступ запрещён'}, 403)
+        m_cur.return_value = {'id': 1, 'role': 'user', 'source': 'db'}
 
         r = client.post('/api/auth/admin/users', json={'username': 'newuser', 'password': 'secret'})
         assert r.status_code == 403
 
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_create_user_empty_username_400(self, m_db, m_require_admin, client):
+    def test_create_user_empty_username_400(self, m_db, m_cur, m_require_admin, client):
         m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
         m_db.return_value.__exit__ = MagicMock(return_value=False)
@@ -226,7 +249,7 @@ class TestAdminCreateUser:
         r = client.post('/api/auth/admin/users', json={'username': ''})
         assert r.status_code == 400
         data = r.get_json()
-        assert 'username' in data['error']
+        assert 'Логин и пароль' in data['error']
 
 
 class TestAdminUserEdit:
@@ -369,9 +392,11 @@ class TestAdminUserDelete:
     @patch('routes.auth.auth_module.get_user_by_id')
     @patch('routes.auth._require_admin')
     @patch('routes.auth._is_admin_role')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_delete_user_success(self, m_db, m_is_admin, m_require_admin, m_get_user, m_delete, client):
+    def test_delete_user_success(self, m_db, m_cur, m_is_admin, m_require_admin, m_get_user, m_delete, client):
         m_require_admin.return_value = None  # admin
+        m_cur.return_value = {'id': 99, 'role': 'admin', 'source': 'db'}  # другой админ
         m_is_admin.return_value = False  # удаляемый пользователь не admin
         m_get_user.return_value = {'id': 1, 'username': 'todelete', 'role': 'user', 'source': 'db'}
         m_delete.return_value = True
@@ -387,16 +412,22 @@ class TestAdminUserDelete:
         m_delete.assert_called_once_with(conn, 1)
 
     @patch('routes.auth._require_admin')
-    def test_delete_user_forbidden(self, m_require_admin, client):
+    @patch('routes.auth.get_current_user')
+    def test_delete_user_forbidden(self, m_cur, m_require_admin, client):
         m_require_admin.return_value = ({'error': 'Доступ запрещён'}, 403)
+        m_cur.return_value = {'id': 1, 'role': 'user', 'source': 'db'}
 
         r = client.delete('/api/auth/admin/users/1')
         assert r.status_code == 403
 
+    @patch('routes.auth.auth_module.get_user_by_id')
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_delete_user_not_found_404(self, m_db, m_require_admin, client):
+    def test_delete_user_not_found_404(self, m_db, m_cur, m_require_admin, m_get_user, client):
         m_require_admin.return_value = None
+        m_cur.return_value = {'id': 99, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = None  # пользователь с id=999 не найден
         conn = MagicMock()
         m_db.return_value.__enter__ = MagicMock(return_value=conn)
         m_db.return_value.__exit__ = MagicMock(return_value=False)
@@ -411,9 +442,11 @@ class TestAdminUserPassword:
     @patch('routes.auth.auth_module.update_user_password')
     @patch('routes.auth.auth_module.get_user_by_id')
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_change_password_success(self, m_db, m_require_admin, m_get_user, m_update, client):
+    def test_change_password_success(self, m_db, m_cur, m_require_admin, m_get_user, m_update, client):
         m_require_admin.return_value = None  # admin
+        m_cur.return_value = {'id': 99, 'role': 'admin', 'source': 'db'}
         m_get_user.return_value = {'id': 1, 'username': 'user1', 'role': 'user', 'source': 'db'}
         m_update.return_value = True
 
@@ -428,18 +461,22 @@ class TestAdminUserPassword:
         m_update.assert_called_once_with(conn, 1, 'newpass123')
 
     @patch('routes.auth._require_admin')
-    def test_change_password_forbidden(self, m_require_admin, client):
+    @patch('routes.auth.get_current_user')
+    def test_change_password_forbidden(self, m_cur, m_require_admin, client):
         m_require_admin.return_value = ({'error': 'Доступ запрещён'}, 403)
+        m_cur.return_value = {'id': 1, 'role': 'user', 'source': 'db'}
 
         r = client.post('/api/auth/admin/users/1/password', json={'password': 'newpass'})
         assert r.status_code == 403
 
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_change_password_short_400(self, m_db, m_require_admin, client):
+    def test_change_password_short_400(self, m_db, m_cur, m_require_admin, client):
         m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
         conn = MagicMock()
-        m_db.return_value.__enter__ = MagicMock.return_value(conn)
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
         m_db.return_value.__exit__ = MagicMock(return_value=False)
 
         r = client.post('/api/auth/admin/users/1/password', json={'password': 'abc'})
@@ -451,14 +488,16 @@ class TestAdminUserPassword:
 class TestAdminUserRevoke:
     @patch('routes.auth.auth_module.revoke_all_for_user')
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_revoke_success(self, m_db, m_require_admin, m_revoke, client):
+    def test_revoke_success(self, m_db, m_cur, m_require_admin, m_revoke, client):
         m_require_admin.return_value = None  # admin
+        m_cur.return_value = {'id': 99, 'role': 'admin', 'source': 'db'}
         m_revoke.return_value = None
 
         conn = MagicMock()
-        m_db.return_value.__enter__ = MagicMock.return_value(conn)
-        m_db.return_value.__exit__ = MagicMock.return_value(False)
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
 
         r = client.post('/api/auth/admin/users/1/revoke')
         assert r.status_code == 200
@@ -467,8 +506,10 @@ class TestAdminUserRevoke:
         m_revoke.assert_called_once_with(conn, 1)
 
     @patch('routes.auth._require_admin')
-    def test_revoke_forbidden(self, m_require_admin, client):
+    @patch('routes.auth.get_current_user')
+    def test_revoke_forbidden(self, m_cur, m_require_admin, client):
         m_require_admin.return_value = ({'error': 'Доступ запрещён'}, 403)
+        m_cur.return_value = {'id': 1, 'role': 'user', 'source': 'db'}
 
         r = client.post('/api/auth/admin/users/1/revoke')
         assert r.status_code == 403
