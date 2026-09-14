@@ -5,6 +5,7 @@ import zipfile
 import hashlib
 import sqlite3
 import tempfile
+from contextlib import contextmanager
 import shutil
 import pytest
 from unittest.mock import patch, MagicMock
@@ -52,10 +53,19 @@ def temp_db_and_photos(tmp_path, monkeypatch):
     # проекта, из-за чего тест читал боевые файлы вместо тестовой папки.
     monkeypatch.setattr(backup_module, 'PHOTO_FOLDERS', [('photos', photos_dir)])
 
+    @contextmanager
     def fake_db_connection():
+        # Повторяем поведение настоящего db_connection из modules/db.py:
+        # открываем соединение, отдаём его в `with`, гарантированно закрываем
+        # в finally. Без close() на Windows os.replace(engine_data.db.new,
+        # engine_data.db) падает с PermissionError (WinError 5) — файл БД
+        # остаётся открытым SQLite-хэндлом.
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     monkeypatch.setattr(backup_module.db_module, 'db_connection', fake_db_connection)
 
