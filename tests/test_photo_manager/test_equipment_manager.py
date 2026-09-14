@@ -74,40 +74,46 @@ class TestNextPhotoIndex:
 
 
 class TestUploadEquipmentPhotos:
-    def test_upload_skips_bad_ext(self, ep_folder):
+    def test_upload_skips_bad_ext(self, app, ep_folder):
         files = [_file_storage('a.png'), _file_storage('b.jpg'), _file_storage('bad.txt')]
-        resp, code = pm.upload_equipment_photos(7, files)
-        assert code == 200
-        data = resp.get_json()
-        assert data['uploaded'] == 2 and data['skipped'] == 1
+        with app.test_request_context():
+            resp, code = pm.upload_equipment_photos(7, files)
+            assert code == 200
+            data = resp.get_json()
+            assert data['uploaded'] == 2 and data['skipped'] == 1
         names = [os.path.basename(p) for p in pm.equipment_photo_disk_paths(7)]
         assert names == ['ID7_1.png', 'ID7_2.jpg']
 
-    def test_continues_index(self, ep_folder):
+    def test_continues_index(self, app, ep_folder):
         _make_photo(ep_folder, 1, 1)
-        pm.upload_equipment_photos(1, [_file_storage('c.png')])
+        with app.test_request_context():
+            pm.upload_equipment_photos(1, [_file_storage('c.png')])
         names = sorted(os.path.basename(p) for p in pm.equipment_photo_disk_paths(1))
         assert names == ['ID1_1.png', 'ID1_2.png']
 
 
 class TestDeleteEquipmentPhoto:
-    def test_invalid_400(self, ep_folder):
-        resp, code = pm.delete_equipment_photo(1, '../x.png')
-        assert code == 400
+    def test_invalid_400(self, app, ep_folder):
+        with app.test_request_context():
+            resp, code = pm.delete_equipment_photo(1, '../x.png')
+            assert code == 400
 
-    def test_not_owner_403(self, ep_folder):
+    def test_not_owner_403(self, app, ep_folder):
         _make_photo(ep_folder, 1, 1)
-        resp, code = pm.delete_equipment_photo(2, 'ID1_1.png')
-        assert code == 403
+        with app.test_request_context():
+            resp, code = pm.delete_equipment_photo(2, 'ID1_1.png')
+            assert code == 403
 
-    def test_not_found_404(self, ep_folder):
-        resp, code = pm.delete_equipment_photo(1, 'ID1_99.png')
-        assert code == 404
+    def test_not_found_404(self, app, ep_folder):
+        with app.test_request_context():
+            resp, code = pm.delete_equipment_photo(1, 'ID1_99.png')
+            assert code == 404
 
-    def test_delete_success(self, ep_folder):
+    def test_delete_success(self, app, ep_folder):
         _make_photo(ep_folder, 1, 1)
-        resp, code = pm.delete_equipment_photo(1, 'ID1_1.png')
-        assert code == 200
+        with app.test_request_context():
+            resp, code = pm.delete_equipment_photo(1, 'ID1_1.png')
+            assert code == 200
         assert pm.equipment_photo_disk_paths(1) == []
 
 
@@ -121,29 +127,34 @@ class TestDeleteEquipmentPhotosFromDisk:
         assert pm.equipment_photo_disk_paths(1) == []
         assert len(pm.equipment_photo_disk_paths(2)) == 1
 class TestReplaceEquipmentPhoto:
-    def test_invalid_400(self, ep_folder):
-        resp, code = pm.replace_equipment_photo(1, '../x.png', _file_storage())
-        assert code == 400
+    def test_invalid_400(self, app, ep_folder):
+        with app.test_request_context():
+            resp, code = pm.replace_equipment_photo(1, '../x.png', _file_storage())
+            assert code == 400
 
-    def test_not_owner_403(self, ep_folder):
+    def test_not_owner_403(self, app, ep_folder):
         _make_photo(ep_folder, 1, 1)
-        resp, code = pm.replace_equipment_photo(2, 'ID1_1.png', _file_storage())
-        assert code == 403
+        with app.test_request_context():
+            resp, code = pm.replace_equipment_photo(2, 'ID1_1.png', _file_storage())
+            assert code == 403
 
-    def test_not_found_404(self, ep_folder):
-        resp, code = pm.replace_equipment_photo(1, 'ID1_9.png', _file_storage())
-        assert code == 404
+    def test_not_found_404(self, app, ep_folder):
+        with app.test_request_context():
+            resp, code = pm.replace_equipment_photo(1, 'ID1_9.png', _file_storage())
+            assert code == 404
 
-    def test_no_file_400(self, ep_folder):
+    def test_no_file_400(self, app, ep_folder):
         _make_photo(ep_folder, 1, 1)
-        resp, code = pm.replace_equipment_photo(1, 'ID1_1.png', None)
-        assert code == 400
+        with app.test_request_context():
+            resp, code = pm.replace_equipment_photo(1, 'ID1_1.png', None)
+            assert code == 400
 
-    def test_replace_success(self, ep_folder):
+    def test_replace_success(self, app, ep_folder):
         _make_photo(ep_folder, 1, 1, '.jpg')
-        resp, code = pm.replace_equipment_photo(1, 'ID1_1.jpg', _file_storage('x.png'))
-        assert code == 200
-        assert resp.get_json()['filename'] == 'ID1_1.png'
+        with app.test_request_context():
+            resp, code = pm.replace_equipment_photo(1, 'ID1_1.jpg', _file_storage('x.png'))
+            assert code == 200
+            assert resp.get_json()['filename'] == 'ID1_1.png'
         assert os.path.exists(os.path.join(ep_folder, 'ID1_1.png'))
         assert not os.path.exists(os.path.join(ep_folder, 'ID1_1.jpg'))
 

@@ -47,6 +47,10 @@ def temp_db_and_photos(tmp_path, monkeypatch):
     monkeypatch.setattr(backup_module, 'PHOTOS_FOLDER', photos_dir)
     monkeypatch.setattr(backup_module, 'BACKUPS_FOLDER', backups_dir)
     monkeypatch.setattr(backup_module, 'BACKUP_STAGING_FOLDER', staging_dir)
+    # PHOTO_FOLDERS (список (prefix, folder)) — именно по нему backup.py собирает
+    # файлы фото в архив; без патча он указывает на реальные photos//PhotoI/PhotoE
+    # проекта, из-за чего тест читал боевые файлы вместо тестовой папки.
+    monkeypatch.setattr(backup_module, 'PHOTO_FOLDERS', [('photos', photos_dir)])
 
     def fake_db_connection():
         conn = sqlite3.connect(db_path)

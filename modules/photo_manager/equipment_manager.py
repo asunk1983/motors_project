@@ -121,7 +121,7 @@ def upload_equipment_photos(equipment_id, files):
     if equipment_id in _photo_paths_cache:
         del _photo_paths_cache[equipment_id]
 
-    return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped})
+    return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped}), 200
 
 
 def replace_equipment_photo(equipment_id, filename, file):
@@ -172,7 +172,7 @@ def replace_equipment_photo(equipment_id, filename, file):
     if equipment_id in _photo_paths_cache:
         del _photo_paths_cache[equipment_id]
 
-    return jsonify({'success': True, 'filename': new_filename})
+    return jsonify({'success': True, 'filename': new_filename}), 200
 
 
 def delete_equipment_photo(equipment_id, filename):
@@ -187,7 +187,7 @@ def delete_equipment_photo(equipment_id, filename):
     os.remove(photo_path)
     if equipment_id in _photo_paths_cache:
         del _photo_paths_cache[equipment_id]
-    return jsonify({'success': True})
+    return jsonify({'success': True}), 200
 
 
 def delete_equipment_photos_from_disk(equipment_id):

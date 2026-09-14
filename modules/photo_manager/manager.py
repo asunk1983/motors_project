@@ -120,7 +120,7 @@ def upload_engine_photos(conn, engine_id, files):
         cursor.execute('UPDATE engines SET photo_count = ? WHERE id = ?', (new_count, engine_id))
         conn.commit()
 
-    return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped, 'photo_count': new_count})
+    return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped, 'photo_count': new_count}), 200
 
 
 def delete_engine_photo(conn, engine_id, filename):
@@ -142,7 +142,7 @@ def delete_engine_photo(conn, engine_id, filename):
     cursor.execute('UPDATE engines SET photo_count = ? WHERE id = ?', (new_count, engine_id))
     conn.commit()
 
-    return jsonify({'success': True, 'photo_count': new_count})
+    return jsonify({'success': True, 'photo_count': new_count}), 200
 
 
 def delete_engine_photos_from_disk(engine_id):
@@ -228,4 +228,4 @@ def replace_engine_photo(engine_id, filename, file_storage):
             except OSError:
                 time.sleep(0.15)
 
-    return jsonify({'success': True, 'filename': new_filename, 'path': f'/api/photos/{new_filename}'})
+    return jsonify({'success': True, 'filename': new_filename, 'path': f'/api/photos/{new_filename}'}), 200

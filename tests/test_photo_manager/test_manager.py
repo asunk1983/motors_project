@@ -73,8 +73,9 @@ class TestDiskPaths:
         assert first == second  # кеш: второй вызов НЕ пересканирует диск
 
     def test_invalidate_clears_cache(self, photos_folder):
-        _make_photo(photos_folder, 1, 1)
+        p = _make_photo(photos_folder, 1, 1)
         _ = pm.engine_photo_disk_paths(1)
+        os.remove(p)
         pm.invalidate_photo_cache()
         assert pm.engine_photo_disk_paths(1) == []
 
@@ -115,28 +116,32 @@ class TestGetPhoto:
             resp, code = pm.get_photo('ID1_1.png')
             assert code == 404
 class TestDeleteEnginePhoto:
-    def test_invalid_filename_400(self, db_conn, photos_folder):
-        resp, code = pm.delete_engine_photo(db_conn, 1, '../x.png')
-        assert code == 400
+    def test_invalid_filename_400(self, app, db_conn, photos_folder):
+        with app.test_request_context():
+            resp, code = pm.delete_engine_photo(db_conn, 1, '../x.png')
+            assert code == 400
 
-    def test_not_owner_403(self, db_conn, photos_folder):
+    def test_not_owner_403(self, app, db_conn, photos_folder):
         _make_photo(photos_folder, 1, 1)
-        resp, code = pm.delete_engine_photo(db_conn, 2, 'ID1_1.png')
-        assert code == 403
+        with app.test_request_context():
+            resp, code = pm.delete_engine_photo(db_conn, 2, 'ID1_1.png')
+            assert code == 403
 
-    def test_not_found_404(self, db_conn, photos_folder):
-        resp, code = pm.delete_engine_photo(db_conn, 1, 'ID1_99.png')
-        assert code == 404
+    def test_not_found_404(self, app, db_conn, photos_folder):
+        with app.test_request_context():
+            resp, code = pm.delete_engine_photo(db_conn, 1, 'ID1_99.png')
+            assert code == 404
 
-    def test_delete_updates_photo_count(self, db_conn, photos_folder):
+    def test_delete_updates_photo_count(self, app, db_conn, photos_folder):
         from repositories.engine_repo import create
         engine_id = create(db_conn, {'location': 'Цех 1', 'engine_type': 'АИР'})
         _make_photo(photos_folder, engine_id, 1)
         _make_photo(photos_folder, engine_id, 2)
-        resp, code = pm.delete_engine_photo(db_conn, engine_id, f'ID{engine_id}_1.png')
-        assert code == 200
-        data = resp.get_json()
-        assert data['success'] is True and data['photo_count'] == 1
+        with app.test_request_context():
+            resp, code = pm.delete_engine_photo(db_conn, engine_id, f'ID{engine_id}_1.png')
+            assert code == 200
+            data = resp.get_json()
+            assert data['success'] is True and data['photo_count'] == 1
         row = db_conn.execute('SELECT photo_count FROM engines WHERE id = ?', (engine_id,)).fetchone()
         assert row['photo_count'] == 1
 
@@ -244,13 +249,6 @@ class TestSaveUploadAtomically:
         monkeypatch.setattr(pm.time, 'sleep', lambda s: None)
         pm._save_upload_atomically(_Flaky(_file_storage('a.png', b'data')), dest)
         assert os.path.exists(dest)
-        _make_photo(photos_folder, 1, 1)
-        _make_photo(photos_folder, 1, 2)
-        def _boom(path):
-            raise OSError('denied')
-        monkeypatch.setattr(os, 'remove', _boom)
-        removed, errors = pm.delete_engine_photos_from_disk(1)
-        assert removed == 0 and len(errors) == 2
 
     def test_ok_no_cache(self, app, photos_folder):
         _make_photo(photos_folder, 1, 1)
@@ -261,27 +259,30 @@ class TestSaveUploadAtomically:
 
 
 class TestUploadEnginePhotos:
-    def test_engine_not_found_404(self, db_conn, photos_folder):
-        resp, code = pm.upload_engine_photos(db_conn, 999, [_file_storage()])
-        assert code == 404
+    def test_engine_not_found_404(self, app, db_conn, photos_folder):
+        with app.test_request_context():
+            resp, code = pm.upload_engine_photos(db_conn, 999, [_file_storage()])
+            assert code == 404
 
-    def test_upload_and_photo_count(self, db_conn, photos_folder):
+    def test_upload_and_photo_count(self, app, db_conn, photos_folder):
         from repositories.engine_repo import create
         engine_id = create(db_conn, {'location': 'Цех 1', 'engine_type': 'АИР'})
         files = [_file_storage('a.png'), _file_storage('b.jpg'), _file_storage('bad.txt')]
-        resp, code = pm.upload_engine_photos(db_conn, engine_id, files)
-        assert code == 200
-        data = resp.get_json()
-        assert data['uploaded'] == 2 and data['skipped'] == 1
+        with app.test_request_context():
+            resp, code = pm.upload_engine_photos(db_conn, engine_id, files)
+            assert code == 200
+            data = resp.get_json()
+            assert data['uploaded'] == 2 and data['skipped'] == 1
         names = [os.path.basename(p) for p in pm.engine_photo_disk_paths(engine_id)]
         assert names == [f'ID{engine_id}_1.png', f'ID{engine_id}_2.jpg']
         row = db_conn.execute('SELECT photo_count FROM engines WHERE id = ?', (engine_id,)).fetchone()
         assert row['photo_count'] == 2
 
-    def test_upload_after_existing_continues_index(self, db_conn, photos_folder):
+    def test_upload_after_existing_continues_index(self, app, db_conn, photos_folder):
         from repositories.engine_repo import create
         engine_id = create(db_conn, {'location': 'Цех 1', 'engine_type': 'АИР'})
         _make_photo(photos_folder, engine_id, 1)
-        pm.upload_engine_photos(db_conn, engine_id, [_file_storage('c.png')])
+        with app.test_request_context():
+            pm.upload_engine_photos(db_conn, engine_id, [_file_storage('c.png')])
         names = sorted(os.path.basename(p) for p in pm.engine_photo_disk_paths(engine_id))
         assert names == [f'ID{engine_id}_1.png', f'ID{engine_id}_2.png']

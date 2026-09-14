@@ -117,7 +117,7 @@ def upload_ticket_photos(ticket_id, files):
     if ticket_id in _photo_paths_cache:
         del _photo_paths_cache[ticket_id]
 
-    return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped})
+    return jsonify({'success': True, 'uploaded': saved, 'skipped': skipped}), 200
 
 
 def replace_ticket_photo(ticket_id, filename, file):
@@ -166,7 +166,7 @@ def replace_ticket_photo(ticket_id, filename, file):
     if ticket_id in _photo_paths_cache:
         del _photo_paths_cache[ticket_id]
 
-    return jsonify({'success': True, 'filename': new_filename})
+    return jsonify({'success': True, 'filename': new_filename}), 200
 
 
 def delete_ticket_photo(ticket_id, filename):
@@ -181,7 +181,7 @@ def delete_ticket_photo(ticket_id, filename):
     os.remove(photo_path)
     if ticket_id in _photo_paths_cache:
         del _photo_paths_cache[ticket_id]
-    return jsonify({'success': True})
+    return jsonify({'success': True}), 200
 
 
 def delete_ticket_photos_from_disk(ticket_id):
