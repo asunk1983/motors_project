@@ -4,7 +4,6 @@
 поднимать production engine_data.db.
 """
 import pytest
-from modules.db import init_db, db_connection
 
 
 @pytest.fixture
@@ -13,6 +12,8 @@ def db_conn():
 
     Используется в тестах repository и service слоёв.
     """
+    from modules.db import init_db, db_connection
+
     with db_connection(':memory:') as conn:
         init_db(conn)
         yield conn
