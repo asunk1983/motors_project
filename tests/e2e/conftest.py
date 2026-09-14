@@ -1,6 +1,6 @@
 """Playwright e2e infrastructure для motors_project.
 
-- Браузер: Google Chrome через channel="chrome", ВИДИМЫЙ (headless=False).
+- Браузер: Google Chrome через channel="chrome", НЕВИДИМЫЙ (headless=True).
 - Один браузер на сессию; для каждого теста — отдельный контекст (изоляция
   localStorage/cookies) и отдельная страница, чтобы несколько окон не
   всплывали одновременно (контекст закрывается в конце теста).
@@ -174,8 +174,8 @@ def pw():
 
 @pytest.fixture(scope="session")
 def browser(pw):
-    # Видимый браузер, как просил пользователь.
-    b = pw.chromium.launch(headless=False,
+    # Безголовый режим (headless): видимое окно браузера не открывается.
+    b = pw.chromium.launch(headless=True,
                            args=["--window-size=1300,820", "--no-first-run"])
     yield b
     b.close()
@@ -403,7 +403,7 @@ def _write_results():
         by_group.setdefault(v["group"], []).append(v)
 
     lines = ["# E2E test results", "",
-             "Браузер: Google Chrome (channel=\"chrome\"), headless=False. "
+             "Браузер: Google Chrome (channel=\"chrome\"), headless=True. "
              "Данные тестовые (создаются и удаляются каждым тестом).",
              "",
              "| Группа | Сценарий | Статус | Детали при провале |",
