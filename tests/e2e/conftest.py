@@ -16,7 +16,6 @@ import pytest
 from playwright.sync_api import sync_playwright
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-BASE_URL = os.environ.get("E2E_BASE_URL", "http://localhost:5000")
 
 # Тестовый админ (создаётся в БД, удаляется в конце pytest-сессии).
 TEST_ADMIN = "e2e_test_admin"
@@ -33,6 +32,109 @@ SCREENSHOT_DIR = os.path.join(E2E_DIR, "screenshots")
 RESULTS_JSON = os.path.join(E2E_DIR, ".results.json")
 RESULTS_MD = os.path.join(PROJECT_ROOT, "docs", "e2e_test_results.md")
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+
+
+# ---------------------------------------------------------------------------
+# Изоляция от боевой БД и продового сервера (этап B).
+#
+# КРИТИЧНО для порядка импортов — почему это место гарантирует изоляцию:
+#   1. Блок ниже исполняется НА УРОВНЕ МОДУЛЯ tests/e2e/conftest.py, т.е. в
+#      момент импорта этого conftest'а pytest'ом. pytest гарантированно
+#      импортирует conftest директории РАНЬШЕ, чем тестовые модули из неё
+#      (test_01..test_11), поэтому «from config.settings import MOTORS_FOLDER»
+#      в test_06_import.py получит уже тестовый путь.
+#   2. Родительский tests/conftest.py больше НЕ импортирует modules.db на
+#      уровне модуля (импорт перенесён внутрь фикстуры db_conn), поэтому до
+#      этого файла ни один проектный модуль не импортируется.
+#   3. import app выполняется только внутри session-фикстуры live_server —
+#      строго ПОСЛЕ установки переменных ниже. Guard внутри live_server
+#      превращает любое нарушение этого порядка в понятный pytest.fail,
+#      а не в молчаливую работу поверх боевой engine_data.db.
+# ---------------------------------------------------------------------------
+import shutil
+import socket
+import threading
+import time
+import tempfile
+import logging
+
+_RUNTIME = tempfile.mkdtemp(prefix="motors_e2e_")
+_RUNTIME_REL = {
+    "MOTORS_DB_PATH": ["engine_data.db"],
+    "MOTORS_MOTORS_FOLDER": ["motors"],
+    "MOTORS_PHOTOS_FOLDER": ["photos"],
+    "MOTORS_INCIDENT_PHOTOS_FOLDER": ["PhotoI"],
+    "MOTORS_EQUIPMENT_PHOTOS_FOLDER": ["PhotoE"],
+    "MOTORS_BACKUPS_FOLDER": ["backups"],
+    "MOTORS_BACKUP_STAGING_FOLDER": ["backup_staging"],
+    "MOTORS_CONFIG_DIR": ["config"],
+    "MOTORS_FILE_USERS": ["config", "users.json"],
+    "MOTORS_FILE_TOKENS": ["config", "tokens.json"],
+    "MOTORS_DATA_DIR": ["data"],
+    "MOTORS_LOG_FILE": ["app.log"],
+}
+for _name, _rel in _RUNTIME_REL.items():
+    # setdefault: уважаем вручную заданные оператором MOTORS_*.
+    os.environ.setdefault(_name, os.path.join(_RUNTIME, *_rel))
+
+
+@pytest.fixture(scope="session")
+def live_server():
+    """Flask-приложение на изолированной runtime-БД: make_server, порт 0,
+    поток-daemon.
+
+    ВСЕГДА поднимает собственный сервер на MOTORS_*-путях (временная
+    runtime-папка) и возвращает base_url http://127.0.0.1:<порт>.
+    """
+    # Ленивый импорт строго ПОСЛЕ установки MOTORS_* (см. блок выше).
+    import app as app_module
+    from werkzeug.serving import make_server
+    from modules import db as db_module
+
+    expected_db = os.environ.get("MOTORS_DB_PATH")
+    if expected_db and os.path.abspath(db_module.DB_PATH) != os.path.abspath(expected_db):
+        pytest.fail(
+            "DB_PATH не изолирован: modules.db.DB_PATH=%r != env MOTORS_DB_PATH=%r. "
+            "Порядок импортов нарушен — live_server не будет запущен против боевой БД."
+            % (db_module.DB_PATH, expected_db)
+        )
+
+    server = make_server("127.0.0.1", 0, app_module.app, threaded=True)
+    port = server.server_port
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    for _ in range(100):
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                break
+        except OSError:
+            time.sleep(0.05)
+    yield "http://127.0.0.1:%d" % port
+
+    # Graceful shutdown: останавливаем приём запросов и дожидаемся потока.
+    server.shutdown()
+    thread.join(timeout=5)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _runtime_cleanup():
+    """Удаляет временную runtime-папку в конце pytest-сессии.
+
+    modules/backup_system/backup.py при импорте создаёт RotatingFileHandler
+    на BACKUPS_FOLDER/backup_restore.log и держит файл открытым весь процесс —
+    на Windows это блокирует rmtree. Поэтому перед удалением закрываем
+    handlers логгера backup_restore.
+    """
+    yield
+    if os.path.isdir(_RUNTIME):
+        _br_logger = logging.getLogger('backup_restore')
+        for _h in list(_br_logger.handlers):
+            try:
+                _h.close()
+            except Exception:
+                pass
+            _br_logger.removeHandler(_h)
+        shutil.rmtree(_RUNTIME, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------
@@ -83,12 +185,14 @@ def browser(pw):
 # Сессионный токен admin через реальную UI-логин форму (один раз).
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")
-def storage_state(browser, pw, _session_users_and_results):
+def storage_state(browser, pw, _session_users_and_results, live_server):
     # _session_users_and_results гарантирует, что e2e_test_admin существует
     # до первой UI-логина, и удаляет его после последнего теста.
+    # live_server предоставляет base_url изолированного приложения (этап C).
+    base_url = live_server
     ctx = browser.new_context()
     page = ctx.new_page()
-    page.goto(BASE_URL + "/", wait_until="domcontentloaded")
+    page.goto(base_url + "/", wait_until="domcontentloaded")
     page.wait_for_selector("#login-overlay", state="visible", timeout=10000)
     page.fill("#login-username", TEST_ADMIN)
     page.fill("#login-password", TEST_ADMIN_PW)
@@ -157,11 +261,12 @@ def _app_ready(page):
 
 
 @pytest.fixture
-def page(browser, storage_state, request):
+def page(browser, storage_state, request, live_server):
     """Авторизованная (admin) страница."""
+    base_url = live_server
     ctx = browser.new_context(storage_state=storage_state)
     p = ctx.new_page()
-    p.goto(BASE_URL + "/", wait_until="domcontentloaded")
+    p.goto(base_url + "/", wait_until="domcontentloaded")
     _app_ready(p)
     cap = Capture(p, request.node.nodeid)
     request.node._e2e_cap = cap
@@ -170,11 +275,12 @@ def page(browser, storage_state, request):
 
 
 @pytest.fixture
-def fresh_page(browser, request):
+def fresh_page(browser, request, live_server):
     """НЕавторизованная страница (для сценариев аутентификации)."""
+    base_url = live_server
     ctx = browser.new_context()
     p = ctx.new_page()
-    p.goto(BASE_URL + "/", wait_until="domcontentloaded")
+    p.goto(base_url + "/", wait_until="domcontentloaded")
     try:
         p.wait_for_selector("#login-overlay", state="visible", timeout=10000)
     except Exception:
@@ -186,15 +292,16 @@ def fresh_page(browser, request):
 
 
 @pytest.fixture
-def admin_api(pw):
+def admin_api(pw, live_server):
     """Request-context с bearer-токеном admin для проверок/уборки."""
-    ctx = pw.request.new_context(base_url=BASE_URL)
+    base_url = live_server
+    ctx = pw.request.new_context(base_url=base_url)
     resp = ctx.post("/api/auth/login",
                     data=json.dumps({"username": TEST_ADMIN, "password": TEST_ADMIN_PW}),
                     headers={"Content-Type": "application/json"})
     token = resp.json()["token"]
     ctx.dispose()
-    ctx = pw.request.new_context(base_url=BASE_URL,
+    ctx = pw.request.new_context(base_url=base_url,
                                  extra_http_headers={"Authorization": "Bearer " + token})
     yield ctx
     ctx.dispose()
