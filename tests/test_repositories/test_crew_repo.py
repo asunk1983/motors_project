@@ -127,3 +127,27 @@ class TestCrewRepoGuards:
         # delete работает, когда member не используется
         ok, err = delete(db_conn, member_id)
         assert ok is True
+
+    def test_delete_referenced_by_user_rejected(self, db_conn):
+        """Crew-запись, на которую ссылается users.crew_id, удалить нельзя."""
+        from repositories.crew_repo import create, is_referenced, delete
+        member_id = create(db_conn, full_name='Привязанный к учётке', position='engineer')
+
+        # Привязываем учётку в users к crew-записи (users.crew_id)
+        db_conn.execute(
+            "INSERT INTO users (username, password_hash, role, created_at, crew_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ('linked_user', 'hash', 'user', '2024-01-01', member_id),
+        )
+        db_conn.commit()
+
+        assert is_referenced(db_conn, member_id) is True
+
+        # delete обязан отказать с понятным сообщением, а не молча удалить
+        ok, err = delete(db_conn, member_id)
+        assert ok is False
+        assert err and 'удаление невозможно' in err
+
+        # запись в справочнике при этом должна остаться
+        row = db_conn.execute('SELECT id FROM crew WHERE id = ?', (member_id,)).fetchone()
+        assert row is not None and row[0] == member_id

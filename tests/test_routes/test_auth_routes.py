@@ -234,9 +234,11 @@ class TestAdminUserEdit:
     @patch('routes.auth.auth_module.get_user_by_id')
     @patch('routes.auth.crew_repo')
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_edit_user_crew_id_success(self, m_db, m_require_admin, m_crew_repo, m_get_user, m_update, client):
+    def test_edit_user_crew_id_success(self, m_db, m_cur, m_require_admin, m_crew_repo, m_get_user, m_update, client):
         m_require_admin.return_value = None  # admin
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
         m_get_user.return_value = {'id': 1, 'username': 'edituser', 'role': 'user', 'source': 'db'}
         m_crew_repo.get_by_id.return_value = {'id': 100, 'name': 'Test Crew'}
         m_update.return_value = True
@@ -252,24 +254,114 @@ class TestAdminUserEdit:
         m_update.assert_called_once_with(conn, 1, 100)
 
     @patch('routes.auth._require_admin')
-    def test_edit_user_forbidden(self, m_require_admin, client):
+    @patch('routes.auth.get_current_user')
+    def test_edit_user_forbidden(self, m_cur, m_require_admin, client):
         m_require_admin.return_value = ({'error': 'Доступ запрещён'}, 403)
+        m_cur.return_value = {'id': 1, 'role': 'user', 'source': 'db'}  # обычный пользователь
 
         r = client.patch('/api/auth/admin/users/1', json={'crew_id': 100})
         assert r.status_code == 403
 
     @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
     @patch('routes.auth.db_connection')
-    def test_edit_user_invalid_crew_id_400(self, m_db, m_require_admin, client):
+    def test_edit_user_invalid_crew_id_400(self, m_db, m_cur, m_require_admin, client):
         m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
         conn = MagicMock()
-        m_db.return_value.__enter__ = MagicMock.return_value(conn)
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
         m_db.return_value.__exit__ = MagicMock(return_value=False)
 
         r = client.patch('/api/auth/admin/users/1', json={'crew_id': 'invalid'})
         assert r.status_code == 400
         data = r.get_json()
         assert 'crew_id' in data['error']
+
+    @patch('routes.auth.auth_module.update_user_crew_id')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_edit_user_unlink_crew_success(self, m_db, m_cur, m_require_admin, m_get_user, m_update, client):
+        """crew_id: null — отвязка учётки от записи в справочнике crew."""
+        m_require_admin.return_value = None  # admin
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 1, 'username': 'edituser', 'role': 'user', 'source': 'db'}
+        m_update.return_value = True
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/1', json={'crew_id': None})
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data['success'] is True
+        m_update.assert_called_once_with(conn, 1, None)
+
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_edit_user_not_found_404(self, m_db, m_cur, m_require_admin, m_get_user, client):
+        """Несуществующий user_id -> 404."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = None  # пользователя с id=999 нет
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/999', json={'crew_id': 100})
+        assert r.status_code == 404
+        data = r.get_json()
+        assert 'Пользователь не найден' in data['error']
+
+    @patch('routes.auth.crew_repo')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_edit_user_nonexistent_crew_400(self, m_db, m_cur, m_require_admin, m_get_user, m_crew_repo, client):
+        """Существующий пользователь + несуществующий crew_id -> 400."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 1, 'username': 'edituser', 'role': 'user', 'source': 'db'}
+        m_crew_repo.get_by_id.return_value = None  # crew с id=999 нет
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/1', json={'crew_id': 999})
+        assert r.status_code == 400
+        data = r.get_json()
+        assert 'не найден' in data['error']
+
+    @patch('routes.auth.auth_module.update_file_user_crew_id')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth.crew_repo')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_edit_file_user_crew_id_success(self, m_db, m_cur, m_require_admin, m_crew_repo, m_get_user, m_update_file, client):
+        """Файловый пользователь (source='file') — привязка через update_file_user_crew_id."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 5, 'username': 'fileuser', 'role': 'user', 'source': 'file'}
+        m_crew_repo.get_by_id.return_value = {'id': 100, 'name': 'Test Crew'}
+        m_update_file.return_value = True
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/5', json={'crew_id': 100})
+        assert r.status_code == 200
+        data = r.get_json()
+        assert data['success'] is True
+        m_update_file.assert_called_once_with(5, 100)
 
 
 class TestAdminUserDelete:
