@@ -229,23 +229,6 @@ function applyRoleUI() {
         logoutBtn.addEventListener('click', logout);
     }
 
-    // Бейдж пользователя в сайдбаре (для админки).
-    let badge = document.getElementById('auth-user-badge');
-    if (!badge) {
-        badge = document.createElement('div');
-        badge.id = 'auth-user-badge';
-        badge.className = 'auth-user-badge';
-        const sidebar = document.querySelector('.sidebar-stats');
-        if (sidebar) sidebar.parentNode.insertBefore(badge, sidebar.nextSibling);
-    }
-    const roleLabel = user.role === 'superadmin' ? 'суперадмин'
-        : user.role === 'admin' ? 'админ'
-        : user.role === 'reader' ? 'читатель'
-        : 'пользователь';
-    const displayName = user.display_name || user.username || '';
-    badge.innerHTML = `<span class="icon icon-person"></span> ${escapeHtml(displayName)} <span class="auth-role">${roleLabel}</span> <button id="logout-btn" class="logout-btn">Выйти</button>`;
-    const lb = document.getElementById('logout-btn');
-    if (lb) lb.addEventListener('click', logout);
     // Опции admin/superadmin в #newRole видимы только суперадмину.
     const newRole = document.getElementById('newRole');
     if (newRole) {

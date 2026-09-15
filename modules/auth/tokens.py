@@ -94,7 +94,7 @@ def get_user_from_token(conn, token):
                     # Приклеиваем crew_id + display_name здесь (а не в роуте),
                     # потому что request.current_user на каждом запросе
                     # получает именно этот dict — и фронт ожидает увидеть
-                    # display_name в auth.js (#userName, #auth-user-badge).
+                    # display_name в auth.js (топбар, #userName).
                     from modules.auth.db_users import _attach_display_name
                     return _attach_display_name(conn, result)
     except Exception:

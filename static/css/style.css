@@ -1934,22 +1934,6 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .login-submit:hover { background: var(--color-primary-hover); }
 .login-error { color: var(--color-danger); font-size: 13px; min-height: 16px; }
 
-/* ===== Бейдж пользователя в сайдбаре ===== */
-.auth-user-badge {
-    margin-top: var(--space-3, 12px); padding: var(--space-2, 8px) var(--space-3, 12px);
-    font-size: 13px; color: var(--color-text-dark);
-    background: var(--color-bg-card); border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm, 8px);
-    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-}
-.auth-role { color: var(--color-secondary); font-weight: 600; }
-.logout-btn {
-    margin-left: auto; padding: 3px 8px; border: 1px solid var(--color-border);
-    background: var(--color-bg-main); border-radius: var(--radius-sm, 6px);
-    cursor: pointer; font-size: 12px; color: var(--color-text-muted);
-}
-.logout-btn:hover { background: var(--color-danger); color: #fff; border-color: var(--color-danger); }
-
 /* ===== АДМИНКА ===== */
 .admin-container { max-width: 900px; }
 .admin-notice {
