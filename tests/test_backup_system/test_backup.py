@@ -26,15 +26,24 @@ def temp_db_and_photos(tmp_path, monkeypatch):
     os.makedirs(backups_dir, exist_ok=True)
     os.makedirs(staging_dir, exist_ok=True)
 
-    # Создаём тестовую БД
+    # Создаём тестовую БД с РЕАЛЬНОЙ схемой приложения
+    # (modules.db.init_db). Это обязательно: после атомарной замены БД
+    # _apply_backup_zip() прогоняет init_db() по ВОССТАНОВЛЕННОЙ БД
+    # (актуализация схемы старого бэкапа). На прежней «игрушечной» схеме
+    # (engines только с id/filename/photo_count, отдельная таблица works,
+    # которой в схеме приложения вообще нет) init_db() падал на
+    # CREATE INDEX idx_engines_<col> — просто это было незаметно, потому
+    # что вызов db_module.init_db() без conn уходил в боевую engine_data.db
+    # (см. modules/backup_system/backup.py, шаг 7c). Любой реальный бэкап
+    # этого приложения содержит именно такую структуру, поэтому тестовая
+    # БД должна быть её копией, а не урезанной заглушкой.
     conn = sqlite3.connect(db_path)
-    conn.execute('CREATE TABLE engines (id INTEGER PRIMARY KEY, filename TEXT, photo_count INTEGER)')
-    conn.execute('CREATE TABLE operating_modes (id INTEGER PRIMARY KEY, engine_id INTEGER, frequency REAL)')
-    conn.execute('CREATE TABLE works (id INTEGER PRIMARY KEY, engine_id INTEGER, description TEXT)')
-    conn.execute('CREATE TABLE users (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, role TEXT, created_at TEXT)')
-    conn.execute('CREATE TABLE tokens (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash TEXT, created_at TEXT, expires_at TEXT)')
+    db_module.init_db(conn)
+    # Данные, на которые опираются тесты ниже (engines: photo_count и
+    # COUNT(*) до/после restore). Пользователь admin уже создан init_db()
+    # на пустой таблице users, отдельная вставка users не нужна (и упала
+    # бы на конфликте первичного ключа).
     conn.execute('INSERT INTO engines (id, filename, photo_count) VALUES (1, "test.xlsx", 2)')
-    conn.execute('INSERT INTO users (id, username, password_hash, role, created_at) VALUES (1, "admin", "hash", "admin", "2024-01-01")')
     conn.commit()
     conn.close()
 

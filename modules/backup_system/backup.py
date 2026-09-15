@@ -570,7 +570,18 @@ def _apply_backup_zip(zip_path):
                 # замены БД и фото, но ДО шага 8 (где открывается отдельное
                 # соединение к DB_PATH) — если init_db бросит, исключение
                 # попадёт в общий except ниже и сработает rollback БД/фото.
-                db_module.init_db()
+                # Соединение открываем ЯВНО по DB_PATH и передаём в
+                # init_db(conn): init_db() без аргумента открыла бы свою БД
+                # через modules.db.DB_PATH, минуя подмену путей — в тестах
+                # это уводило вызов в боевую engine_data.db (нарушение
+                # изоляции). Путь и параметры соединения те же, что были:
+                # get_db_connection применяет тот же набор PRAGMA, что
+                # использовала init_db() со своим соединением.
+                schema_conn = db_module.get_db_connection(DB_PATH)
+                try:
+                    db_module.init_db(schema_conn)
+                finally:
+                    schema_conn.close()
 
             finally:
                 # Убираем временный файл с распакованной БД
