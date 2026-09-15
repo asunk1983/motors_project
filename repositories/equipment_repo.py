@@ -1,7 +1,7 @@
 """Repository для номенклатуры оборудования (equipment_type, attribute_definition,
 equipment_type_attribute, equipment).
 
-Содержит ТОЛЬКО SQL-запросы. Стиль — как engine_repo.py/knowledge_repo.py.
+Содержит ТОЛЬКО SQL-запросы. Стиль — как engine_repo.py/location_repo.py.
 Все функции принимают sqlite3.Connection первым аргументом.
 """
 import json
@@ -224,8 +224,7 @@ def get_show_in_list_attributes(conn, type_id: int):
 
 def set_type_attributes(conn, type_id: int, assignments: list) -> None:
     """Полная замена набора атрибутов типа — DELETE+INSERT, тот же
-    паттерн, что replace_all в mode_repo/work_repo и
-    _replace_article_causes в knowledge_repo.
+    паттерн, что replace_all в mode_repo/work_repo.
     assignments: [{'attribute_definition_id': int, 'is_required': bool,
                     'weight_override': int|None, 'show_in_list': bool}, ...]
     """

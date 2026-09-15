@@ -6,7 +6,7 @@
   - оборудование: список, location-counts, CRUD записей, placements, фото, экспорт.
 
 Паттерн — как в существующих route-тестах проекта (test_engines.py,
-test_crew_routes.py, test_knowledge_routes.py): db_connection и repo-функции
+test_crew_routes.py): db_connection и repo-функции
 мокаются на уровне модуля роута; admin-гейты через мок _require_admin.
 
 ВАЖНО: никакие файловые операции (фото, экспорт) реально не выполняются —

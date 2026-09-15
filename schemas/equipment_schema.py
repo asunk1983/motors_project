@@ -1,6 +1,6 @@
 """Валидация/санитизация payload для номенклатуры оборудования.
 
-Контракт функций — как в schemas/engine_schema.py и schemas/knowledge_schema.py:
+Контракт функций — как в schemas/engine_schema.py:
   validate_..._payload(data) -> (is_valid: bool, error: str|None)
   sanitize_..._data(data) -> dict
 """

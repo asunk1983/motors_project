@@ -4,7 +4,7 @@
   - CRUD заявки: list, create, get, patch, delete;
   - location-counts, привязка/отвязка оборудования, фото, экспорт.
 
-Паттерн — как в существующих route-тестах проекта (test_ticket_routes.py,
+Паттерн — как в существующих route-тестах проекта (test_engines.py,
 test_crew_routes.py): db_connection и repo-функции мокаются на уровне модуля
 роута; текущий пользователь — мок _current_user_id; admin-гейт удаления —
 мок _require_admin.

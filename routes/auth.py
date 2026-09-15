@@ -38,8 +38,9 @@ def _require_admin():
 
 def _require_superadmin():
     """Строже, чем _require_admin — пропускает только role == 'superadmin'.
-    Используется там, где даже обычный admin не должен иметь доступ
-    (сейчас: база знаний, см. routes/knowledge_routes.py)."""
+    Гейт для разделов, где даже обычный admin не должен иметь доступ;
+    на текущий момент ни один роут его не вызывает — оставлен как
+    готовый ограничитель для будущих superadmin-разделов."""
     user = getattr(request, 'current_user', None)
     if not user or user.get('role') != 'superadmin':
         return jsonify({'error': 'Доступ запрещён (нужна роль superadmin)'}), 403

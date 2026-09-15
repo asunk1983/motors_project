@@ -1,9 +1,9 @@
 """Маршруты номенклатуры оборудования: equipment_type, attribute_definition,
 equipment_type_attribute, equipment.
 
-Стиль — как в routes/engines.py и routes/knowledge_routes.py.
+Стиль — как в routes/engines.py.
 
-Разграничение доступа (осознанное решение, отличное от knowledge_bp):
+Разграничение доступа (осознанное решение):
 - Конструктор (типы, атрибуты, назначение атрибутов типу) — требует
   _require_admin() поточечно в соответствующих роутах, как
   admin_* роуты в routes/auth.py. Это конфигурация схемы, не должна
