@@ -36,13 +36,20 @@ class TestDeleteEngine:
     @patch('routes.engines.get_by_id')
     @patch('routes.engines.engine_delete')
     @patch('routes.engines.photo_manager')
-    def test_delete_engine_success(self, mock_photo_manager, mock_engine_delete, mock_get_by_id, client, auth_headers):
+    @patch('routes.engines.db_connection')
+    def test_delete_engine_success(self, mock_db_connection, mock_photo_manager, mock_engine_delete, mock_get_by_id, client, auth_headers):
         """Успешное удаление двигателя и фотографий."""
         # Настраиваем моки
         mock_get_by_id.return_value = {'id': 1}  # Двигатель существует
         mock_photo_manager.delete_engine_photos_from_disk.return_value = (2, [])  # 2 фото удалено, нет ошибок
         mock_engine_delete.return_value = True  # Удаление из БD успешно
 
+        # db_connection обязан быть замокан: роут открывает соединение через
+        # `with db_connection() as conn` (routes/engines.py::delete_engine), и
+        # без патча оно уходило в боевой DB_PATH (modules.db.DB_PATH) в обход
+        # изоляции тестов — как в соседних тестах этого класса.
+        mock_db_connection.return_value.__enter__.return_value = MagicMock()
+        mock_db_connection.return_value.__exit__.return_value = None
         # Выполняем запрос
         response = client.delete('/api/engine/1', headers=auth_headers)
 
@@ -55,6 +62,8 @@ class TestDeleteEngine:
         # Проверяем порядок вызовов: сначала фото, затем БД
         mock_photo_manager.delete_engine_photos_from_disk.assert_called_once_with(1)
         mock_engine_delete.assert_called_once()
+        # Соединение бралось из замоканного db_connection, а не из боевого DB_PATH
+        mock_db_connection.assert_called_once()
         # Проверяем, что get_by_id был вызван дважды: один раз для проверки существования,
         # второй раз внутри engine_delete (или в нашем маршруте для проверки после удаления фото)
         assert mock_get_by_id.call_count >= 1
@@ -127,13 +136,19 @@ class TestDeleteEngine:
     @patch('routes.engines.get_by_id')
     @patch('routes.engines.engine_delete')
     @patch('routes.engines.photo_manager')
-    def test_delete_engine_db_deletion_failure_after_photo_success(self, mock_photo_manager, mock_engine_delete, mock_get_by_id, client, auth_headers):
+    @patch('routes.engines.db_connection')
+    def test_delete_engine_db_deletion_failure_after_photo_success(self, mock_db_connection, mock_photo_manager, mock_engine_delete, mock_get_by_id, client, auth_headers):
         """Если удаление из БД не удалось после успешного удаления фото, возвращаем ошибку.
         (Фотографии остаются удалёнными, но это исключительная ситуация)."""
         # Настраиваем моки
         mock_get_by_id.return_value = {'id': 1}  # Двигатель существует
         mock_photo_manager.delete_engine_photos_from_disk.return_value = (2, [])  # Фото удалены успешно
         mock_engine_delete.side_effect = Exception("Ошибка БД")  # Исключение при удалении из БД
+
+        # db_connection замокан — иначе соединение открывалось по боевому
+        # DB_PATH (см. комментарий в test_delete_engine_success выше)
+        mock_db_connection.return_value.__enter__.return_value = MagicMock()
+        mock_db_connection.return_value.__exit__.return_value = None
 
         # Выполняем запрос
         response = client.delete('/api/engine/1', headers=auth_headers)
@@ -148,6 +163,10 @@ class TestDeleteEngine:
         mock_photo_manager.delete_engine_photos_from_disk.assert_called_once_with(1)
         # И что попытка удаления из БД была
         mock_engine_delete.assert_called_once()
+        # Соединение бралось из замоканного db_connection, а не из боевого DB_PATH
+        mock_db_connection.assert_called_once()
+
+
 class TestCreateEngine:
     """POST /api/engine — создание, валидация payload (в т.ч. modes/works)."""
 
@@ -177,8 +196,8 @@ class TestCreateEngine:
 
         m_create.assert_called_once()
         assert m_create.call_args.kwargs['actor'] is None  # request.current_user не задан
-        m_modes.assert_called_once_with(conn, 42, payload['modes'])
-        m_works.assert_called_once_with(conn, 42, payload['works'])
+        m_modes.assert_called_once_with(conn, 42, payload['modes'], actor=None)
+        m_works.assert_called_once_with(conn, 42, payload['works'], actor=None)
 
     @patch('routes.engines.engine_create')
     @patch('routes.engines.db_connection')
@@ -258,8 +277,8 @@ class TestUpdateEngine:
         m_update.assert_called_once()
         assert m_update.call_args.args[1] == 1  # engine_id
         # Пустой список works приходит как есть: 'works' in data → replace_works(conn, 1, [])
-        m_modes.assert_called_once_with(conn, 1, payload['modes'])
-        m_works.assert_called_once_with(conn, 1, [])
+        m_modes.assert_called_once_with(conn, 1, payload['modes'], actor=None)
+        m_works.assert_called_once_with(conn, 1, [], actor=None)
 
     @patch('routes.engines.engine_update')
     @patch('routes.engines.get_by_id')
@@ -338,7 +357,7 @@ class TestUpdateEngineModes:
         response = client.put('/api/engine/1/modes', json={'modes': modes}, headers=auth_headers)
         assert response.status_code == 200
         assert json.loads(response.data)['success'] is True
-        m_replace.assert_called_once_with(conn, 1, modes)
+        m_replace.assert_called_once_with(conn, 1, modes, actor=None)
 
     @patch('routes.engines.replace_modes')
     @patch('routes.engines.get_by_id')
@@ -350,7 +369,7 @@ class TestUpdateEngineModes:
         m_db.return_value.__exit__ = MagicMock(return_value=False)
         response = client.put('/api/engine/1/modes', json={'modes': []}, headers=auth_headers)
         assert response.status_code == 200
-        m_replace.assert_called_once_with(conn, 1, [])
+        m_replace.assert_called_once_with(conn, 1, [], actor=None)
 
     @patch('routes.engines.replace_modes')
     @patch('routes.engines.get_by_id')
@@ -387,7 +406,7 @@ class TestUpdateEngineWorks:
         response = client.put('/api/engine/1/works', json={'works': works}, headers=auth_headers)
         assert response.status_code == 200
         assert json.loads(response.data)['success'] is True
-        m_replace.assert_called_once_with(conn, 1, works)
+        m_replace.assert_called_once_with(conn, 1, works, actor=None)
 
     @patch('routes.engines.replace_works')
     @patch('routes.engines.get_by_id')

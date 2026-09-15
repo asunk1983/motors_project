@@ -104,24 +104,30 @@ def test_delete_referenced_by_incident_rejected(db_conn, tree):
     """Узел, на который ссылается заявка Инцидента, удалить нельзя."""
     from repositories.incident_ticket_repo import create as create_ticket
 
-    create_ticket(db_conn, location_node_id=tree['line'], problem='П', created_by_user_id=1)
+    # Ссылка ставится на ЛИСТ без детей: у tree['line'] есть дочерний узел,
+    # поэтому первым срабатывал guard «есть дочерние места», и до проверки
+    # ссылок (is_referenced) дело не доходило.
+    leaf = create(db_conn, 'Зона 4', 'zone', parent_id=tree['line'])
+    create_ticket(db_conn, location_node_id=leaf, problem='П', created_by_user_id=1)
 
-    ok, err = delete(db_conn, tree['line'])
+    ok, err = delete(db_conn, leaf)
     assert ok is False and 'используется' in err
-    assert get_by_id(db_conn, tree['line']) is not None
+    assert get_by_id(db_conn, leaf) is not None
 
 
 def test_delete_referenced_by_equipment_rejected(db_conn, tree):
     """Узел, на который ссылается equipment.location_node_id, удалить нельзя."""
     from repositories.equipment_repo import create_equipment_type, create_equipment
 
+    # Лист без детей — см. комментарий в тесте выше.
+    leaf = create(db_conn, 'Зона 4', 'zone', parent_id=tree['line'])
     type_id = create_equipment_type(db_conn, code='pump', name='Насос')
     create_equipment(db_conn, {
         'equipment_type_id': type_id, 'name': 'EQ001', 'article': 'EQ001',
-        'location_node_id': tree['line'],
+        'location_node_id': leaf,
     })
 
-    ok, err = delete(db_conn, tree['line'])
+    ok, err = delete(db_conn, leaf)
     assert ok is False and 'используется' in err
 
 
@@ -131,15 +137,17 @@ def test_delete_referenced_by_placement_rejected(db_conn, tree):
     from repositories.equipment_repo import create_equipment_type, create_equipment
     from repositories.equipment_placement_repo import create as create_placement
 
+    # Лист без детей — см. комментарий в тесте выше.
+    leaf = create(db_conn, 'Зона 4', 'zone', parent_id=tree['line'])
     type_id = create_equipment_type(db_conn, code='pump', name='Насос')
     eq_id = create_equipment(db_conn, {
         'equipment_type_id': type_id, 'name': 'EQ001', 'article': 'EQ001',
     })
-    create_placement(db_conn, eq_id, tree['line'], designation='КМ1')
+    create_placement(db_conn, eq_id, leaf, designation='КМ1')
 
-    ok, err = delete(db_conn, tree['line'])
+    ok, err = delete(db_conn, leaf)
     assert ok is False and 'используется' in err
-    assert get_by_id(db_conn, tree['line']) is not None
+    assert get_by_id(db_conn, leaf) is not None
 
 
 def test_is_referenced_true_false(db_conn, tree):

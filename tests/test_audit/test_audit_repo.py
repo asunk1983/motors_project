@@ -78,8 +78,13 @@ class TestLocationValueLabel:
             ('engine', 1, 'location_node_id', str(root), str(zone), '2026-09-01T10:00:00'))
         db_conn.commit()
         rows, _ = audit_repo.list_entries(db_conn)
-        assert rows[0]['old_value_display'] == 'Цех №1'
-        assert rows[0]['new_value_display'] == 'Цех №1 → Зона 3'
+        # rows[0] — не запись про location_node_id: create() выше пишет в
+        # журнал ещё и служебные записи о создании узлов (field_name
+        # '__created__'), причём более свежие. Ищем нужную строку по
+        # field_name (тот же приём, что в test_order_by_changed_at_desc).
+        row = next(r for r in rows if r['field_name'] == 'location_node_id')
+        assert row['old_value_display'] == 'Цех №1'
+        assert row['new_value_display'] == 'Цех №1 → Зона 3'
 
     def test_unknown_location_keeps_raw(self, db_conn):
         cur = db_conn.cursor()

@@ -59,8 +59,16 @@ class TestDisplayName:
         assert user['crew_id'] is None and user['display_name'] == 'petrov'
 
     def test_missing_crew_record_fallback(self, db_conn, file_users_env):
-        create_user(db_conn, 'petrov', 'pass123', crew_id=4242)
-        assert get_user_by_username(db_conn, 'petrov')['display_name'] == 'petrov'
+        # create_user() с несуществующим crew_id отвергается FK-ом:
+        # users.crew_id объявлен REFERENCES crew(id), а db_connection()
+        # поднимает соединение с PRAGMA foreign_keys=ON. «Висячий» crew_id
+        # возможен только в legacy-БД, созданных до включения FK, — именно
+        # для таких данных резолвер обязан вернуть username. Поэтому
+        # fallback проверяем напрямую, а не через невозможную вставку.
+        with pytest.raises(sqlite3.IntegrityError):
+            create_user(db_conn, 'petrov', 'pass123', crew_id=4242)
+
+        assert resolve_display_name(db_conn, 4242, 'petrov') == 'petrov'
 
     def test_resolve_direct(self, db_conn):
         crew_id = _add_crew(db_conn, 'Иванов Иван')

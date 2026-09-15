@@ -4,6 +4,7 @@
 здесь проверяем только делегирование: разбор запроса, коды ответов,
 передачу параметров в photo_manager.
 """
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
@@ -99,6 +100,9 @@ class TestReplaceEnginePhoto:
                        content_type='multipart/form-data')
         assert r.status_code == 200
         m_replace.assert_called_once()
-        assert m_replace.call_args[0][1] == 1
-        assert m_replace.call_args[0][2] == 'ID1_1.png'
-        assert m_replace.call_args[0][3] is not None
+        # Контракт manager.replace_engine_photo(engine_id, filename, file_storage):
+        # соединение не передаётся — перезапись фото БД не трогает
+        # (photo_count не меняется), в отличие от upload/delete.
+        assert m_replace.call_args[0][0] == 1
+        assert m_replace.call_args[0][1] == 'ID1_1.png'
+        assert m_replace.call_args[0][2] is not None
