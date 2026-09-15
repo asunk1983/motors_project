@@ -182,59 +182,12 @@ def init_db(conn=None):
         # конкретной записи, отсортированная по времени.
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id, changed_at)')
 
-        # --- База знаний по отказам (справочники + статьи) --------------
-        # Полностью автономна от engines/maintenance_works — намеренно.
-        # Сейчас это отдельный, не привязанный к двигателям инструмент.
-        # На перспективу: привязка добавится тем же способом, что и
-        # остальные auto-migration поля в этом файле — например,
-        # _ensure_column(cursor, 'maintenance_works', 'failure_mode_id',
-        # 'INTEGER REFERENCES failure_mode(id)') — без переделки этих
-        # таблиц. failure_mode/failure_cause/knowledge_article спроектированы
-        # так, чтобы не потребовать миграции данных, когда это понадобится.
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS failure_mode (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                code TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                description TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS failure_cause (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                code TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                description TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS knowledge_article (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT NOT NULL,
-                symptom TEXT NOT NULL,
-                failure_mode_id INTEGER REFERENCES failure_mode(id),
-                diagnostic_steps TEXT,
-                recommended_action TEXT,
-                reference_note TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS knowledge_article_cause (
-                knowledge_article_id INTEGER NOT NULL REFERENCES knowledge_article(id) ON DELETE CASCADE,
-                failure_cause_id INTEGER NOT NULL REFERENCES failure_cause(id),
-                PRIMARY KEY (knowledge_article_id, failure_cause_id)
-            )
-        ''')
-
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_modes_engine ON operating_modes(engine_id)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_works_engine ON maintenance_works(engine_id)')
         for col in ('location', 'engine_type', 'manufacturer', 'serial_number', 'workshop', 'purpose'):
             cursor.execute(f'CREATE INDEX IF NOT EXISTS idx_engines_{col} ON engines({col})')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_tokens_hash ON tokens(token_hash)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_tokens_user ON tokens(user_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ka_mode ON knowledge_article(failure_mode_id)')
 
         # --- Номенклатура оборудования (equipment) -----------------------
         # Полностью отдельно от engines — своя номенклатура, свои типы.
@@ -341,80 +294,6 @@ def init_db(conn=None):
             WHERE designation IS NOT NULL
         ''')
 
-        # --- Заявки -> Отказы -> Работы -------------------------------
-        # ticket ≠ failure: заявка — сырое обращение, не каждая станет
-        # подтверждённым отказом. equipment_work существует только через
-        # failure (см. обсуждение) — если заявка не подтвердилась, работ
-        # по ней не бывает, только закрытие с rejection_reason.
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS ticket (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                equipment_id INTEGER REFERENCES equipment(id),
-                created_by_user_id INTEGER REFERENCES users(id),
-                priority TEXT NOT NULL DEFAULT 'normal',
-                status TEXT NOT NULL DEFAULT 'new',
-                title TEXT NOT NULL,
-                description TEXT,
-                created_at TEXT NOT NULL,
-                resolved_at TEXT,
-                closed_at TEXT,
-                rejected_at TEXT,
-                rejection_reason TEXT
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS failure (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticket_id INTEGER NOT NULL REFERENCES ticket(id),
-                equipment_id INTEGER NOT NULL REFERENCES equipment(id),
-                failure_mode_id INTEGER REFERENCES failure_mode(id),
-                failure_cause_id INTEGER REFERENCES failure_cause(id),
-                knowledge_article_id INTEGER REFERENCES knowledge_article(id),
-                symptom TEXT,
-                description TEXT,
-                confirmed INTEGER NOT NULL DEFAULT 0,
-                occurred_at TEXT,
-                restored_at TEXT,
-                downtime_minutes INTEGER GENERATED ALWAYS AS (
-                    CASE WHEN restored_at IS NOT NULL AND occurred_at IS NOT NULL
-                         THEN CAST((julianday(restored_at) - julianday(occurred_at)) * 1440 AS INTEGER)
-                         ELSE NULL END
-                ) STORED,
-                created_at TEXT NOT NULL
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS maintenance_action_type (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                code TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                is_software INTEGER NOT NULL DEFAULT 0
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS equipment_work (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                failure_id INTEGER NOT NULL REFERENCES failure(id) ON DELETE CASCADE,
-                action_type_id INTEGER REFERENCES maintenance_action_type(id),
-                executor_user_id INTEGER REFERENCES users(id),
-                description TEXT,
-                result TEXT,
-                successful INTEGER,
-                version_from TEXT,
-                version_to TEXT,
-                parameter_changed TEXT,
-                old_value TEXT,
-                new_value TEXT,
-                created_at TEXT NOT NULL
-            )
-        ''')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ticket_equipment ON ticket(equipment_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ticket_status ON ticket(status)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ticket_created ON ticket(created_at)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_failure_ticket ON failure(ticket_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_failure_equipment ON failure(equipment_id)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_work_failure ON equipment_work(failure_id)')
-
         # --- Дерево мест (location_node) -------------------------------
         # Общий ресурс уровня всего проекта (ТЗ "Инциденты + Оборудование",
         # раздел 1) — НЕ принадлежит ни одному конкретному модулю,
@@ -439,11 +318,9 @@ def init_db(conn=None):
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_location_name ON location_node(name)')
 
         # --- Модуль "Инциденты" -----------------------------------------
-        # Личный журнал диагностики отказов (замена Excel) — отдельно от
-        # ticket/failure выше (тот сценарий — формализованный протокол
-        # ремонта типизированной единицы оборудования с измерениями;
-        # этот — свободная запись "что/где/кто/как решили"). Модули НЕ
-        # смешиваются ни в БД, ни в UI (см. ТЗ "Инциденты", раздел 0).
+        # Личный журнал диагностики отказов (замена Excel): свободная
+        # запись "что/где/кто/как решили" по месту (см. ТЗ "Инциденты",
+        # раздел 0).
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS crew (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -541,17 +418,6 @@ def init_db(conn=None):
         # для записи о выводе в ремонт, "в работе" — для ввода обратно).
         _ensure_column(cursor, 'maintenance_works', 'status', "TEXT NOT NULL DEFAULT 'work'")
 
-        # knowledge_article <-> equipment_type: статья привязывается к КЛАССУ
-        # оборудования (не к конкретному экземпляру) — статья про перегрев
-        # ЧРП актуальна для всех ЧРП этого типа, а не для одной серийной
-        # единицы. NULL допустим — общая статья без привязки к типу.
-        # resolution_type — прямой ответ на "чинится софтом или руками",
-        # см. обсуждение при проектировании equipment: причина, по которой
-        # вообще понадобилась универсальная номенклатура вместо engines.
-        _ensure_column(cursor, 'knowledge_article', 'equipment_type_id', 'INTEGER REFERENCES equipment_type(id)')
-        _ensure_column(cursor, 'knowledge_article', 'resolution_type', "TEXT NOT NULL DEFAULT 'HARDWARE'")
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ka_equipment_type ON knowledge_article(equipment_type_id)')
-
         # equipment -> location_node (ТЗ "Инциденты + Оборудование", раздел
         # 3.1). workshop/location (TEXT) остаются на переходный период —
         # старые записи мигрируются одноразовым скриптом
@@ -597,59 +463,6 @@ def init_db(conn=None):
             from modules.auth import auth as auth_module
             auth_module.create_user(conn, 'admin', 'admin123', role='admin')
             logger.warning('Создан пользователь admin (роль: admin). Смените пароль!')
-
-        cursor.execute('SELECT COUNT(*) FROM failure_mode')
-        if cursor.fetchone()[0] == 0:
-            cursor.executemany(
-                'INSERT INTO failure_mode (code, name) VALUES (?, ?)',
-                [
-                    ('WINDING_BREAK', 'Обрыв обмотки'),
-                    ('WINDING_SHORT', 'Межвитковое замыкание'),
-                    ('GROUND_FAULT', 'Пробой на корпус'),
-                    ('BEARING_WEAR', 'Износ подшипника'),
-                    ('ROTOR_IMBALANCE', 'Дисбаланс ротора'),
-                    ('OVERHEATING', 'Перегрев'),
-                    ('INSULATION_DAMAGE', 'Повреждение изоляции'),
-                    ('NO_START', 'Не запускается'),
-                    ('VIBRATION', 'Повышенная вибрация'),
-                    ('NOISE', 'Посторонний шум'),
-                ]
-            )
-            logger.info('Загружен справочник failure_mode (10 записей)')
-
-        cursor.execute('SELECT COUNT(*) FROM failure_cause')
-        if cursor.fetchone()[0] == 0:
-            cursor.executemany(
-                'INSERT INTO failure_cause (code, name) VALUES (?, ?)',
-                [
-                    ('OVERLOAD', 'Перегрузка'),
-                    ('INSULATION_AGING', 'Старение изоляции'),
-                    ('MOISTURE', 'Влага / конденсат'),
-                    ('POOR_LUBRICATION', 'Некачественная смазка'),
-                    ('BEARING_DEFECT', 'Заводской дефект подшипника'),
-                    ('VOLTAGE_IMBALANCE', 'Дисбаланс питающего напряжения'),
-                    ('POOR_INSTALLATION', 'Некачественный монтаж'),
-                    ('CONTAMINATION', 'Загрязнение'),
-                    ('MECHANICAL_DAMAGE', 'Механическое повреждение'),
-                    ('WEAR', 'Естественный износ'),
-                ]
-            )
-            logger.info('Загружен справочник failure_cause (10 записей)')
-
-        cursor.execute('SELECT COUNT(*) FROM maintenance_action_type')
-        if cursor.fetchone()[0] == 0:
-            cursor.executemany(
-                'INSERT INTO maintenance_action_type (code, name, is_software) VALUES (?, ?, ?)',
-                [
-                    ('DIAGNOSTICS', 'Диагностика', 0),
-                    ('REPAIR', 'Ремонт', 0),
-                    ('REPLACEMENT', 'Замена', 0),
-                    ('CALIBRATION', 'Калибровка', 0),
-                    ('FIRMWARE_UPDATE', 'Обновление прошивки', 1),
-                    ('CONFIG_CHANGE', 'Изменение конфигурации', 1),
-                ]
-            )
-            logger.info('Загружен справочник maintenance_action_type (6 записей)')
 
         conn.commit()
     finally:

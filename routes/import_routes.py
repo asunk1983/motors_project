@@ -226,17 +226,16 @@ def clear_database():
     временем (раньше clear_database() хардкодил DELETE FROM engines/
     operating_modes/maintenance_works и при добавлении новой таблицы эту
     функцию приходилось дополнять вручную — повторяет ту же историю, что
-    и с restore в backup.py). Справочники (failure_mode, failure_cause,
-    maintenance_action_type, equipment_type, attribute_definition,
-    equipment_type_attribute) досеиваются init_db() автоматически.
+    и с restore в backup.py). Справочники (equipment_type,
+    attribute_definition, equipment_type_attribute) досеиваются init_db()
+    автоматически.
 
     Сохраняются и возвращаются обратно:
       - users, tokens             — чтобы админ мог снова войти
 
     Теряются безвозвратно: engines, operating_modes, maintenance_works,
     вся подсистема инцидентов (incident_ticket* и связанные), номенклатура
-    оборудования (equipment*), crew, location_node, knowledge_article*,
-    failure, ticket, equipment_work.
+    оборудования (equipment*), crew, location_node.
     """
     try:
         # --- 1. Сохраняем данные, которые нужно вернуть в новую БД ---
@@ -299,8 +298,7 @@ def clear_database():
 
         # --- 3. Пересоздаём схему БД через init_db() ---
         # init_db() создаст ВСЕ таблицы (CREATE TABLE IF NOT EXISTS) и
-        # досеет справочники (failure_mode, failure_cause и т.п.), но
-        # пустые.
+        # досеет справочники (equipment_type и т.п.), но пустые.
         db_module.init_db()
 
         # --- 4. Возвращаем preserved_* в новую БД ---
