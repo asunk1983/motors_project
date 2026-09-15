@@ -31,10 +31,12 @@ AUTH = "motors_auth_token"
 def test_01_login_success(fresh_page):
     login_ui(fresh_page, TEST_ADMIN, TEST_ADMIN_PW)
     expect(fresh_page.locator("#login-overlay")).to_be_hidden()
-    expect(fresh_page.locator("#auth-user-badge")).to_be_visible()
-    badge = (fresh_page.locator("#auth-user-badge").inner_text())
-    assert TEST_ADMIN in badge
-    assert "админ" in badge
+    # Имя пользователя в топбаре. Бейдж #auth-user-badge удалён из auth.js
+    # (он вставлялся только при наличии .sidebar-stats, которого нет в
+    # шаблоне), поэтому проверяем #userName — реальный элемент топбара.
+    expect(fresh_page.locator("#userName")).to_be_visible()
+    user_name = fresh_page.locator("#userName").inner_text()
+    assert TEST_ADMIN in user_name, "в топбаре должно быть имя вошедшего: " + user_name
     token = fresh_page.evaluate("localStorage.getItem('motors_auth_token')")
     assert token, "токен должен быть в localStorage"
     expect(fresh_page.locator("#tab-catalog")).to_be_visible()
@@ -44,7 +46,7 @@ def test_01_login_success(fresh_page):
 @pytest.mark.scn("2. Выход (logout)")
 def test_02_logout(fresh_page):
     login_ui(fresh_page, TEST_ADMIN, TEST_ADMIN_PW)
-    fresh_page.click("#logout-btn")
+    fresh_page.click("#logoutBtn")
     expect(fresh_page.locator("#login-overlay")).to_be_visible(timeout=15000)
     token = fresh_page.evaluate("localStorage.getItem('motors_auth_token')")
     assert not token, "токен должен быть удалён после logout"
@@ -54,11 +56,11 @@ def test_02_logout(fresh_page):
 @pytest.mark.scn("3. Проверка токена при загрузке (валидный)")
 def test_03_valid_token_on_reload(fresh_page):
     login_ui(fresh_page, TEST_ADMIN, TEST_ADMIN_PW)
-    expect(fresh_page.locator("#auth-user-badge")).to_be_visible()
+    expect(fresh_page.locator("#userName")).to_be_visible()
     fresh_page.reload()
     fresh_page.wait_for_load_state("networkidle", timeout=15000)
     expect(fresh_page.locator("#login-overlay")).to_be_hidden()
-    expect(fresh_page.locator("#auth-user-badge")).to_be_visible()
+    expect(fresh_page.locator("#userName")).to_be_visible()
 
 
 # 3b (невалидный токен)
@@ -100,9 +102,12 @@ def test_05_admin_tabs_visible_for_admin(page):
 @pytest.mark.scn("5. Вкладки Импорт/Админ скрыты для пользователя")
 def test_05b_admin_tabs_hidden_for_user(fresh_page):
     login_ui(fresh_page, TEST_USER, TEST_USER_PW)
-    expect(fresh_page.locator("#auth-user-badge")).to_be_visible()
-    badge = fresh_page.locator("#auth-user-badge").inner_text()
-    assert "пользователь" in badge
+    # Роль в UI больше не выводится (бейдж #auth-user-badge удалён из auth.js),
+    # поэтому проверяем пользователя по имени в топбаре, а скрытость
+    # admin-инструментов — по самим вкладкам (ниже).
+    expect(fresh_page.locator("#userName")).to_be_visible()
+    user_name = fresh_page.locator("#userName").inner_text()
+    assert TEST_USER in user_name, "в топбаре должно быть имя вошедшего: " + user_name
     expect(fresh_page.locator('.tab-btn[data-tab="import"]')).not_to_be_visible()
     expect(fresh_page.locator('.tab-btn[data-tab="admin"]')).not_to_be_visible()
 
@@ -133,7 +138,7 @@ def test_07_create_user(page, admin_api):
     pwd = "Pass1234"
     try:
         open_admin_tab(page)
-        page.click("button:has-text('➕ Добавить пользователя')")
+        page.click("button:has-text('Добавить пользователя')")
         form = page.locator("#addUserForm")
         expect(form).to_be_visible()
         form.locator("#newUsername").fill(uname)
@@ -152,15 +157,39 @@ def test_07_create_user(page, admin_api):
 
 
 # 8
+def _change_password_via_ui(page, user_id, new_password):
+    """Сменить пароль пользователя через UI и дождаться ответа ИМЕННО этого POST.
+
+    Опираться на toast нельзя: он живёт ~3.3с, поэтому второй wait_toast()
+    в тесте «успевал» на ещё видимом тосте от первой смены пароля, тест уходил
+    дальше, не дождавшись второй операции, и падал на проверке старого пароля.
+    Ждём сетевой ответ конкретного запроса + перед действием убеждаемся, что
+    предыдущий тост уже исчез (тогда и последующий wait_toast относится к
+    текущей операции, а не к предыдущей).
+    """
+    expected_text = page.locator(".toast").get_by_text("Пароль изменён", exact=False)
+    expect(expected_text).to_be_hidden(timeout=10000)
+    prompt_accept(page, new_password)
+    with page.expect_response(
+        lambda r: r.request.method == "POST"
+        and r.url.endswith("/api/auth/admin/users/%d/password" % user_id)
+    ) as resp_info:
+        page.locator(".admin-users-table tbody tr", has_text=TEST_USER) \
+            .locator("button[title='Сменить пароль']").click()
+    assert resp_info.value.status == 200, \
+        "смена пароля: HTTP %s" % resp_info.value.status
+    wait_toast(page, "Пароль изменён")
+    return resp_info.value
+
+
 @pytest.mark.scn("8. Смена пароля")
 def test_08_change_password(page, admin_api):
     new_pw = "Ch_" + uuid.uuid4().hex[:8] + "_12"
     open_admin_tab(page)
+    uid = get_user_id(admin_api, TEST_USER)
+    assert uid is not None, "тестовый пользователь должен существовать"
 
-    row = page.locator(".admin-users-table tbody tr", has_text=TEST_USER)
-    prompt_accept(page, new_pw)
-    row.locator("button[title='Сменить пароль']").click()
-    wait_toast(page, "Пароль изменён")
+    _change_password_via_ui(page, uid, new_pw)
 
     # вход под новым паролем
     r = admin_api.post("/api/auth/login",
@@ -169,9 +198,7 @@ def test_08_change_password(page, admin_api):
     assert r.status == 200, "логин под новым паролем должен работать"
 
     # restore original password
-    prompt_accept(page, TEST_USER_PW)
-    page.locator(".admin-users-table tbody tr", has_text=TEST_USER).locator("button[title='Сменить пароль']").click()
-    wait_toast(page, "Пароль изменён")
+    _change_password_via_ui(page, uid, TEST_USER_PW)
     r2 = admin_api.post("/api/auth/login",
                         data='{"username":"' + TEST_USER + '","password":"' + TEST_USER_PW + '"}',
                         headers={"Content-Type": "application/json"})
@@ -213,7 +240,7 @@ def test_10_delete_user(page, admin_api):
     pwd = "Pass1234"
     open_admin_tab(page)
 
-    page.click("button:has-text('➕ Добавить пользователя')")
+    page.click("button:has-text('Добавить пользователя')")
     form = page.locator("#addUserForm")
     form.locator("#newUsername").fill(uname)
     form.locator("#newPassword").fill(pwd)

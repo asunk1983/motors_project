@@ -76,7 +76,7 @@ def login_ui(page, username, password):
 
 
 def logout_ui(page):
-    page.click("#logout-btn")
+    page.click("#logoutBtn")
     expect(page.locator("#login-overlay")).to_be_visible(timeout=15000)
 
 

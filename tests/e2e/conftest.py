@@ -11,6 +11,7 @@
 """
 import json
 import os
+import re
 
 import pytest
 from playwright.sync_api import sync_playwright
@@ -191,6 +192,7 @@ def storage_state(browser, pw, _session_users_and_results, live_server):
     # live_server предоставляет base_url изолированного приложения (этап C).
     base_url = live_server
     ctx = browser.new_context()
+    _block_remote_fonts(ctx)
     page = ctx.new_page()
     page.goto(base_url + "/", wait_until="domcontentloaded")
     page.wait_for_selector("#login-overlay", state="visible", timeout=10000)
@@ -247,6 +249,20 @@ class Capture:
 # ---------------------------------------------------------------------------
 # Фикстуры страниц
 # ---------------------------------------------------------------------------
+# templates/index.html подключает render-blocking CSS Google Fonts
+# (fonts.googleapis.com / fonts.gstatic.com). С машины прогона эти хосты
+# отдаются нестабильно (от ~1.4 до 30+ секунд), из-за чего Page.goto()
+# уходил в таймаут и тесты падали на setup. Шрифт в e2e не проверяется —
+# обрываем запросы к нему на уровне контекста, чтобы загрузка страницы
+# не ждала внешнюю сеть.
+_REMOTE_FONT_URL = re.compile(r"^https?://fonts\.(?:googleapis|gstatic)\.com/")
+
+
+def _block_remote_fonts(context):
+    """Прервать запросы к Google Fonts в переданном browser-context."""
+    context.route(_REMOTE_FONT_URL, lambda route: route.abort())
+
+
 def _app_ready(page):
     """Ждём, пока SPA загрузит данные и каталог станет видимым."""
     page.wait_for_load_state("domcontentloaded")
@@ -265,6 +281,7 @@ def page(browser, storage_state, request, live_server):
     """Авторизованная (admin) страница."""
     base_url = live_server
     ctx = browser.new_context(storage_state=storage_state)
+    _block_remote_fonts(ctx)
     p = ctx.new_page()
     p.goto(base_url + "/", wait_until="domcontentloaded")
     _app_ready(p)
@@ -279,6 +296,7 @@ def fresh_page(browser, request, live_server):
     """НЕавторизованная страница (для сценариев аутентификации)."""
     base_url = live_server
     ctx = browser.new_context()
+    _block_remote_fonts(ctx)
     p = ctx.new_page()
     p.goto(base_url + "/", wait_until="domcontentloaded")
     try:
