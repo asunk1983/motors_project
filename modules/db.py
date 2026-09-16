@@ -50,11 +50,27 @@ def db_connection(db_path=None):
 
 
 def _ensure_column(cursor, table, column, definition):
-    """Добавляет колонку в таблицу, если она ещё не существует (auto-migration)."""
+    """Добавляет колонку в таблицу, если она ещё не существует (auto-migration).
+
+    ALTER защищён от гонки: Flask обрабатывает запросы в нескольких потоках, и
+    два потока/процесса могут одновременно выполнить init_db на одной и той же
+    СТАРОЙ БД (два параллельных POST /api/clear, либо одновременный старт
+    нескольких worker'ов gunicorn). Тогда оба проходят PRAGMA table_info
+    (колонки ещё нет) и оба выполняют ALTER — второй падает с исключением
+    sqlite3.OperationalError «duplicate column name». Это ожидаемо и безопасно
+    (колонку уже добавил параллельный поток), поэтому такая ошибка глотается.
+    Любая ДРУГАЯ OperationalError (например, «no such table») пробрасывается —
+    иначе реальная поломка схемы осталась бы незамеченной. Тот же приём, что
+    _add_column_ignoring_duplicate в repositories/*_repo.py.
+    """
     cursor.execute(f'PRAGMA table_info({table})')
     existing = {row[1] for row in cursor.fetchall()}
     if column not in existing:
-        cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+        try:
+            cursor.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+        except sqlite3.OperationalError as exc:
+            if 'duplicate column' not in str(exc).lower():
+                raise
 
 
 def init_db(conn=None):

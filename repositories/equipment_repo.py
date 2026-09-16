@@ -64,7 +64,17 @@ def _ensure_legacy_columns_dropped(conn) -> None:
     columns = [row[1] for row in conn.execute('PRAGMA table_info(equipment)').fetchall()]
     for col in ('serial_number', 'firmware_version', 'installed_at'):
         if col in columns:
-            conn.execute(f'ALTER TABLE equipment DROP COLUMN {col}')
+            try:
+                conn.execute(f'ALTER TABLE equipment DROP COLUMN {col}')
+            except sqlite3.OperationalError as exc:
+                # Гонка: параллельный запрос успел дропнуть эту же колонку
+                # между PRAGMA table_info и DROP — SQLite отвечает
+                # «no such column: ...». Это ожидаемо и безопасно (цель
+                # миграции уже достигнута), поэтому именно такая ошибка
+                # глотается. Всё остальное (например, «database is locked»)
+                # пробрасываем — молча глотать чужие ошибки нельзя.
+                if 'no such column' not in str(exc).lower():
+                    raise
     conn.commit()
 
 

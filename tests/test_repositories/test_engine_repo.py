@@ -268,3 +268,58 @@ class TestLastEdited:
         engine_id = create(db_conn, sample_engine_data, actor=ACTOR)
         editor, edited_at = self._last_edited(db_conn, engine_id)
         assert editor == 'Сидоров С.' and edited_at is not None
+
+    def test_ensure_last_edited_columns_no_race_with_8_threads(self, tmp_path):
+        """Гонка при самовосстановлении схемы: 8 потоков на «старой» БД.
+
+        Диагностика показала: без защиты два потока, одновременно прошедшие
+        PRAGMA table_info, гарантированно дают ошибку у второго ALTER
+        («duplicate column name: last_edited_by»). Здесь то же самое, но на
+        реальной файловой БД (in-memory нельзя разделить между соединениями) и
+        в 8 потоков; проверяем, что ошибок нет и колонки добавлены ровно один
+        раз. WAL включён, как в modules/db.py::get_db_connection.
+        """
+        import sqlite3
+        import threading
+        from repositories.engine_repo import _ensure_last_edited_columns
+
+        db_path = str(tmp_path / 'race.db')
+        setup = sqlite3.connect(db_path)
+        try:
+            setup.execute('PRAGMA journal_mode=WAL')
+            setup.execute('CREATE TABLE engines (id INTEGER PRIMARY KEY, note TEXT)')
+            setup.commit()
+        finally:
+            setup.close()
+
+        thread_count = 8
+        barrier = threading.Barrier(thread_count)
+        errors = []
+
+        def worker():
+            conn = sqlite3.connect(db_path, timeout=10)
+            try:
+                # Барьер: все потоки выполняют PRAGMA -> ALTER одновременно
+                barrier.wait(timeout=15)
+                _ensure_last_edited_columns(conn)
+            except Exception as exc:  # любая ошибка потока — провал теста
+                errors.append(f'{type(exc).__name__}: {exc}')
+            finally:
+                conn.close()
+
+        threads = [threading.Thread(target=worker) for _ in range(thread_count)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        assert errors == []
+
+        conn = sqlite3.connect(db_path)
+        try:
+            columns = [r[1] for r in conn.execute('PRAGMA table_info(engines)')]
+        finally:
+            conn.close()
+        # каждая колонка добавлена ровно один раз (дублей не появилось)
+        assert columns.count('last_edited_by') == 1
+        assert columns.count('last_edited_at') == 1
