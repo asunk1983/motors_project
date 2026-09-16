@@ -3,6 +3,7 @@
 Содержит ТОЛЬКО SQL-запросы. Бизнес-логика — в services/.
 Все функции принимают sqlite3.Connection как первый аргумент.
 """
+import sqlite3
 from datetime import datetime
 
 from modules.db import ENGINE_COLUMNS_ORDERED
@@ -15,9 +16,18 @@ from modules.audit import log_field_changes, log_creation, log_deletion
 # "Изменил" — отдельная колонка таблицы (не читается из audit_log,
 # независима от политики хранения журнала — см. договорённость по
 # архитектуре журнала изменений), пишется параллельно с updated_at в
-# create()/update(). Тот же паттерн самовосстанавливающейся миграции,
-# что incident_ticket_repo.py::_ensure_updated_at_column — точечная
-# правка репозитория вместо общей миграции в modules/db.py.
+# create()/update().
+#
+# Схема-первоисточник этих колонок — modules/db.py::init_db (CREATE TABLE
+# engines): на НОВОЙ БД (в т.ч. сразу после /api/clear, где файл БД и схема
+# пересоздаются с нуля) колонки есть с самого начала, и функция ниже —
+# no-op. Раньше колонок в схеме не было, и параллельные запросы после
+# очистки БД могли оба пройти PRAGMA table_info (колонки ещё нет) и оба
+# выполнить ALTER — второй падал с «duplicate column name», а роут отвечал
+# 500 (см. _add_column_ignoring_duplicate ниже).
+#
+# Для УЖЕ СУЩЕСТВУЮЩИХ (старых) БД эта функция остаётся страховкой —
+# поэтому она и живёт в репозитории, а не только в modules/db.py.
 #
 # Состояние проверяется ПРИ КАЖДОМ вызове через PRAGMA table_info (без
 # модульного флага-кэша): PRAGMA-запрос дёшев, а флаг на модуль ломал
@@ -26,12 +36,31 @@ from modules.audit import log_field_changes, log_creation, log_deletion
 # на живой БД — один PRAGMA на запрос, это микросекунды.
 
 
+def _add_column_ignoring_duplicate(conn, table: str, column: str, definition: str) -> None:
+    """ALTER TABLE ... ADD COLUMN, для которого «duplicate column» — не ошибка.
+
+    Гонка: Flask обрабатывает запросы в нескольких потоках, поэтому два
+    параллельных запроса могут оба пройти проверку PRAGMA table_info
+    (колонки ещё нет) и оба выполнить ALTER. Второй получает
+    sqlite3.OperationalError «duplicate column name: ...» — это ожидаемо и
+    безопасно: колонку уже добавил параллельный запрос, цель миграции
+    достигнута. Всё остальное (например, «no such table») НЕ глотаем —
+    пробрасываем наверх, иначе реальная поломка схемы осталась бы
+    незамеченной.
+    """
+    try:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+    except sqlite3.OperationalError as exc:
+        if 'duplicate column' not in str(exc).lower():
+            raise
+
+
 def _ensure_last_edited_columns(conn) -> None:
     columns = [row[1] for row in conn.execute('PRAGMA table_info(engines)').fetchall()]
     if 'last_edited_by' not in columns:
-        conn.execute('ALTER TABLE engines ADD COLUMN last_edited_by TEXT')
+        _add_column_ignoring_duplicate(conn, 'engines', 'last_edited_by', 'TEXT')
     if 'last_edited_at' not in columns:
-        conn.execute('ALTER TABLE engines ADD COLUMN last_edited_at TEXT')
+        _add_column_ignoring_duplicate(conn, 'engines', 'last_edited_at', 'TEXT')
     conn.commit()
 
 

@@ -15,6 +15,7 @@ from repositories.incident_ticket_repo import (
     _ensure_updated_at_column,
     _ensure_no_users_fk,
     _ensure_last_edited_columns,
+    _add_column_ignoring_duplicate,
 )
 
 
@@ -342,15 +343,44 @@ class TestIncidentTicketLastEdited:
         assert edited_at is not None
 
     def test_ensure_last_edited_columns_idempotent(self, db_conn, location_id):
-        # init_db не содержит колонок — «старая» схема
-        columns = [r[1] for r in db_conn.execute('PRAGMA table_info(incident_ticket)')]
-        assert 'last_edited_by' not in columns and 'last_edited_at' not in columns
+        import sqlite3
 
+        # Схема init_db (modules/db.py) объявляет колонки сразу
         _ensure_last_edited_columns(db_conn)
-        _ensure_last_edited_columns(db_conn)  # повторный вызов — идемпотентен
-
+        _ensure_last_edited_columns(db_conn)
         columns = [r[1] for r in db_conn.execute('PRAGMA table_info(incident_ticket)')]
         assert 'last_edited_by' in columns and 'last_edited_at' in columns
+
+        # «Старая» БД (таблица ещё без last_edited_*/updated_at) — минимальная
+        # таблица в отдельном соединении: проверяем обе самовосстанавливающиеся
+        # миграции, которые остаются страховкой для уже существующих БД,
+        # включая бэкафилл updated_at значением created_at
+        legacy = sqlite3.connect(':memory:')
+        try:
+            legacy.execute('CREATE TABLE incident_ticket (id INTEGER PRIMARY KEY, '
+                           'problem TEXT, created_at TEXT)')
+            legacy.execute("INSERT INTO incident_ticket (problem, created_at) "
+                           "VALUES ('П', '2026-01-01T00:00:00')")
+            legacy.commit()
+
+            _ensure_last_edited_columns(legacy)
+            _ensure_last_edited_columns(legacy)  # повторный вызов — идемпотентен
+            legacy_cols = [r[1] for r in legacy.execute('PRAGMA table_info(incident_ticket)')]
+            assert 'last_edited_by' in legacy_cols and 'last_edited_at' in legacy_cols
+            assert len(legacy_cols) == len(set(legacy_cols))  # дублей не появилось
+
+            _ensure_updated_at_column(legacy)
+            row = legacy.execute(
+                'SELECT updated_at, created_at FROM incident_ticket').fetchone()
+            assert row[0] == row[1]  # бэкафилл updated_at = created_at
+
+            # Гонка: колонку успел добавить параллельный запрос — «duplicate
+            # column name» проглатывается, а любая другая OperationalError — нет
+            _add_column_ignoring_duplicate(legacy, 'incident_ticket', 'last_edited_by', 'TEXT')
+            with pytest.raises(sqlite3.OperationalError):
+                _add_column_ignoring_duplicate(legacy, 'incident_ticket_absent', 'x', 'TEXT')
+        finally:
+            legacy.close()
 
         # После миграции create() работает штатно
         ticket_id = create(

@@ -300,17 +300,36 @@ class TestEquipmentLastEdited:
         assert edited_at is not None
 
     def test_ensure_last_edited_columns_idempotent(self, db_conn):
-        from repositories.equipment_repo import _ensure_last_edited_columns
+        import sqlite3
+        from repositories.equipment_repo import (
+            _ensure_last_edited_columns, _add_column_ignoring_duplicate,
+        )
 
-        # init_db не содержит колонок — это «старая» схема
-        columns = [r[1] for r in db_conn.execute("PRAGMA table_info(equipment)")]
-        assert "last_edited_by" not in columns and "last_edited_at" not in columns
-
+        # Схема init_db (modules/db.py) объявляет колонки сразу
         _ensure_last_edited_columns(db_conn)
-        _ensure_last_edited_columns(db_conn)  # повторный вызов — идемпотентен
-
+        _ensure_last_edited_columns(db_conn)
         columns = [r[1] for r in db_conn.execute("PRAGMA table_info(equipment)")]
         assert "last_edited_by" in columns and "last_edited_at" in columns
+
+        # «Старая» БД (таблица ещё без колонок) — минимальная таблица в
+        # отдельном соединении: проверяем саму миграцию, которая остаётся
+        # страховкой для уже существующих БД
+        legacy = sqlite3.connect(':memory:')
+        try:
+            legacy.execute('CREATE TABLE equipment (id INTEGER PRIMARY KEY, name TEXT)')
+            _ensure_last_edited_columns(legacy)
+            _ensure_last_edited_columns(legacy)  # повторный вызов — идемпотентен
+            legacy_cols = [r[1] for r in legacy.execute('PRAGMA table_info(equipment)')]
+            assert "last_edited_by" in legacy_cols and "last_edited_at" in legacy_cols
+            assert len(legacy_cols) == len(set(legacy_cols))  # дублей не появилось
+
+            # Гонка: колонку успел добавить параллельный запрос — «duplicate
+            # column name» проглатывается, а любая другая OperationalError — нет
+            _add_column_ignoring_duplicate(legacy, "equipment", "last_edited_by", "TEXT")
+            with pytest.raises(sqlite3.OperationalError):
+                _add_column_ignoring_duplicate(legacy, "equipment_absent", "x", "TEXT")
+        finally:
+            legacy.close()
 
 
 # ---------------------------------------------------------------------

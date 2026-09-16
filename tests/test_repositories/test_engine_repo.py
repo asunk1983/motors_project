@@ -228,23 +228,43 @@ class TestLastEdited:
         assert edited_at is not None
 
     def test_ensure_last_edited_columns_idempotent(self, db_conn, sample_engine_data):
-        from repositories.engine_repo import _ensure_last_edited_columns
+        import sqlite3
+        from repositories.engine_repo import (
+            _ensure_last_edited_columns, _add_column_ignoring_duplicate,
+        )
 
-        # На схеме из init_db (init_db тут — «старая» схема: колонок ещё нет)
-        columns = [r[1] for r in db_conn.execute('PRAGMA table_info(engines)')]
-        assert 'last_edited_by' not in columns and 'last_edited_at' not in columns
-
-        # Первый вызов добавляет колонки...
+        # 1) Схема init_db (modules/db.py) объявляет колонки сразу — вызовы
+        # миграции на ней идемпотентны и ничего не ломают.
+        _ensure_last_edited_columns(db_conn)
         _ensure_last_edited_columns(db_conn)
         columns = [r[1] for r in db_conn.execute('PRAGMA table_info(engines)')]
         assert 'last_edited_by' in columns and 'last_edited_at' in columns
 
-        # ...повторный вызов — идемпотентен, не падает и не плодит дубли
-        _ensure_last_edited_columns(db_conn)
-        columns = [r[1] for r in db_conn.execute('PRAGMA table_info(engines)')]
-        assert 'last_edited_by' in columns and 'last_edited_at' in columns
+        # 2) «Старая» БД (таблица ещё без этих колонок) — минимальная таблица
+        # в отдельном соединении: проверяем саму миграцию, которая остаётся
+        # страховкой для уже существующих БД. Именно такой вызов
+        # (PRAGMA -> ALTER) в параллельных потоках и давал гонку
+        # «duplicate column name».
+        legacy = sqlite3.connect(':memory:')
+        try:
+            legacy.execute('CREATE TABLE engines (id INTEGER PRIMARY KEY, note TEXT)')
+            _ensure_last_edited_columns(legacy)
+            _ensure_last_edited_columns(legacy)  # повторный вызов — идемпотентен
+            legacy_cols = [r[1] for r in legacy.execute('PRAGMA table_info(engines)')]
+            assert 'last_edited_by' in legacy_cols and 'last_edited_at' in legacy_cols
+            assert len(legacy_cols) == len(set(legacy_cols))  # дублей не появилось
 
-        # После миграции create() работает штатно
+            # Гонка: параллельный запрос успел добавить колонку между PRAGMA и
+            # ALTER — «duplicate column name» проглатывается, запрос не падает...
+            _add_column_ignoring_duplicate(legacy, 'engines', 'last_edited_by', 'TEXT')
+
+            # ...а любая ДРУГАЯ OperationalError пробрасывается наверх
+            with pytest.raises(sqlite3.OperationalError):
+                _add_column_ignoring_duplicate(legacy, 'engines_absent', 'x', 'TEXT')
+        finally:
+            legacy.close()
+
+        # 3) После миграции create() работает штатно
         engine_id = create(db_conn, sample_engine_data, actor=ACTOR)
         editor, edited_at = self._last_edited(db_conn, engine_id)
         assert editor == 'Сидоров С.' and edited_at is not None

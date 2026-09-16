@@ -68,6 +68,20 @@ def init_db(conn=None):
         conn = get_db_connection()
     try:
         cursor = conn.cursor()
+        # last_edited_by/last_edited_at («Изменил») объявлены прямо в схеме, а
+        # не только самовосстанавливающейся миграцией
+        # repositories/engine_repo.py::_ensure_last_edited_columns: на новой БД
+        # (в т.ч. сразу после /api/clear, где файл БД и схема пересоздаются с
+        # нуля) колонки есть с самого начала, поэтому два параллельных запроса
+        # не могут оба пройти PRAGMA table_info и уронить один из них на ALTER
+        # с «duplicate column name». Старые БД получают эти колонки всё той же
+        # миграцией (тип TEXT совпадает с ALTER).
+        #
+        # Комментарий намеренно вынесен ЗА пределы CREATE TABLE: SQLite при
+        # ALTER TABLE ... DROP COLUMN переписывает сохранённый текст схемы, и
+        # комментарии внутри CREATE TABLE (в которых встречаются имена
+        # колонок) приводят к падению «error in table ... after drop column:
+        # incomplete input» — проверено на этой схеме.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS engines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,7 +104,9 @@ def init_db(conn=None):
                 photo_count INTEGER DEFAULT 0,
                 status TEXT NOT NULL DEFAULT 'work',
                 created_at TEXT,
-                updated_at TEXT
+                updated_at TEXT,
+                last_edited_by TEXT,
+                last_edited_at TEXT
             )
         ''')
         cursor.execute('''
@@ -227,6 +243,12 @@ def init_db(conn=None):
                 PRIMARY KEY (equipment_type_id, attribute_definition_id)
             )
         ''')
+        # «Изменил» (last_edited_by/last_edited_at) объявлены в схеме — см.
+        # пояснение у CREATE TABLE engines выше: так на свежей БД (после
+        # /api/clear) нет гонки параллельных ALTER'ов, а
+        # repositories/equipment_repo.py::_ensure_last_edited_columns остаётся
+        # страховкой для уже существующих БД. Комментарий вынесен за пределы
+        # CREATE TABLE по той же причине, что и у engines (DROP COLUMN).
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS equipment (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -240,7 +262,9 @@ def init_db(conn=None):
                 specs_json TEXT,
                 note TEXT,
                 created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
+                updated_at TEXT NOT NULL,
+                last_edited_by TEXT,
+                last_edited_at TEXT
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_equipment_type_parent ON equipment_type(parent_type_id)')
@@ -332,6 +356,13 @@ def init_db(conn=None):
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_crew_name ON crew(full_name)')
 
+        # last_edited_by/last_edited_at («Изменил») объявлены в схеме — по той
+        # же причине, что и у engines выше (см. пояснение к CREATE TABLE
+        # engines): на свежей БД репозитариальная миграция
+        # _ensure_last_edited_columns становится no-op, поэтому гонки
+        # параллельных ALTER'ов после /api/clear нет; для уже существующих БД
+        # миграция остаётся страховкой. Комментарий вынесен за пределы
+        # CREATE TABLE по той же причине, что и у engines.
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS incident_ticket (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -357,9 +388,10 @@ def init_db(conn=None):
                 -- updated_at объявлен здесь для свежих БД: так новые
                 -- развёртывания сразу имеют полную схему, а старые БД получают
                 -- эту колонку через репозитариальную миграцию
-                -- _ensure_updated_at_column. last_edited_by/last_edited_at
-                -- добавляются миграцией _ensure_last_edited_columns.
-                updated_at TEXT
+                -- _ensure_updated_at_column.
+                updated_at TEXT,
+                last_edited_by TEXT,
+                last_edited_at TEXT
             )
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_incident_status ON incident_ticket(status)')

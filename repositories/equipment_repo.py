@@ -5,6 +5,7 @@ equipment_type_attribute, equipment).
 Все функции принимают sqlite3.Connection первым аргументом.
 """
 import json
+import sqlite3
 from datetime import datetime
 
 from repositories import location_repo
@@ -16,20 +17,38 @@ from modules.audit import log_field_changes, log_creation, log_deletion
 # ---------------------------------------------------------------------
 # "Изменил" — см. подробное обоснование в engine_repo.py::
 # _ensure_last_edited_columns (тот же паттерн, отдельно на каждую
-# таблицу — точечная правка репозитория вместо общей миграции в
-# modules/db.py).
+# таблицу). Схема-первоисточник колонок — modules/db.py::init_db
+# (CREATE TABLE equipment): на новой БД функция ниже — no-op, а для
+# старых БД она остаётся страховкой.
 #
 # Состояние проверяется ПРИ КАЖДОМ ВЫЗОВЕ через PRAGMA table_info (без
 # модульного флага-кэша) — см. engine_repo.py::_ensure_last_edited_columns:
 # флаг ломал in-memory тестовые БД, PRAGMA дёшев.
 
 
+def _add_column_ignoring_duplicate(conn, table: str, column: str, definition: str) -> None:
+    """ALTER TABLE ... ADD COLUMN, для которого «duplicate column» — не ошибка.
+
+    Копия engine_repo.py::_add_column_ignoring_duplicate (репозитории в
+    этом проекте намеренно самодостаточны — см. пояснение к
+    _ensure_last_edited_columns выше). Гонка: два параллельных запроса
+    могут оба пройти PRAGMA table_info (колонки ещё нет) и оба выполнить
+    ALTER — второй падает с «duplicate column name», что ожидаемо и
+    безопасно. Любая другая OperationalError пробрасывается наверх.
+    """
+    try:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+    except sqlite3.OperationalError as exc:
+        if 'duplicate column' not in str(exc).lower():
+            raise
+
+
 def _ensure_last_edited_columns(conn) -> None:
     columns = [row[1] for row in conn.execute('PRAGMA table_info(equipment)').fetchall()]
     if 'last_edited_by' not in columns:
-        conn.execute('ALTER TABLE equipment ADD COLUMN last_edited_by TEXT')
+        _add_column_ignoring_duplicate(conn, 'equipment', 'last_edited_by', 'TEXT')
     if 'last_edited_at' not in columns:
-        conn.execute('ALTER TABLE equipment ADD COLUMN last_edited_at TEXT')
+        _add_column_ignoring_duplicate(conn, 'equipment', 'last_edited_at', 'TEXT')
     conn.commit()
 
 

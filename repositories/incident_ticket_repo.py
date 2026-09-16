@@ -7,23 +7,47 @@ from repositories import incident_equipment_repo, location_repo
 from modules.audit import log_field_changes, log_creation, log_deletion
 
 
+def _add_column_ignoring_duplicate(conn: sqlite3.Connection, table: str, column: str,
+                                   definition: str) -> None:
+    """ALTER TABLE ... ADD COLUMN, для которого «duplicate column» — не ошибка.
+
+    Копия engine_repo.py::_add_column_ignoring_duplicate (репозитории в этом
+    проекте намеренно самодостаточны — модуль не тянет общие хелперы из
+    modules/db.py). Гонка: Flask обрабатывает запросы в нескольких потоках,
+    поэтому два параллельных запроса могут оба пройти PRAGMA table_info
+    (колонки ещё нет) и оба выполнить ALTER — второй падает с
+    sqlite3.OperationalError «duplicate column name: ...», что ожидаемо и
+    безопасно: колонку уже добавил параллельный запрос. Любая другая
+    OperationalError (например, «no such table») пробрасывается наверх, не
+    глотается.
+    """
+    try:
+        conn.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
+    except sqlite3.OperationalError as exc:
+        if 'duplicate column' not in str(exc).lower():
+            raise
+
+
 # ---------------------------------------------------------------------
 # Самовосстанавливающаяся миграция: колонка updated_at
 # ---------------------------------------------------------------------
-# incident_ticket изначально заводился только с created_at/closed_at —
 # "Изменено" в шапке карточки (см. фронт: incidents.js::
 # renderIncidentDetailToolbar) нечего показывать без отдельной колонки.
-# Вместо правки modules/db.py (общая точка миграций, файл здесь не
-# запрашивался) — самодостаточная проверка прямо в репозитории: если
-# колонки ещё нет, добавляем её и один раз бэкафилливаем существующие
-# строки значением created_at. ALTER TABLE ... ADD COLUMN в SQLite —
-# дешёвая операция, PRAGMA table_info тоже, но кэшируем результат
-# флагом на модуль, чтобы не гонять её на каждый запрос в рамках
-# одного процесса.
+# Схема-первоисточник — modules/db.py::init_db (CREATE TABLE
+# incident_ticket): на новой БД колонка есть с самого начала, и функция
+# ниже — no-op; для уже существующих (старых) БД она добавляет колонку и
+# один раз бэкафилливает строки значением created_at. ALTER TABLE ...
+# ADD COLUMN в SQLite и PRAGMA table_info — операции дешёвые, поэтому
+# проверка делается прямо в репозитории и на каждом вызове (без
+# модульного флага-кэша: флаг ломал in-memory тестовые БД — каждый тест
+# получает свежую схему, а флаг «уже применено» оставался висеть с
+# предыдущего).
 def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
     cols = [row[1] for row in conn.execute('PRAGMA table_info(incident_ticket)').fetchall()]
     if 'updated_at' not in cols:
-        conn.execute('ALTER TABLE incident_ticket ADD COLUMN updated_at TEXT')
+        _add_column_ignoring_duplicate(conn, 'incident_ticket', 'updated_at', 'TEXT')
+        # Бэкафилл идемпотентен (WHERE ... IS NULL), поэтому выполняется и
+        # в том случае, если колонку успел добавить параллельный запрос.
         conn.execute('UPDATE incident_ticket SET updated_at = created_at WHERE updated_at IS NULL')
         conn.commit()
 
@@ -31,14 +55,16 @@ def _ensure_updated_at_column(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------
 # Самовосстанавливающаяся миграция: колонки last_edited_by/last_edited_at
 # ---------------------------------------------------------------------
-# "Изменил" — та же логика, что _ensure_updated_at_column выше, отдельный
-# флаг/функция под свою пару колонок.
+# "Изменил" — та же логика, что у _ensure_updated_at_column выше: колонки
+# объявлены в modules/db.py::init_db (CREATE TABLE incident_ticket), а
+# функция остаётся страховкой для уже существующих БД (отдельная функция
+# под свою пару колонок).
 def _ensure_last_edited_columns(conn: sqlite3.Connection) -> None:
     cols = [row[1] for row in conn.execute('PRAGMA table_info(incident_ticket)').fetchall()]
     if 'last_edited_by' not in cols:
-        conn.execute('ALTER TABLE incident_ticket ADD COLUMN last_edited_by TEXT')
+        _add_column_ignoring_duplicate(conn, 'incident_ticket', 'last_edited_by', 'TEXT')
     if 'last_edited_at' not in cols:
-        conn.execute('ALTER TABLE incident_ticket ADD COLUMN last_edited_at TEXT')
+        _add_column_ignoring_duplicate(conn, 'incident_ticket', 'last_edited_at', 'TEXT')
     conn.commit()
 
 
