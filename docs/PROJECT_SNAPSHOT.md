@@ -50,7 +50,7 @@
 | Frontend    | Vanilla JS (ES-модули), HTML, CSS (без фреймворков)          |
 | Excel       | `openpyxl`                                                   |
 | Архивация   | стандартный `zipfile` + `sqlite3` Online Backup API          |
-| Тесты       | `pytest` (юнит/repo), `playwright` (e2e, Chrome headfull)   |
+| Тесты       | `pytest` (юнит/repo), `playwright` (e2e, Chrome headless)   |
 
 **Ключевые принципы архитектуры (как они видны в коде):**
 - **Repository pattern** — SQL изолирован в `repositories/`, сервисы и роуты работают с функциями-репозиториями.
@@ -92,9 +92,9 @@ c:\motors_project\
 |     +- backup.py                     # zip+SQLite Online Backup + manifest + checksums
 +- repositories\                       # тонкий слой SQL (см. §4)
 |  +- engine_repo.py, mode_repo.py, work_repo.py
-|  +- location_repo.py, changelog_repo.py, wishlist_repo.py
+|  +- location_repo.py, audit_repo.py
 |  +- crew_repo.py, equipment_repo.py, incident_equipment_repo.py
-|  +- incident_link_repo.py, incident_ticket_repo.py
+|  +- equipment_placement_repo.py, incident_ticket_repo.py
 +- routes\                             # Flask Blueprints (см. §6)
 |  +- auth.py, engines.py, search.py
 |  +- equipment_routes.py, equipment_photo_routes.py
@@ -102,7 +102,7 @@ c:\motors_project\
 |  +- backup_routes.py, import_routes.py, export_routes.py
 |  +- location_routes.py
 |  +- pages.py, status.py, photos.py
-|  +- changelog.py, crew_routes.py
+|  +- changelog.py, crew_routes.py, audit_routes.py
 +- schemas\                            # Pydantic-подобные валидаторы (легковесные, на dataclass)
 |  +- engine_schema.py, equipment_schema.py
 |  +- incident_ticket_schema.py
@@ -134,7 +134,7 @@ c:\motors_project\
 |  +- conftest.py                      # фикстуры db_conn, app, client
 |  +- test_repositories\               # юнит-тесты репозиториев
 |  +- e2e\
-|  |  +- conftest.py                   # Playwright, browser=Chrome headfull, фикстуры api/page
+|  |  +- conftest.py                   # Playwright, browser=Chrome headless, фикстуры api/page
 |  |  +- helpers.py                    # make_engine, login_ui, switch_tab, wait_toast
 |  |  +- test_01_auth.py ... test_11_misc.py
 +- docs\                               # эта и другие документации
@@ -566,7 +566,7 @@ fetch(url, {
 ### 13.2. E2E (`tests/e2e/`)
 
 - `conftest.py` (337 строк) — инфраструктура Playwright:
-  - Браузер: Google Chrome (`channel="chrome"`), **видимый** (`headless=False`).
+  - Браузер: Google Chrome (`channel="chrome"`), **невидимый** (`headless=True`, см. commit 65301ad).
   - Один браузер на сессию, для каждого теста — отдельный контекст (изоляция `localStorage`/cookies).
   - Тестовые пользователи: `e2e_test_admin` (`admin`), `e2e_test_user` (`user`) — создаются в начале сессии, удаляются в teardown.
   - Префикс `MARKER = "E2E_TESTS"` для тестовых сущностей.
@@ -614,8 +614,9 @@ pytest -q
 2. **Сохранение обратной совместимости JSON-файлов.**
    `auth.py` раньше имел дубли `load_file_users`/`save_file_users`/... — теперь всё в `utils/file_store.py`. При добавлении новых полей в `users.json` используйте `default=[]` и миграционные шаги.
 
-3. **E2E запускается в видимом Chrome** (`headless=False`).
-   Это требование пользователя — не пытайтесь переключить в headless без согласования.
+3. **E2E запускается в невидимом Chrome** (`headless=True`, с commit 65301ad).
+   Ранее это было требованием пользователя; ограничение снято — прогон идёт
+   headless (см. commit 65301ad), отдельное согласование режима не требуется.
 
 4. **Бэкапы атомарны через staging + rollback**, не через прямое копирование поверх.
    Любой новый формат бэкапа должен сохранять эту гарантию.
