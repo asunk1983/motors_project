@@ -32,19 +32,28 @@ def test_54_add_condition(page):
 
 @pytest.mark.scn("55. Выбор поля и оператора")
 def test_55_select_field_operator(page):
-    """Выбор поля меняет доступные операторы."""
-    switch_tab(page, "search")
-    # Default: first row has a text field with text operators
-    op_selects = page.locator(".search-operator-select")
-    assert op_selects.count() >= 1
-    initial_ops = page.locator(".search-operator-select option").count()
+    """Набор операторов зависит от operatorType поля (search.js).
 
-    # Switch to a number field
+    Дефолтное поле первой строки — 'id' (SEARCH_FIELDS[0] с type='number'), у него
+    7 операторов (4 текстовых + больше/меньше/между); у текстового serial_number —
+    4. Раньше тест считал дефолтное поле текстовым и ожидал рост числа операторов
+    при переключении на power — отсюда было «assert 7 > 7».
+    """
+    switch_tab(page, "search")
+    assert page.locator(".search-operator-select").count() >= 1
+    assert page.locator(".search-field-select").first.input_value() == "id"
+    assert page.locator(".search-operator-select option").count() == 7
+
+    # Текстовое поле — только текстовые операторы
+    page.select_option(".search-field-select", "serial_number")
+    page.wait_for_timeout(500)
+    assert page.locator(".search-operator-select option").count() == 4
+
+    # Числовое поле — операторы сравнения возвращаются
     page.select_option(".search-field-select", "power")
     page.wait_for_timeout(500)
-    number_ops = page.locator(".search-operator-select option").count()
-    # Number field should have more operators (gt, lt, between)
-    assert number_ops > initial_ops
+    assert page.locator(".search-operator-select option").count() == 7
+    assert page.locator(".search-operator-select option", has_text="больше").count() == 1
 
 
 @pytest.mark.scn("56. Автодополнение (autocomplete)")

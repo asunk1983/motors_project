@@ -20,7 +20,7 @@ def test_68_create_backup(page, admin_api):
     """Создание бэкапа через UI — появляется в списке и на сервере."""
     switch_tab(page, "settings")
     page.wait_for_load_state("networkidle", timeout=10000)
-    create_btn = page.locator("#backupCreateBtn, button:has-text('Создать бэкап')")
+    create_btn = page.locator("button[onclick='createBackup()']")
     if create_btn.count() == 0:
         pytest.skip("Create backup button not found")
     with page.expect_download() as download_info:
@@ -46,7 +46,7 @@ def test_69_download_backup(page, admin_api):
     backups = r.json()
     if not backups:
         with page.expect_download() as dl_info:
-            page.locator("#backupCreateBtn, button:has-text('Создать бэкап')").click()
+            page.locator("button[onclick='createBackup()']").click()
         dl_info.value.body()
         page.wait_for_load_state("networkidle", timeout=10000)
         r = admin_api.get("/api/backup/list")

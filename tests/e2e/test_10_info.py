@@ -1,10 +1,12 @@
-"""Группа 10: Инфо — changelog и wishlist."""
+"""Группа 10: Инфо — changelog (read-only) и wishlist."""
 import json
+import os
 from datetime import date
 
 import pytest
 from playwright.sync_api import expect
 
+from config.settings import CHANGELOG_JSON_PATH
 from tests.e2e.helpers import switch_tab, wait_toast, accept_dialogs
 
 
@@ -41,70 +43,76 @@ def test_73_subtab_switching(page):
         __import__("re").compile(r"\bactive\b"))
 
 
-@pytest.mark.scn("74. Просмотр changelog")
+@pytest.mark.scn("74. Просмотр changelog (read-only, из data/changelog.json)")
 def test_74_view_changelog(page, admin_api):
-    """Список записей лога изменений отображается."""
-    # Create an entry via API
-    today = date.today().isoformat()
-    r = admin_api.post("/api/changelog",
-                       data=json.dumps({"text": CL_TEST, "date": today}),
-                       headers={"Content-Type": "application/json"})
-    entry_id = r.json().get("id")
-    assert entry_id is not None
+    """GET /api/changelog отдаёт JSON-массив; UI рендерит записи в #changelogList.
 
+    Changelog стал read-only (см. routes/changelog.py): CRUD-эндпоинтов нет,
+    источник данных — data/changelog.json. Для проверки рендера подкладываем
+    фикстуру в ИЗОЛИРОВАННЫЙ runtime-файл e2e (MOTORS_DATA_DIR переопределён
+    conftest'ом), боевой data/changelog.json не затрагивается.
+    """
+    path = CHANGELOG_JSON_PATH
+    original = None
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            original = f.read()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump([{"date": date.today().isoformat(), "text": CL_TEST}], f,
+                  ensure_ascii=False)
     try:
+        r = admin_api.get("/api/changelog")
+        assert r.status == 200
+        entries = r.json()
+        assert isinstance(entries, list)
+        assert any(e.get("text") == CL_TEST for e in entries)
+
         switch_tab(page, "info")
         page.wait_for_load_state("networkidle", timeout=10000)
         expect(page.locator("#changelogList")).to_be_visible()
         expect(page.locator(".changelog-item", has_text=CL_TEST)).to_be_visible()
     finally:
-        admin_api.delete(f"/api/changelog/{entry_id}")
+        if original is not None:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(original)
+        elif os.path.exists(path):
+            os.remove(path)
 
 
-@pytest.mark.scn("75. Добавление записи в changelog")
+@pytest.mark.scn("75. Changelog только для чтения (POST удалён)")
 def test_75_add_changelog(page, admin_api):
-    """Добавление записи через форму на вкладке Инфо."""
+    """Запись в changelog через API/UI недоступна — осознанное продуктовое решение.
+
+    routes/changelog.py: «Запись/удаление через API не поддерживаются — POST
+    /api/changelog и DELETE /api/changelog/<id> удалены»; в UI полей ввода и
+    кнопок добавления записи больше нет (лог ведётся в data/changelog.json).
+    """
+    r = admin_api.post("/api/changelog",
+                       data=json.dumps({"text": CL_TEST + " 75",
+                                        "date": date.today().isoformat()}),
+                       headers={"Content-Type": "application/json"})
+    assert r.status in (404, 405), "POST /api/changelog должен быть недоступен"
+
     switch_tab(page, "info")
     page.wait_for_load_state("networkidle", timeout=10000)
-    # Set date
-    today = date.today().isoformat()
-    page.evaluate(f"document.getElementById('changelogDateInput').value = '{today}';")
-    page.fill("#changelogTextInput", CL_TEST + " 75")
-    page.evaluate("addChangelogEntry()")
-    wait_toast(page, "Запись добавлена")
-    page.wait_for_load_state("networkidle", timeout=10000)
-
-    # Verify via API
-    entries = admin_api.get("/api/changelog").json()
-    entry_id = None
-    for e in entries:
-        if "75" in e.get("text", "") and CL_TEST in e.get("text", ""):
-            entry_id = e["id"]
-    assert entry_id is not None
-    admin_api.delete(f"/api/changelog/{entry_id}")
+    expect(page.locator("#changelogList")).to_be_visible()
+    assert page.locator("#changelogDateInput").count() == 0
+    assert page.locator("#changelogTextInput").count() == 0
+    assert page.locator("button[onclick*='addChangelogEntry']").count() == 0
 
 
-@pytest.mark.scn("76. Удаление записи из changelog")
+@pytest.mark.scn("76. Удаление записи changelog недоступно (read-only)")
 def test_76_delete_changelog(page, admin_api):
     """Удаление записи через кнопку ✕ в списке."""
-    today = date.today().isoformat()
-    r = admin_api.post("/api/changelog",
-                       data=json.dumps({"text": CL_TEST + " del76", "date": today}),
-                       headers={"Content-Type": "application/json"})
-    entry_id = r.json()["id"]
+    r = admin_api.delete("/api/changelog/1")
+    assert r.status in (404, 405), "DELETE /api/changelog/<id> должен быть недоступен"
 
     switch_tab(page, "info")
     page.wait_for_load_state("networkidle", timeout=10000)
-    page.wait_for_timeout(1000)
-    accept_dialogs(page)
-    # Find and click the delete button for our entry
-    page.evaluate(f"deleteChangelogEntry({entry_id})")
-    page.wait_for_load_state("networkidle", timeout=10000)
-    page.wait_for_timeout(500)
-
-    # Verify via API
-    entries = admin_api.get("/api/changelog").json()
-    assert not any(e["id"] == entry_id for e in entries)
+    expect(page.locator("#changelogList")).to_be_visible()
+    # кнопок удаления записей лога в разметке нет (см. info.js::renderChangelog)
+    assert page.locator("#changelogList button").count() == 0
 
 
 @pytest.mark.scn("77. Просмотр wishlist")

@@ -6,6 +6,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.helpers import (
     switch_tab, wait_toast, reload_catalog, make_engine,
+    delete_engine_by_serial,
 )
 
 
@@ -15,7 +16,7 @@ def test_11_view_catalog_on_entry(page, test_engine):
     reload_catalog(page)
     switch_tab(page, "catalog")
     expect(page.locator("#tab-catalog")).to_be_visible()
-    expect(page.locator(".table-wrapper")).to_be_visible()
+    expect(page.locator("#tab-catalog .table-wrapper")).to_be_visible()
     serial = test_engine["serial_number"]
     expect(page.locator("tbody tr", has_text=serial)).to_be_visible()
 
@@ -71,17 +72,22 @@ def test_14b_sorting_column_header(page, test_engine):
     expect(page.locator("tbody tr", has_text=serial)).to_be_visible()
 
 
-@pytest.mark.scn("15. Переключение вида (таблица/карточки)")
-def test_15_toggle_table_cards(page):
-    """Переключение между видом таблицы и карточек."""
+@pytest.mark.scn("15. Каталог: табличный вид (переключателя карточек больше нет)")
+def test_15_toggle_table_cards(page, test_engine):
+    """Каталог рендерится таблицей; вид «карточки» удалён из фронта.
+
+    Раньше тест переключал таблица/карточки через toggleView(). Вид карточек
+    удалён (нет #cardWrapper, см. комментарий в catalog.js) — сценарий заменён
+    на регресс-проверку актуального вида: таблица каталога должна быть именно
+    таблицей каталога (scoped-локатор #tab-catalog .table-wrapper), а не любой
+    из четырёх .table-wrapper в разметке (Каталог/Оборудование/Инциденты/Журнал).
+    """
+    reload_catalog(page)
     switch_tab(page, "catalog")
-    expect(page.locator(".table-wrapper")).to_be_visible()
-    page.evaluate("toggleView('cards')")
-    page.wait_for_load_state("networkidle", timeout=10000)
-    expect(page.locator("#cardWrapper")).to_be_visible()
-    page.evaluate("toggleView('table')")
-    page.wait_for_load_state("networkidle", timeout=10000)
-    expect(page.locator(".table-wrapper")).to_be_visible()
+    expect(page.locator("#tab-catalog .table-wrapper")).to_be_visible()
+    expect(page.locator("#tableBody")).to_be_visible()
+    expect(page.locator("tbody tr", has_text=test_engine["serial_number"])).to_be_visible()
+    assert page.locator("#cardWrapper").count() == 0
 
 
 @pytest.mark.scn("16. Пагинация")
@@ -131,9 +137,9 @@ def test_19_clear_selection(page, test_engine):
     assert checkbox.is_checked() is False
 
 
-@pytest.mark.scn("21. Обновление каталога (кнопка Refresh)")
+@pytest.mark.scn("21. Обновление каталога (без кнопки Refresh)")
 def test_21_refresh_catalog(page, admin_api):
-    """Кнопка Refresh перезагружает список двигателей."""
+    """Каталог обновляется вызовом loadEngines(); отдельной кнопки Refresh нет."""
     switch_tab(page, "catalog")
     serial = make_engine()["serial_number"]
     payload = make_engine(serial_number=serial)
@@ -143,9 +149,7 @@ def test_21_refresh_catalog(page, admin_api):
         page.evaluate("loadEngines()")
         page.wait_for_load_state("networkidle", timeout=10000)
         expect(page.locator("tbody tr", has_text=serial)).to_be_visible()
-        page.locator("button[onclick*='refreshTable']").click()
-        page.wait_for_load_state("networkidle", timeout=10000)
-        expect(page.locator("tbody tr", has_text=serial)).to_be_visible()
+        # Регресс-проверка: кнопка refreshTable удалена из тулбара каталога
+        assert page.locator("button[onclick*='refreshTable']").count() == 0
     finally:
-        from tests.e2e.helpers import delete_engine_by_serial
         delete_engine_by_serial(admin_api, serial)

@@ -5,15 +5,23 @@ import os
 import pytest
 from playwright.sync_api import expect
 
-from tests.e2e.helpers import switch_tab, wait_toast, accept_dialogs, make_engine
+from tests.e2e.helpers import (
+    switch_tab, wait_toast, accept_dialogs, prompt_accept, make_engine,
+)
 
 
 @pytest.mark.scn("50. Переключение на вкладку «Импорт»")
 def test_50_switch_import_tab(page):
-    """Вкладка импорта доступна и отображает информацию о файлах."""
+    """Вкладка импорта доступна: счётчики файлов, лог импорта и обе кнопки действий."""
     switch_tab(page, "import")
     expect(page.locator("#tab-import")).to_be_visible()
-    expect(page.locator("#importInfo")).to_be_visible()
+    # Раньше была одна плашка #importInfo — теперь отдельные info-карточки
+    expect(page.locator("#filesCount")).to_be_visible()
+    expect(page.locator("#photosCount")).to_be_visible()
+    expect(page.locator("#importLog")).to_be_visible()
+    expect(page.locator("#tab-import button[onclick='importFiles()']")).to_be_visible()
+    # «Очистить БД» есть и на вкладке «Настройки» — берём кнопку именно вкладки импорта
+    expect(page.locator("#tab-import button[onclick='confirmClearDatabase()']")).to_be_visible()
 
 
 @pytest.mark.scn("51. Импорт из Excel")
@@ -37,11 +45,11 @@ def test_51_import_excel(page, admin_api):
         wb.save(xlsx_path)
 
         switch_tab(page, "import")
-        accept_dialogs(page)
-        page.click("#importBtn")
-        # Wait for import to complete
+        accept_dialogs(page)  # importFiles() спрашивает confirm()
+        page.click("button[onclick='importFiles()']")
+        # Прогресс импорта: #importProgress раньше был скрыт классом hidden
+        expect(page.locator("#progressText")).to_have_text("Завершено!", timeout=30000)
         page.wait_for_load_state("networkidle", timeout=30000)
-        page.wait_for_timeout(3000)
 
         # Verify engine was imported via API
         r = admin_api.get("/api/engines?search_field=serial_number&search=E2E-IMPORt-1234")
@@ -57,7 +65,13 @@ def test_51_import_excel(page, admin_api):
 
 @pytest.mark.scn("52. Очистка БД")
 def test_52_clear_db(page, admin_api):
-    """Очистка БД удаляет все двигатели."""
+    """Очистка БД удаляет все двигатели.
+
+    Кнопка «Очистить БД» (onclick="confirmClearDatabase()") сначала запрашивает
+    статус, затем prompt с требованием ввести «СТИРАТЬ» — подтверждаем через
+    prompt_accept(); тост приходит из backend-сообщения
+    («База данных и фото очищены», см. routes/import_routes.py).
+    """
     # Create a test engine first
     payload = make_engine(serial_number="CLEAR-DB-TEST-999")
     r = admin_api.post("/api/engine", data=json.dumps(payload),
@@ -65,9 +79,10 @@ def test_52_clear_db(page, admin_api):
     assert r.json().get("success")
 
     switch_tab(page, "import")
-    accept_dialogs(page)
-    page.click("#clearDbBtn")
-    wait_toast(page, "База данных очищена")
+    prompt_accept(page, "СТИРАТЬ")
+    # Кнопка «Очистить БД» есть и на вкладке «Настройки» — кликаем по кнопке импорта
+    page.click("#tab-import button[onclick='confirmClearDatabase()']")
+    wait_toast(page, "База данных и фото очищены")
 
     page.wait_for_load_state("networkidle", timeout=10000)
 
