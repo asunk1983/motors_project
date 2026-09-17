@@ -19,9 +19,9 @@ import_log.txt
 .claude/
 .claudeignore
 CLAUDE.md
-.clinerules
 docs/
 __clinerules
 _pytest_*.txt
 tests/e2e/screenshots/
 tests/e2e/.results.json
+summary.txt
