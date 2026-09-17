@@ -29,6 +29,12 @@ def _is_admin_role(role):
     return role in ('admin', 'superadmin')
 
 
+# Роли, допустимые в системе (те же 4 значения, что и при создании
+# пользователя). Единый источник правды для create и role-change, чтобы
+# набор значений не разъехался между двумя эндпоинтами.
+_ALLOWED_ROLES = ('user', 'reader', 'admin', 'superadmin')
+
+
 def _require_admin():
     user = getattr(request, 'current_user', None)
     if not user or not _is_admin_role(user.get('role')):
@@ -65,6 +71,59 @@ def _parse_and_validate_crew_id(conn, raw_value):
     if crew_repo.get_by_id(conn, cid) is None:
         return None, (jsonify({'error': f'Человек с id={cid} не найден в справочнике crew'}), 400)
     return cid, None
+
+
+def _apply_user_role(conn, user_id, target_user, new_role, current_user):
+    """Валидирует и применяет смену роли пользователю.
+
+    Возвращает None при успехе либо готовый ответ с ошибкой
+    (jsonify(...), код) — по образцу _parse_and_validate_crew_id.
+
+    Роль superadmin через эту функцию не меняется НИКОГДА и НИ В ОДНУ
+    сторону: её нельзя ни назначить (new_role='superadmin'), ни снять
+    (target.role='superadmin'), независимо от того, кто выполняет запрос —
+    даже другой суперадмин. Единственный способ выдать superadmin —
+    создание пользователя (admin_create_user), это поведение не менялось.
+
+    Остальные границы прав не слабее, чем при создании/удалении:
+      - значение роли должно быть из _ALLOWED_ROLES;
+      - выдать роль admin может только суперадмин;
+      - менять роль тому, у кого уже admin, тоже может только суперадмин
+        (иначе обычный admin мог бы разжаловать старшего);
+      - свою роль менять нельзя — защита от самоблокировки.
+    """
+    if new_role not in _ALLOWED_ROLES:
+        return jsonify({'error': 'Недопустимая роль'}), 400
+    if new_role == 'superadmin' or target_user.get('role') == 'superadmin':
+        return jsonify({
+            'error': 'Роль superadmin нельзя назначить или снять через смену роли — '
+                     'она задаётся только при создании пользователя'
+        }), 400
+    if current_user.get('id') == user_id:
+        # Самоблокировка. Раньше здесь сравнивались «веса» ролей (понижать
+        # свою роль нельзя, повышать можно), но после исключения superadmin
+        # из этой функции такое сравнение стало нерабочим: у вызывающего
+        # роль всегда admin или superadmin (гейт _require_admin), admin-цели
+        # доступны только суперадмину, а собственная роль суперадмина вообще
+        # не может быть целью — то есть полезной самосмены не остаётся ни
+        # для кого. Поэтому запрет прямой и безусловный.
+        return jsonify({'error': 'Нельзя менять собственную роль'}), 400
+    actor_role = current_user.get('role')
+    if new_role == 'admin' and actor_role != 'superadmin':
+        return jsonify({'error': 'Назначать роль admin может только суперадмин'}), 403
+    if _is_admin_role(target_user.get('role')) and actor_role != 'superadmin':
+        # Цель здесь может быть только admin — superadmin отсечён выше.
+        return jsonify({'error': 'Менять роль администраторов может только суперадмин'}), 403
+    if new_role == target_user.get('role'):
+        # Роль не изменилась — не трогаем запись (и last_edit не сдвигаем).
+        return None
+    if target_user.get('source') == 'file':
+        ok = auth_module.update_file_user_role(user_id, new_role)
+    else:
+        ok = auth_module.update_user_role(conn, user_id, new_role)
+    if not ok:
+        return jsonify({'error': 'Не удалось обновить роль'}), 400
+    return None
 
 
 # Пути, для которых пишущий (не-GET) запрос не требует ни авторизации, ни
@@ -204,7 +263,7 @@ def admin_create_user():
         username = (data.get('username') or '').strip()
         password = data.get('password') or ''
         role = data.get('role') or 'user'
-        if role not in ('user', 'admin', 'superadmin', 'reader'):
+        if role not in _ALLOWED_ROLES:
             return jsonify({'error': 'Недопустимая роль'}), 400
         current_user = getattr(request, 'current_user', {}) or {}
         if role in ('admin', 'superadmin') and current_user.get('role') != 'superadmin':
@@ -230,25 +289,41 @@ def admin_create_user():
 
 @auth_bp.route('/admin/users/<int:user_id>', methods=['PATCH'])
 def admin_update_user(user_id):
-    """Частичное обновление пользователя. Сейчас принимает только crew_id
-    (для ФИО в UI). Сделан как PATCH (а не PUT) — на будущее, если добавим
-    ещё редактируемых полей (например, ФИО напрямую), не придётся ломать
-    контракт. Семантика crew_id — null/omit = отвязать.
+    """Частичное обновление пользователя: role и/или crew_id.
 
-    Допустимо править crew_id у всех пользователей, включая admin/superadmin:
-    это не меняет их права и не требует супер-админа, в отличие от role.
+    Редактируемые поля (оба опциональны — PATCH-семантика «нет ключа в
+    теле = не трогать это поле»):
+
+      * `role`    — смена роли у существующего пользователя. Полный набор
+                    правил — см. _apply_user_role: superadmin этой функцией
+                    не назначается и не снимается никогда (только при
+                    создании пользователя), роль admin выдаёт и снимает
+                    только суперадмин, свою роль менять нельзя;
+      * `crew_id` — привязка к записи справочника crew (для ФИО в UI).
+                    Доступна и обычному админу, и для admin/superadmin:
+                    это не меняет права и не требует суперадмина.
+
+    Смена роли применяется сразу, без перелогина: get_user_from_token
+    читает роль из хранилища на каждом запросе. UI-гейтинг в браузере
+    самого пользователя обновится при следующей загрузке страницы; при
+    необходимости админ может добить это сбросом всех его сессий.
     """
     denied = _require_admin()
     if denied:
         return denied
     try:
         data = request.json or {}
+        current_user = getattr(request, 'current_user', {}) or {}
         with db_connection() as conn:
             target_user = auth_module.get_user_by_id(conn, user_id)
             if not target_user:
                 return jsonify({'error': 'Пользователь не найден'}), 404
-            # crew_id единственное редактируемое поле. Если в теле нет ключа
-            # 'crew_id' вообще — это no-op (PATCH-семантика), возвращаем 200.
+            if 'role' in data:
+                role_err = _apply_user_role(conn, user_id, target_user,
+                                            data.get('role'), current_user)
+                if role_err:
+                    return role_err
+            # crew_id: null/пустая строка = отвязать; отсутствие ключа — no-op.
             if 'crew_id' in data:
                 crew_id, crew_err = _parse_and_validate_crew_id(conn, data.get('crew_id'))
                 if crew_err:

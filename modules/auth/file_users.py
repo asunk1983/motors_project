@@ -193,6 +193,24 @@ def update_file_user_crew_id(user_id, crew_id):
     return changed
 
 
+def update_file_user_role(user_id, role):
+    """Обновляет роль файлового пользователя. last_edit обновляется.
+    Возвращает True если запись найдена. Валидация допустимых значений и
+    прав вызывающего — на стороне роута (routes/auth.py::_apply_user_role).
+    """
+    users = _load_file_users()
+    changed = False
+    for u in users:
+        if u.get('id') == user_id:
+            u['role'] = role
+            u['last_edit'] = datetime.now().isoformat()
+            changed = True
+            break
+    if changed:
+        _save_file_users(users)
+    return changed
+
+
 def is_file_crew_referenced(crew_id):
     """True, если хотя бы один файловый пользователь привязан к crew_id.
     Используется в routes/crew_routes.py::delete_crew_route как дополнение

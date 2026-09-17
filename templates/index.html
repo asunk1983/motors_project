@@ -908,6 +908,36 @@
             </div>
         </div>
 
+        <!-- Модальное окно смены роли пользователя (admin → «Сменить роль»
+             в таблице). Отдельная модалка по образцу adminChangeCrewModal:
+             <select> с ролями + кнопка «Сохранить» как явное подтверждение.
+             Роль superadmin в списке отсутствует для всех без исключений
+             (её назначает/снимает только создание пользователя), а «Админ»
+             виден только суперадмину — та же логика на бэке в
+             routes/auth.py::_apply_user_role. Кнопка в строке рисуется лишь
+             когда смена реально возможна для текущего админа
+             (static/js/auth.js::_canChangeRoleOf). -->
+        <div class="modal" id="adminChangeRoleModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><span class="icon icon-shield"></span> Сменить роль</h2>
+                    <button class="modal-close" onclick="closeAdminChangeRoleModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="adminChangeRoleUserId" value="">
+                    <div style="margin-bottom:12px">
+                        Пользователь: <b id="adminChangeRoleLabel"></b>
+                    </div>
+                    <label for="adminChangeRoleSelect" style="display:block;margin-bottom:4px">Новая роль</label>
+                    <select id="adminChangeRoleSelect" style="width:100%"></select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAdminChangeRoleModal()">Отмена</button>
+                    <button type="button" class="btn btn-success" onclick="submitAdminChangeRole()"><span class="icon icon-save"></span> Сохранить</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Модальное окно добавления фото (карточка двигателя) -->
         <div class="modal" id="photoAddModal">
             <div class="modal-content">
@@ -983,7 +1013,7 @@
     <script src="/static/js/backup.js"></script>
     <script src="/static/js/info.js"></script>
     <script src="/static/js/search.js?v=20260813"></script>
-    <script src="/static/js/auth.js?v=20260907"></script>
+    <script src="/static/js/auth.js?v=20260917"></script>
     <script src="/static/js/equipment.js?v=20260911"></script>
     <script src="/static/js/equipmentLocationTree.js?v=20260821"></script>
     <script src="/static/js/incidentLocations.js?v=20260820"></script>

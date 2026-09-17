@@ -187,6 +187,22 @@ def update_user_crew_id(conn, user_id, crew_id):
     return cur.rowcount > 0
 
 
+def update_user_role(conn, user_id, role):
+    """Обновляет роль DB-пользователя. last_edit обновляется, чтобы в
+    админке было видно, когда роль меняли. Возвращает True если запись
+    существует. Валидация допустимых значений и прав вызывающего — на
+    стороне роута (routes/auth.py::_apply_user_role), здесь только SQL.
+    """
+    now = datetime.now().isoformat()
+    cur = conn.cursor()
+    cur.execute(
+        'UPDATE users SET role = ?, last_edit = ? WHERE id = ?',
+        (role, now, user_id)
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
 def update_last_login(conn, user_id):
     """Обновляет время последнего входа DB-пользователя."""
     cur = conn.cursor()

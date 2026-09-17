@@ -11,7 +11,9 @@
   8. Смена пароля
   9. Сброс всех сессий пользователя (revoke)
  10. Удаление пользователя
+ 10b. Смена роли пользователя (superadmin вне смены роли, кнопка — по правам)
 """
+import json
 import uuid
 
 import pytest
@@ -260,3 +262,79 @@ def test_10_delete_user(page, admin_api):
     expect(page.locator(".admin-users-table tbody tr", has_text=uname)).to_have_count(0)
     # и в БД/файле
     assert get_user_id(admin_api, uname) is None
+
+
+# 10b
+@pytest.mark.scn("10b. Смена роли пользователя")
+def test_10b_change_user_role(page, admin_api):
+    """Смена роли существующего пользователя через «Сменить роль» в таблице.
+
+    Проверяем полный UI-путь (модалка с <select> ролей → «Сохранить» →
+    PATCH /api/auth/admin/users/<id> → toast → роль реально изменилась) и
+    правила видимости: кнопки нет у admin-ролей (свою роль менять нельзя,
+    обычный админ не трогает admin-роли), а «Суперадмина» нет в списке ролей
+    ни у кого — смена роли его не назначает и не снимает.
+    """
+    uname = "role_" + uuid.uuid4().hex[:8]
+    pwd = "Pass1234"
+    try:
+        r = admin_api.post(
+            "/api/auth/admin/users",
+            data=json.dumps({"username": uname, "password": pwd, "role": "user"}),
+            headers={"Content-Type": "application/json"},
+        )
+        assert r.status == 200, "создание пользователя через API: HTTP %s" % r.status
+        uid = get_user_id(admin_api, uname)
+        assert uid is not None
+
+        open_admin_tab(page)
+        # Список в админке не перечитывается при переключении вкладки
+        # (loadAdminUsers вызывается на ините страницы и после действий в UI),
+        # поэтому после создания пользователя через API обновляем его явно.
+        page.evaluate("loadAdminUsers()")
+        row = page.locator(".admin-users-table tbody tr", has_text=uname)
+        expect(row).to_be_visible(timeout=10000)
+
+        # Кнопки «Сменить роль» нет ни у одной admin-роли (в т.ч. у нашей
+        # собственной учётки): правило _canChangeRoleOf на фронте, на бэке —
+        # route-тесты test_admin_cannot_change_own_role /
+        # test_admin_cannot_change_admin_target / test_superadmin_cannot_change_own_role.
+        rows = page.locator(".admin-users-table tbody tr")
+        admin_rows = 0
+        for i in range(rows.count()):
+            r_text = rows.nth(i).inner_text()
+            if "админ" in r_text:
+                admin_rows += 1
+                assert rows.nth(i).locator("button[title='Сменить роль']").count() == 0, \
+                    "у admin-роли не должно быть кнопки смены роли: " + r_text
+        assert admin_rows >= 2, "ожидались минимум 2 admin-учётки (admin и e2e-админ)"
+
+        row.locator("button[title='Сменить роль']").click()
+        page.wait_for_selector("#adminChangeRoleModal.active", state="visible", timeout=5000)
+        # e2e-админ — обычный admin: в списке ролей нет ни «Админ», ни
+        # «Суперадмин» (superadmin сменой роли не назначается вообще никому,
+        # «Админ» доступен только суперадмину).
+        opts = page.locator("#adminChangeRoleSelect option").all_text_contents()
+        assert opts == ["Пользователь", "Читатель"], "список ролей: %s" % opts
+
+        with page.expect_response(
+            lambda resp: resp.request.method == "PATCH"
+            and resp.url.endswith("/api/auth/admin/users/%d" % uid)
+        ) as resp_info:
+            page.locator("#adminChangeRoleSelect").select_option(value="reader")
+            page.locator("#adminChangeRoleModal button:has-text('Сохранить')").click()
+        assert resp_info.value.status == 200, "смена роли: HTTP %s" % resp_info.value.status
+        wait_toast(page, "Роль изменена")
+
+        # роль реально поменялась в хранилище (видно через API)
+        users = admin_api.get("/api/auth/admin/users").json()
+        target = [u for u in users if u.get("username") == uname]
+        assert target, "пользователь должен быть в списке"
+        assert target[0]["role"] == "reader", "роль должна стать reader: %s" % target[0]
+
+        # в таблице роль тоже обновилась (после loadAdminUsers())
+        page.wait_for_timeout(500)
+        expect(page.locator(".admin-users-table tbody tr", has_text=uname)) \
+            .to_contain_text("читатель")
+    finally:
+        delete_user_by_username(admin_api, uname)

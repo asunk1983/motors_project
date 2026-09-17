@@ -4,10 +4,12 @@
 на модули:
   - hashing.py     — hash_password, verify_password, hash_token, generate_token
   - db_users.py    — create_user, get_user_by_username, get_user_by_id,
-                     list_users, delete_user, update_user_password, count_users
+                     update_user_role, list_users, delete_user,
+                     update_user_password, count_users
   - file_users.py  — create_file_user, delete_file_user, update_file_user_password,
-                     _load_file_users, _save_file_users, _load_file_tokens,
-                     _save_file_tokens, _next_file_user_id, _migrate_negative_file_user_ids,
+                     update_file_user_role, _load_file_users, _save_file_users,
+                     _load_file_tokens, _save_file_tokens, _next_file_user_id,
+                     _migrate_negative_file_user_ids,
                      FILE_USER_ID_OFFSET, FILE_USERS, FILE_TOKENS
   - tokens.py      — issue_token, get_user_from_token, revoke_token, revoke_all_for_user
   - decorators.py  — require_auth, require_admin, get_current_user, _extract_bearer_token
@@ -32,6 +34,7 @@ from modules.auth.db_users import (
     delete_user,
     update_user_password,
     update_user_crew_id,
+    update_user_role,
     update_last_login,
     count_users,
     resolve_display_name,
@@ -44,6 +47,7 @@ from modules.auth.file_users import (
     update_file_user_password,
     update_file_user_last_login,
     update_file_user_crew_id,
+    update_file_user_role,
     is_file_crew_referenced,
     _load_file_users,
     _save_file_users,
@@ -79,10 +83,11 @@ __all__ = [
     # db_users
     'create_user', 'get_user_by_username', 'get_user_by_id', 'list_users',
     'delete_user', 'update_user_password', 'update_user_crew_id',
-    'update_last_login', 'count_users', 'resolve_display_name',
+    'update_user_role', 'update_last_login', 'count_users', 'resolve_display_name',
     # file_users
     'create_file_user', 'delete_file_user', 'update_file_user_password',
     'update_file_user_last_login', 'update_file_user_crew_id',
+    'update_file_user_role',
     'is_file_crew_referenced',
     '_load_file_users', '_save_file_users', '_load_file_tokens', '_save_file_tokens',
     '_next_file_user_id', '_migrate_negative_file_user_ids',

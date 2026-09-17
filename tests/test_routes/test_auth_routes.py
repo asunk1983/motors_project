@@ -387,6 +387,297 @@ class TestAdminUserEdit:
         m_update_file.assert_called_once_with(5, 100)
 
 
+class TestAdminUserRoleChange:
+    """Смена роли существующего пользователя через PATCH /admin/users/<id>.
+
+    Действующий пользователь попадает в request.current_user: в тестовом
+    приложении before_app_request (load_current_user) вызывает именно
+    routes.auth.get_current_user, поэтому она и подменяется.
+
+    Границы прав: роль admin выдаёт и снимает только суперадмин (как при
+    создании/удалении), роль superadmin через эту функцию не назначается и
+    не снимается вообще ни для кого (только при создании пользователя),
+    свою роль менять нельзя.
+    """
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_change_role_superadmin_success(self, m_db, m_cur, m_require_admin,
+                                            m_get_user, m_update, client):
+        """Суперадмин повышает обычного пользователя до admin."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'user', 'source': 'db'}
+        m_update.return_value = True
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/2', json={'role': 'admin'})
+        assert r.status_code == 200
+        assert r.get_json()['success'] is True
+        m_update.assert_called_once_with(conn, 2, 'admin')
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_change_role_admin_demotes_user_to_reader(self, m_db, m_cur, m_require_admin,
+                                                      m_get_user, m_update, client):
+        """Обычный админ может выдать младшую роль (reader) обычному пользователю."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'user', 'source': 'db'}
+        m_update.return_value = True
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/2', json={'role': 'reader'})
+        assert r.status_code == 200
+        m_update.assert_called_once_with(conn, 2, 'reader')
+
+    @patch('routes.auth.auth_module.update_file_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_change_role_file_user_success(self, m_db, m_cur, m_require_admin,
+                                           m_get_user, m_update_file, client):
+        """Файловый пользователь (source='file') — роль через update_file_user_role."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 1000000001, 'username': 'file_op',
+                                   'role': 'user', 'source': 'file'}
+        m_update_file.return_value = True
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/1000000001', json={'role': 'reader'})
+        assert r.status_code == 200
+        m_update_file.assert_called_once_with(1000000001, 'reader')
+
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_change_role_and_crew_id_together(self, m_db, m_cur, m_require_admin,
+                                              m_get_user, m_update, client):
+        """Оба ключа в одном PATCH применяются независимо."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'user', 'source': 'db'}
+        m_update.return_value = True
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        with patch('routes.auth.crew_repo') as m_crew_repo, \
+                patch('routes.auth.auth_module.update_user_crew_id') as m_update_crew:
+            m_crew_repo.get_by_id.return_value = {'id': 5, 'full_name': 'Петров Пётр'}
+            m_update_crew.return_value = True
+            r = client.patch('/api/auth/admin/users/2', json={'role': 'admin', 'crew_id': 5})
+        assert r.status_code == 200
+        m_update.assert_called_once_with(conn, 2, 'admin')
+        m_update_crew.assert_called_once_with(conn, 2, 5)
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_change_role_same_value_is_noop(self, m_db, m_cur, m_require_admin,
+                                            m_get_user, m_update, client):
+        """Повторная отправка той же роли — 200 без записи в хранилище."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'reader', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/2', json={'role': 'reader'})
+        assert r.status_code == 200
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_admin_cannot_assign_admin_role(self, m_db, m_cur, m_require_admin,
+                                            m_get_user, m_update, client):
+        """Обычный админ не может выдать роль admin — как и при создании."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'user', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/2', json={'role': 'admin'})
+        assert r.status_code == 403
+        assert 'суперадмин' in r.get_json()['error'].lower()
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_cannot_raise_to_superadmin(self, m_db, m_cur, m_require_admin,
+                                       m_get_user, m_update, client):
+        """Повысить до superadmin через смену роли нельзя никому — даже
+        суперадмину: эта роль задаётся только при создании пользователя."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'user', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/2', json={'role': 'superadmin'})
+        assert r.status_code == 400
+        assert 'superadmin' in r.get_json()['error']
+        assert 'создании' in r.get_json()['error'].lower()
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_cannot_change_superadmin_target(self, m_db, m_cur, m_require_admin,
+                                            m_get_user, m_update, client):
+        """Понизить пользователя с ролью superadmin нельзя никому — ни
+        обычному админу, ни другому суперадмину."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 1, 'username': 'root', 'role': 'superadmin', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        for role in ('admin', 'user', 'reader'):
+            r = client.patch('/api/auth/admin/users/1', json={'role': role})
+            assert r.status_code == 400, role
+            assert 'superadmin' in r.get_json()['error']
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_admin_cannot_change_admin_target(self, m_db, m_cur, m_require_admin,
+                                             m_get_user, m_update, client):
+        """Обычный админ не может снять роль с admin (как при удалении)."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 3, 'username': 'chief', 'role': 'admin', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        r = client.patch('/api/auth/admin/users/3', json={'role': 'user'})
+        assert r.status_code == 403
+        assert 'администратор' in r.get_json()['error'].lower()
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_superadmin_cannot_change_own_role(self, m_db, m_cur, m_require_admin,
+                                              m_get_user, m_update, client):
+        """Свою роль не меняет и суперадмин: его роль вообще не может быть
+        целью смены роли, так что ответ — 400 про superadmin."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 1, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 1, 'username': 'root', 'role': 'superadmin', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        for role in ('admin', 'user', 'reader'):
+            r = client.patch('/api/auth/admin/users/1', json={'role': role})
+            assert r.status_code == 400, role
+            assert 'superadmin' in r.get_json()['error']
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_admin_cannot_change_own_role(self, m_db, m_cur, m_require_admin,
+                                          m_get_user, m_update, client):
+        """Защита от самоблокировки: admin не может поменять роль себе."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'admin', 'source': 'db'}
+        m_get_user.return_value = {'id': 10, 'username': 'adm', 'role': 'admin', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        for role in ('user', 'reader'):
+            r = client.patch('/api/auth/admin/users/10', json={'role': role})
+            assert r.status_code == 400, role
+            assert 'собственную' in r.get_json()['error'].lower()
+        m_update.assert_not_called()
+
+    @patch('routes.auth.auth_module.update_user_role')
+    @patch('routes.auth.auth_module.get_user_by_id')
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    @patch('routes.auth.db_connection')
+    def test_change_role_invalid_400(self, m_db, m_cur, m_require_admin,
+                                     m_get_user, m_update, client):
+        """Значение роли вне _ALLOWED_ROLES (в т.ч. null) — 400."""
+        m_require_admin.return_value = None
+        m_cur.return_value = {'id': 10, 'role': 'superadmin', 'source': 'db'}
+        m_get_user.return_value = {'id': 2, 'username': 'petrov', 'role': 'user', 'source': 'db'}
+
+        conn = MagicMock()
+        m_db.return_value.__enter__ = MagicMock(return_value=conn)
+        m_db.return_value.__exit__ = MagicMock(return_value=False)
+
+        for bad in ('god', '', None, 42):
+            r = client.patch('/api/auth/admin/users/2', json={'role': bad})
+            assert r.status_code == 400, bad
+            assert 'Недопустимая роль' in r.get_json()['error']
+        m_update.assert_not_called()
+
+    @patch('routes.auth._require_admin')
+    @patch('routes.auth.get_current_user')
+    def test_change_role_forbidden_non_admin(self, m_cur, m_require_admin, client):
+        """Без прав администратора — 403 (тот же гейт, что у остальных admin-роутов)."""
+        m_require_admin.return_value = ({'error': 'Доступ запрещён'}, 403)
+        m_cur.return_value = {'id': 2, 'role': 'user', 'source': 'db'}
+
+        r = client.patch('/api/auth/admin/users/3', json={'role': 'reader'})
+        assert r.status_code == 403
+
+
 class TestAdminUserDelete:
     @patch('routes.auth.auth_module.delete_user')
     @patch('routes.auth.auth_module.get_user_by_id')

@@ -6,7 +6,7 @@ import pytest
 from modules.auth.db_users import (
     create_user, get_user_by_username, get_user_by_id, list_users,
     delete_user, update_user_password, update_user_crew_id,
-    update_last_login, count_users, resolve_display_name,
+    update_user_role, update_last_login, count_users, resolve_display_name,
 )
 from modules.auth.hashing import verify_password
 
@@ -110,6 +110,25 @@ class TestListAndUpdate:
         uid = create_user(db_conn, 'petrov', 'pass123', crew_id=crew_id)
         assert update_user_crew_id(db_conn, uid, None) is True
         assert get_user_by_id(db_conn, uid)['crew_id'] is None
+
+    def test_update_role(self, db_conn, file_users_env):
+        uid = create_user(db_conn, 'petrov', 'pass123', role='user')
+        assert update_user_role(db_conn, uid, 'admin') is True
+        user = get_user_by_id(db_conn, uid)
+        assert user['role'] == 'admin' and user['last_edit']
+
+    def test_update_role_unknown_user(self, db_conn, file_users_env):
+        assert update_user_role(db_conn, 999999, 'admin') is False
+
+    def test_update_role_takes_effect_for_tokens(self, db_conn, file_users_env):
+        """Смена роли видна сразу: токен-валидация читает пользователя из
+        хранилища на каждом запросе, поэтому перелогин не нужен."""
+        from modules.auth.tokens import issue_token, get_user_from_token
+        uid = create_user(db_conn, 'petrov', 'pass123', role='user')
+        token = issue_token(db_conn, uid)
+        assert get_user_from_token(db_conn, token)['role'] == 'user'
+        update_user_role(db_conn, uid, 'reader')
+        assert get_user_from_token(db_conn, token)['role'] == 'reader'
 
     def test_update_last_login(self, db_conn, file_users_env):
         uid = create_user(db_conn, 'petrov', 'pass123')

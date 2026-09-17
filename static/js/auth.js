@@ -339,6 +339,7 @@ async function loadAdminUsers() {
                     <td>${escapeHtml((u.last_login || '').slice(0, 10))}</td>
                     <td>${escapeHtml((u.last_edit || '').slice(0, 10))}</td>
                     <td class="col-action-narrow">
+                        ${_canChangeRoleOf(u, me) ? `<button class="btn btn-secondary btn-sm" onclick="promptChangeRole(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.role)}')" title="Сменить роль"><span class="icon icon-shield"></span></button>` : ''}
                         <button class="btn btn-secondary btn-sm" onclick="promptChangeCrew(${u.id}, '${escapeHtml(u.username)}', ${u.crew_id == null ? 'null' : u.crew_id})" title="Сменить привязку к человеку из справочника"><span class="icon icon-person"></span></button>
                         <button class="btn btn-warning btn-sm" onclick="adminRevokeUser(${u.id})" title="Сбросить все сессии"><span class="icon icon-sync"></span></button>
                         <button class="btn btn-secondary btn-sm" onclick="promptChangePassword(${u.id}, '${escapeHtml(labelForPrompt)}')" title="Сменить пароль"><span class="icon icon-lock"></span></button>
@@ -512,6 +513,118 @@ async function submitAdminChangeCrew() {
     if (!Number.isFinite(userId)) return;
     closeAdminChangeCrewModal();
     await adminUpdateUserCrew(userId, crewId);
+}
+
+// Роли, которые вообще может назначить смена роли. superadmin здесь
+// сознательно отсутствует: он задаётся ТОЛЬКО при создании пользователя
+// (см. routes/auth.py::_apply_user_role и admin_create_user).
+const ROLE_CHANGE_ROLES = ['user', 'reader', 'admin'];
+
+
+function _canChangeRoleOf(targetUser, me) {
+    // Кнопка «Сменить роль» показывается лишь там, где смена реально
+    // возможна для текущего админа — зеркало правил
+    // routes/auth.py::_apply_user_role (UI не заменяет серверные проверки,
+    // но не должен предлагать заведомо недоступное действие):
+    //   * superadmin не меняется этой функцией ни в одну сторону;
+    //   * свою роль менять нельзя;
+    //   * обычный admin не вправе трогать admin-роли — это только суперадмин.
+    if (!targetUser || !me) return false;
+    if (targetUser.role === 'superadmin') return false;
+    if (targetUser.id === me.id) return false;
+    if (me.role === 'superadmin') return true;
+    return targetUser.role !== 'admin';
+}
+
+function _roleLabel(role) {
+    // Те же подписи, что и в колонке «Роль» таблицы пользователей.
+    const labels = {
+        user: 'Пользователь',
+        reader: 'Читатель',
+        admin: 'Админ',
+        superadmin: 'Суперадмин'
+    };
+    return labels[role] || role || '';
+}
+
+function _populateRoleSelect(selectEl, currentRole, viewerRole) {
+    // Список ролей для смены: только из ROLE_CHANGE_ROLES — «Суперадмин»
+    // отсутствует для всех без исключений (эта функция superadmin не
+    // назначает и не снимает, см. _apply_user_role). Обычный admin не
+    // видит ещё и «Админ» — та же логика, что в applyRoleUI() для #newRole.
+    if (!selectEl) return;
+    const isSuper = viewerRole === 'superadmin';
+    const options = [];
+    for (const r of ROLE_CHANGE_ROLES) {
+        if (r === 'admin' && !isSuper) continue;
+        options.push(`<option value="${r}"${r === currentRole ? ' selected' : ''}>${_roleLabel(r)}</option>`);
+    }
+    selectEl.innerHTML = options.join('');
+}
+
+async function promptChangeRole(userId, username, currentRole) {
+    // Модалка по образцу promptChangeCrew(): <select> с доступными ролями и
+    // кнопка «Сохранить» — она и есть подтверждение (роль меняется только по
+    // явному нажатию, а не сразу при выборе в списке).
+    // Кнопка в строке рисуется только там, где смена реально возможна
+    // (_canChangeRoleOf), а бэкенд проверяет те же правила независимо
+    // (routes/auth.py::_apply_user_role), включая «нельзя менять свою роль».
+    const modal = document.getElementById('adminChangeRoleModal');
+    const me = getAuthUser();
+    if (!modal) {
+        // Fallback: разметка модалки не подгрузилась — старый prompt().
+        const allowed = me.role === 'superadmin'
+            ? ROLE_CHANGE_ROLES.slice() : ['user', 'reader'];
+        const input = prompt(
+            `Новая роль для ${username || 'пользователя'} (${allowed.join(', ')}):`,
+            currentRole || ''
+        );
+        if (input === null) return;
+        const role = input.trim();
+        if (allowed.indexOf(role) === -1) {
+            showToast('Недопустимая роль', 'error');
+            return;
+        }
+        await adminUpdateUserRole(userId, role);
+        return;
+    }
+    document.getElementById('adminChangeRoleUserId').value = String(userId);
+    document.getElementById('adminChangeRoleLabel').textContent = username || '';
+    _populateRoleSelect(document.getElementById('adminChangeRoleSelect'), currentRole, me.role);
+    modal.classList.add('active');
+    document.body.classList.add('modal-open');
+}
+
+async function adminUpdateUserRole(userId, role) {
+    try {
+        const resp = await apiFetch(`/api/auth/admin/users/${userId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ role })
+        });
+        const data = await parseJsonResponse(resp);
+        if (!resp.ok) {
+            showToast(data.error || 'Ошибка смены роли', 'error');
+            return;
+        }
+        showToast('Роль изменена', 'success');
+        loadAdminUsers();
+    } catch (e) {
+        showToast(e && e.message ? e.message : 'Сетевая ошибка', 'error');
+    }
+}
+
+function closeAdminChangeRoleModal() {
+    const modal = document.getElementById('adminChangeRoleModal');
+    if (modal) modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
+}
+
+async function submitAdminChangeRole() {
+    const userId = parseInt(document.getElementById('adminChangeRoleUserId').value, 10);
+    const role = document.getElementById('adminChangeRoleSelect').value;
+    if (!Number.isFinite(userId) || !role) return;
+    closeAdminChangeRoleModal();
+    await adminUpdateUserRole(userId, role);
 }
 
 async function adminCreateUser() {
