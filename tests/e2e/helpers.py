@@ -278,16 +278,29 @@ def make_test_png(path, width=60, height=60, color=(255, 0, 0)):
                 _chunk(b"IDAT", idat) + _chunk(b"IEND", b""))
 
 
-def upload_detail_photo(page, image_path):
-    """Загрузить фото в карточку двигателя (редактирование)."""
+def upload_detail_photo(page, image_path, expected_count=None):
+    """Загрузить фото в карточку двигателя (редактирование).
+
+    expected_count — ожидаемое число миниатюр .gallery-thumb после загрузки.
+    Если задано, ждём именно его: submitDetailPhotoAdd() закрывает модалку ДО
+    запроса списка фото и ДО renderDetailContent() (engineCard.js), а
+    wait_for_load_state("networkidle") на SPA возвращается сразу — состояние
+    документа уже достигнуто при загрузке страницы, XHR его не сбрасывают
+    (см. tests/e2e/test_05_photos.py::_upload_photo — там же разбор гонки).
+
+    Перед загрузкой чистим висящие тосты: иначе wait_toast() на второй загрузке
+    подряд матчится на тост предыдущей (текст одинаковый, тост живёт ~3.3 с) и
+    возвращается мгновенно, ничего не дождавшись.
+    """
+    page.evaluate("[...document.querySelectorAll('.toast')].forEach(t => t.remove())")
     page.evaluate("openPhotoAddModal()")
     page.wait_for_selector("#photoAddModal.active", state="visible", timeout=5000)
     page.set_input_files("#detailPhotoInput", image_path)
     page.click("#photoAddModal button:has-text('Загрузить')")
     wait_toast(page, "Загружено фото")
     page.wait_for_selector("#photoAddModal", state="hidden", timeout=5000)
-    # Wait for gallery to refresh
-    page.wait_for_load_state("networkidle", timeout=10000)
+    if expected_count is not None:
+        expect(page.locator(".gallery-thumb")).to_have_count(expected_count, timeout=10000)
 
 
 def engine_row_exists(page, serial):

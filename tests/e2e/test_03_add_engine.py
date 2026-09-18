@@ -130,11 +130,14 @@ def test_26_select_photos(page, admin_api, tmp_path):
         page.wait_for_timeout(500)
         # до загрузки фото показано в превью модалки (#detailPhotoPreview)
         expect(page.locator("#detailPhotoPreview .photo-thumb")).to_be_visible()
+        page.evaluate("[...document.querySelectorAll('.toast')].forEach(t => t.remove())")
         page.locator("#photoAddModal button:has-text('Загрузить')").click()
         wait_toast(page, "Загружено фото")
         page.wait_for_selector("#photoAddModal", state="hidden", timeout=5000)
-        page.wait_for_load_state("networkidle", timeout=10000)
-        assert page.locator(".gallery-thumb").count() == 1
+        # Ждём результат, а не networkidle: модалка закрывается ДО рефреша
+        # галереи, а networkidle на SPA возвращается мгновенно (XHR не ждёт) —
+        # см. tests/e2e/test_05_photos.py::_upload_photo.
+        expect(page.locator(".gallery-thumb")).to_have_count(1, timeout=10000)
     finally:
         if page.locator("#detailModal.active").count():
             cancel_detail_card(page)
