@@ -15,14 +15,20 @@ const LOCATION_NODE_TYPE_LABELS = {
 // Пикер одного места — автопоиск с breadcrumb + "+ Создать новое место"
 // ---------------------------------------------------------------------
 
-// attachLocationPicker(inputEl, {initialId, initialLabel, onChange, allowEmpty})
+// attachLocationPicker(inputEl, {initialId, initialLabel, onChange, allowEmpty, excludeIds})
 // onChange({id, label}) вызывается и при выборе существующего узла, и
 // после создания нового через мастер (обе ветки дают одинаковый payload).
 // Возвращает {getValue, setValue} — getValue() читает текущий выбранный
 // {id, label} (или null), setValue(id, label) программно проставляет поле
 // (нужно для режима редактирования, когда место уже известно с сервера).
+//
+// excludeIds — массив id узлов, которые нельзя выбирать (узел и его
+// поддерево при переносе места). Отсеиваются прямо в результатах поиска,
+// чтобы невалидную цель нельзя было выбрать физически, а не получать 400
+// от /move уже после клика.
 function attachLocationPicker(inputEl, options) {
     const { onChange, allowEmpty = false } = options || {};
+    const excludeIds = new Set((options && options.excludeIds) || []);
     let selected = options && options.initialId
         ? { id: options.initialId, label: options.initialLabel || '' }
         : null;
@@ -34,7 +40,9 @@ function attachLocationPicker(inputEl, options) {
         minChars: 1,
         searchFn: (query) => apiFetch(`/api/locations/search?q=${encodeURIComponent(query)}`)
             .then(r => r.json())
-            .then(rows => rows.map(row => ({ id: row.id, label: row.path || row.name, sublabel: LOCATION_NODE_TYPE_LABELS[row.node_type] || '' }))),
+            .then(rows => rows
+                .filter(row => !excludeIds.has(row.id))
+                .map(row => ({ id: row.id, label: row.path || row.name, sublabel: LOCATION_NODE_TYPE_LABELS[row.node_type] || '' }))),
         onSelect: (item) => {
             selected = { id: item.id, label: item.label };
             inputEl.value = item.label;
@@ -289,6 +297,7 @@ function renderLocationDictionary() {
                         <button class="btn btn-secondary btn-sm" onclick="addChildLocationNode(${n.id})" title="Добавить подсущность"><span class="icon icon-add"></span></button>
                         <button class="btn btn-secondary btn-sm" onclick="renameLocationNode(${n.id}, '${escapeAttr(n.name)}')" title="Переименовать"><span class="icon icon-edit"></span></button>
                         <button class="btn btn-danger btn-sm" onclick="deleteLocationNode(${n.id})" title="Удалить"><span class="icon icon-delete"></span></button>
+                        <button class="btn btn-secondary btn-sm" onclick="moveLocationNode(${n.id})" title="Переместить"><span class="icon icon-move"></span></button>
                     </span>
                 </div>`;
 
@@ -387,4 +396,145 @@ function deleteLocationNode(id) {
             loadLocationDictionary();
         })
         .catch(e => showToast('Ошибка: ' + e.message, 'error', 'icon-cancel'));
+}
+
+// Собирает id узла и ВСЕХ его потомков (на любую глубину) по уже
+// загруженному в память _locationDictNodes — без похода на сервер.
+// Используется при переносе: из размера множества считается количество
+// дочерних мест (для предупреждения), а само множество уходит в пикер как
+// excludeIds — перенос в собственное поддерево дал бы цикл (400 от
+// location_repo.move), поэтому такую цель нельзя даже показать в поиске.
+function collectLocationSubtreeIds(nodeId) {
+    const childrenByParent = {};
+    _locationDictNodes.forEach(n => {
+        if (n.parent_id === null) return;
+        const key = String(n.parent_id);
+        (childrenByParent[key] = childrenByParent[key] || []).push(n.id);
+    });
+    const ids = new Set();
+    const stack = [nodeId];
+    while (stack.length) {
+        const id = stack.pop();
+        if (ids.has(id)) continue;
+        ids.add(id);
+        (childrenByParent[String(id)] || []).forEach(childId => stack.push(childId));
+    }
+    return ids;
+}
+
+// Кнопка "Переместить" в справочнике — смена родителя существующего узла
+// через уже готовый PATCH /api/locations/<id>/move. Сначала подтверждение
+// (с размером поддерева, если дети есть), затем виджет выбора нового
+// родителя. Перенос самого узла (вместе с поддеревом) оборудование и
+// заявки не затрагивает: они привязаны к конкретным узлам, а не к пути.
+function moveLocationNode(id) {
+    const node = _locationDictNodes.find(n => n.id === id);
+    if (!node) return;
+
+    const subtreeIds = collectLocationSubtreeIds(id);
+    const childCount = subtreeIds.size - 1;
+    const message = childCount > 0
+        ? `Переместить «${node.name}» вместе с местами внутри (${childCount})? Оборудование и заявки, привязанные к этим местам, останутся на них автоматически.`
+        : `Переместить «${node.name}»?`;
+    if (!confirm(message)) return;
+
+    openMoveLocationWidget(node, subtreeIds);
+}
+
+// Виджет выбора нового родителя — тот же attachLocationPicker, что в мастере
+// создания и в формах заявки/оборудования, но в режиме переноса:
+//   * allowEmpty: true — перенос в корень (parent_id = NULL) валиден;
+//   * initialId/initialLabel — текущий родитель, видно, откуда переносим;
+//   * excludeIds — сам узел и всё его поддерево не показываются в поиске.
+// onChange срабатывает и при выборе из списка, и при ручной очистке поля
+// (очистка = перенос в корень, см. allowEmpty). Явная кнопка "Отмена" и
+// крестик закрывают виджет без запроса на сервер.
+function openMoveLocationWidget(node, subtreeIds) {
+    const currentParent = node.parent_id !== null
+        ? (_locationDictNodes.find(n => n.id === node.parent_id) || null)
+        : null;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal active';
+    overlay.innerHTML = `
+        <div class="modal-content" style="max-width:480px">
+            <div class="modal-header">
+                <h2><span class="icon icon-move"></span> Переместить место</h2>
+                <button type="button" class="modal-close" data-role="close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Новое родительское место для «${escapeHtml(node.name)}»</label>
+                    <input type="text" id="moveLocationParentInput" placeholder="Без родителя (корень дерева)">
+                    <div style="margin-top:6px;font-size:12px;opacity:.75">
+                        Выберите место из списка. Чтобы перенести в корень дерева, очистите поле.
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" data-role="close">Отмена</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    document.body.classList.add('modal-open');
+
+    const inputEl = overlay.querySelector('#moveLocationParentInput');
+    // Защита от повторного PATCH: onChange может сработать несколько раз
+    // (выбор из списка + ручная правка поля), а перенос нужен один.
+    let moveInFlight = false;
+
+    function close() {
+        picker.destroy();
+        overlay.remove();
+        // Не снимаем modal-open безусловно — тот же паттерн, что в
+        // openCreateLocationWizard (виджет может быть открыт поверх другой
+        // модалки).
+        if (!document.querySelector('.modal.active, .photo-modal.active')) {
+            document.body.classList.remove('modal-open');
+        }
+    }
+
+    const picker = attachLocationPicker(inputEl, {
+        allowEmpty: true,
+        initialId: currentParent ? currentParent.id : null,
+        initialLabel: currentParent ? _localBreadcrumb(currentParent.id) : '',
+        excludeIds: Array.from(subtreeIds),
+        onChange: (selected) => {
+            if (moveInFlight) return;
+            const newParentId = selected ? selected.id : null;
+            if (newParentId === node.parent_id) {
+                // Выбрали тот же родитель, что и сейчас (в т.ч. очистка поля
+                // у корневого узла) — переносить нечего, просто закрываем.
+                close();
+                return;
+            }
+            moveInFlight = true;
+            apiFetch(`/api/locations/${node.id}/move`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ parent_id: newParentId })
+            })
+                .then(r => r.json())
+                .then(result => {
+                    if (result.error) {
+                        // 400 от location_repo.move (например, если
+                        // клиентский фильтр что-то пропустил) — показываем
+                        // текст ошибки так же, как в rename/delete.
+                        moveInFlight = false;
+                        showToast(result.error, 'error', 'icon-cancel');
+                        return;
+                    }
+                    showToast('Место перенесено', 'success', 'icon-check-circle');
+                    close();
+                    loadLocationDictionary();
+                })
+                .catch(e => {
+                    moveInFlight = false;
+                    showToast('Ошибка: ' + e.message, 'error', 'icon-cancel');
+                });
+        }
+    });
+
+    overlay.querySelectorAll('[data-role="close"]').forEach(el => el.addEventListener('click', close));
 }

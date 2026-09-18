@@ -2008,6 +2008,7 @@ textarea.detail-edit-input { min-height: 44px; resize: vertical; }
 .icon-lightbulb { mask-image: url('/static/ico/lightbulb.svg'); -webkit-mask-image: url('/static/ico/lightbulb.svg'); }
 .icon-bolt { mask-image: url('/static/ico/bolt.svg'); -webkit-mask-image: url('/static/ico/bolt.svg'); }
 .icon-build { mask-image: url('/static/ico/build.svg'); -webkit-mask-image: url('/static/ico/build.svg'); }
+.icon-move { mask-image: url('/static/ico/move.svg'); -webkit-mask-image: url('/static/ico/move.svg'); }
 
 /* =====================================================================
    ЭКРАН ЗАГРУЗКИ ПРИ ОТКРЫТИИ/ОБНОВЛЕНИИ СТРАНИЦЫ (F5)
