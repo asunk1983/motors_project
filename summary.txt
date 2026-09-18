@@ -1,115 +1,109 @@
-# Разведка по 4 задачам (motors_project)
-Дата: 2026-09-12 · режим: PLAN (пока без правок) · боевая engine_data.db НЕ открывалась · git commit не делался
+================================================================================
+ИТОГ: ПРОГОН run_tests.bat, ФИКС UTF-8 В ЛОГЕ, РАЗБОР FAILED E2E, ПРАВКИ ТЕСТОВ
+Дата: 2026-09-17. Коммитов НЕ делал. Прошлый summary сохранён: %TEMP%\summary_prev.txt
+Тронуты: run_tests.bat, tests/e2e/test_05_photos.py, tests/e2e/helpers.py,
+tests/e2e/test_03_add_engine.py, .clinerules, summary.txt.
+Приложение (routes/, modules/, static/) НЕ менялось.
+================================================================================
 
-=== ЗАДАЧА 1. Опасные скрипты в корне: audit_test.py / _diag_audit_test.py ===
+1. ПРОГОН run_tests.bat — первые 10 строк консоли (факт, не реконструкция)
 
-1) audit_test.py (83 строки)
-- Шаги: очистка audit_log (DELETE), затем поочерёдно UPDATE записей с id=1:
-  engines (workshop, purpose), equipment (name, criticality), incident_ticket (priority, problem) - с actor;
-  просмотр последних 10 записей журнала; финальный шаг - "фейковые" повторные UPDATE теми же значениями
-  и сравнение COUNT(audit_log) до/после (PASS если 0 новых записей).
-- Обращение к реальной БД НАПРЯМУЮ (не к тестовой):
-    стр.4  DB = r"C:\motors_project\engine_data.db"
-    стр.5  conn = sqlite3.connect(DB)
-- Ссылки из других файлов: только docs/tests.md:38,1039,1040 (сгенерированный мной список) и
-  app.err.log (werkzeug reload при сохранении). .clinerules, scripts/, docs/* - ссылок НЕТ.
+    1  ================================================
+    2    UNIT / ROUTE ТЕСТЫ (tests, без e2e)
+    3  ================================================
+    4  ============================= test session starts =============================
+    5  platform win32 -- Python 3.14.6, pytest-9.1.1, pluggy-1.6.0 -- C:\motors_project\.venv\Scripts\python.exe
+    6  cachedir: .pytest_cache
+    7  rootdir: C:\motors_project
+    8  collecting ... collected 612 items
+    9  (пустая строка)
+   10  tests/test_audit/test_audit.py::TestLogFieldChanges::test_old_row_none_writes_nothing PASSED [  0%]
 
-2) _diag_audit_test.py (141 строка)
-- Шаги: те же (DELETE audit_log -> UPDATE id=1 в engines/equipment/incident_ticket -> вывод журнала ->
-  "ложные изменения" -> подсчёт). Та же семантика, детальнее вывод.
-- Обращение к реальной БД НАПРЯМУЮ:
-    стр.6  DB_PATH = r'C:\motors_project\engine_data.db'
-    стр.7  conn = sqlite3.connect(DB_PATH)
-- Ссылки из других файлов: только docs/tests.md:38,1040 и app.err.log (reload). Больше нигде.
+   Итог секций: unit/route 611 passed + 1 skipped, e2e 82 passed.
+   Про запуск: вызов инструмента режется на 30 с и снимает ДОЧЕРНИЕ процессы —
+   первый прогон так умер на 34% (лог 58 КБ вместо 120 КБ). Полный прогон делаю
+   только отвязанным процессом (WMI Win32_Process Create) + NO_PAUSE=1.
 
-ОЦЕНКА: это одноразовые ручные диагностические заготовки (проверка аудита вручную).
-Реальной зависимости от них нет нигде. НЕ удалял и НЕ изменял. Опасность: оба чистят audit_log
-и мутируют реальные строки id=1 в боевой БД - запускать нельзя без цели "проверить вручную".
-При желании (по отдельному подтверждению) их стоит вынести в scripts/ или удалить.
+2. ФИКС КОДИРОВКИ ЛОГА (run_tests.bat)
 
-=== ЗАДАЧА 2. growth_stats в audit_repo ===
+   Причина: в один md писали два процесса с разными кодировками. Шапку писал cmd
+   (UTF-8 после chcp 65001), тело pytest — `powershell`, то есть Windows
+   PowerShell 5.1, у которого Tee-Object БЕЗ -Encoding пишет UTF-16LE. Итог: 41%
+   нулевых байт в файле (test_results_20260917_212319.md: 84048 из 204470), лог
+   не читался ни одним редактором.
 
-Функции audit_repo.growth_stats (статистики записей по дням) НЕТ нигде в проекте:
-- repositories/audit_repo.py: только list_entries, _resolve_location_label, _attach_value_labels, list_entity_types;
-- routes/audit_routes.py: только GET /api/audit/log и GET /api/audit/entity-types;
-- static/js/audit.js: обычная пагинированная таблица (50/стр.), фильтры, НИКАКОГО графика/подсчёта по дням;
-- grep по growth|by_day|прирост|по дням по всем .py/.js: совпадения ТОЛЬКО в tests/test_audit/test_audit_repo.py
-  (строки 98-108: класс TestGrowthStats, вызов audit_repo.growth_stats(db_conn, days=90), чтение stats['by_day']).
+   Сделано: powershell → %PYTEST_PS% (pwsh 7.6.5) + у Tee-Object явный
+   -Append -Encoding utf8; добавлена проверка `where pwsh` с понятной ошибкой
+   (на машине без PS 7 батник падает, а не пишет молча битый лог);
+   `pause` → `if not defined NO_PAUSE pause`.
 
-ВЫВОД: статистику роста журнала нужно либо реализовать с нуля (audit_repo.growth_stats + роут + UI),
-либо удалить тест TestGrowthStats как фантомный. Реализации нет ни под каким другим именем.
+   Проверено: docs/test_results_20260917_224219.md — 0 нулевых байт, без BOM,
+   фенсы/секции/итоги целы. Откат: %TEMP%\run_tests.bat.bak.
 
-=== ЗАДАЧА 4. test_incident_service.py против services/incident_service.py ===
+3. РАЗБОР 1 failed: tests/e2e/test_05_photos.py::test_47_navigate_photos
 
-Актуальные сигнатуры сервиса:
-- _now() -> str
-- _resolve_closed_at(old_status, new_status, old_closed_at, explicit_closed_at) -> str|None
-- create_ticket(conn, *, location_node_id, problem, created_by_user_id, solution=None, priority='medium',
-    status='in_progress', initiator_ids=None, executor_ids=None, closed_at=None, actor=None) -> (id|None, err|None)
-- update_ticket(conn, ticket_id, *, location_node_id=None, problem=None, solution=None, priority=None,
-    status=None, initiator_ids=None, executor_ids=None, closed_at=None, closed_at_explicitly_set=False,
-    actor=None) -> (bool, err|None)
-- delete_ticket(conn, ticket_id, actor=None) -> (bool, err|None)
-- add_equipment_link(conn, ticket_id, equipment_id, actor=None) -> (bool, err|None)
-- remove_equipment_link(conn, ticket_id, equipment_id, actor=None) -> (bool, err|None)
-- move_location(conn, node_id, new_parent_id=None) -> (bool, err|None)
-- delete_location(conn, node_id) -> (bool, err|None)
-- delete_crew(conn, crew_id, actor=None) -> (bool, err|None)
-Контракты: ошибки ВОЗВРАЩАЮТСЯ кортежем (None|False, текст), НЕ исключениями; закрывающие статусы
-'resolved'/'rejected' (нет 'closed'); таблица incident_ticket (единственное число).
+   Симптом: `assert page.locator(".gallery-thumb").count() >= 2` → «assert 1 >= 2».
+   Плавающий: в 20:30 PASSED, в 21:38 PASSED, в 21:43 FAILED на одном и том же
+   коде (правка батника на приложение не влияет вообще).
 
-ВСЕ 12 тестов не соответствуют коду (первым делом TypeError на несуществующем параметре title=...):
-1. test_create_requires_title - ждёт ValueError, а код: TypeError (нет title=), обязательность problem
-   возвращает (None, 'Поле "Проблема" обязательно').
-2. test_create_requires_at_least_one_initiator - TypeError по title; проверка инициаторов есть, но
-   возвратом (None, 'Нужен хотя бы один инициатор').
-3. test_create_success - TypeError; читает таблицу incident_tickets (мн.ч.) с колонками title/description/
-   location_id - реально incident_ticket с location_node_id/problem.
-4. test_create_auto_adds_closed_at_on_closed_status - статус 'closed' невалиден (VALID_STATUSES =
-   {'in_progress','resolved','rejected'}).
-5. test_create_without_location_allows - в реальном API location_node_id обязателен и должен существовать.
-6. test_create_location_nonexistent_raises_error - нет параметра location_id; несуществующее место ->
-   (None, 'Указанное место не найдено'), без исключения.
-7. test_update_status_to_closed_auto_fills_closed_at - 'closed' невалиден.
-8. test_update_status_from_closed_clears_closed_at - 'closed' невалиден; сброс closed_at реально есть,
-   но через _resolve_closed_at и статусы resolved/rejected/in_progress.
-9. test_delete_incident_ticket_success - TypeError в create; сам delete_ticket существует (возвращает кортеж).
-10. test_move_location_nonexistent_location_raises - нет ни ticket_id, ни location_id в move_location
-    (сигнатура (conn, node_id, new_parent_id=None)); move_location перемещает УЗЕЛ ДЕРЕВА, не заявку.
-11. test_delete_location_used_by_incident_raises - нет location_id; guard есть, но в location_repo.delete
-    и через кортеж.
-12. test_delete_crew_used_by_incident_raises - TypeError уже в create; delete_crew есть, возвращает кортеж.
+   ВЫВОД: приложение исправно — падал ТЕСТ. Доказательства из лога упавшего
+   прогона (test_results_20260917_214316.md, «Captured log call»): оба
+   POST /api/engine/1/photos вернули 200 и оба GET /api/engine/1/photos — 200;
+   после второго POST НЕТ ни GET /api/engines, ни GET /api/status, ни запроса
+   второй миниатюры, то есть ассерт сработал ДО renderDetailContent(), а сервер
+   отдал корректные данные. Гонка в ожиданиях теста.
 
-Корректных "как есть" тестов: 0. Сохранить при переписывании стоит интенты:
-- обязательность problem; >=1 инициатор; авто closed_at при закрывающем статусе и сброс при возврате
-  в in_progress; отказ при несуществующем месте; guard удаления места/человека с заявками.
-Не покрыты вообще: add_equipment_link, remove_equipment_link, delete_ticket с несуществующим id,
-closed_at_explicitly_set (ручная очистка даты), валидация priority/status/crew_id.
+   Три причины (все в _upload_photo того же файла):
+     (1) wait_toast матчит по подстроке, а тост живёт ~3.3 с (common.js:198):
+         на второй загрузке ловит тост ПЕРВОЙ и возвращается мгновенно;
+     (2) #photoAddModal закрывается ДО рефреша галереи: в submitDetailPhotoAdd()
+         порядок toast → closePhotoAddModal() → GET /photos → renderDetailContent()
+         (engineCard.js:662-675);
+     (3) wait_for_load_state("networkidle") на SPA — пустая операция: docstring
+         установленного Playwright 1.62.0 — «If current document has already
+         reached the required state, resolves immediately»; networkidle это
+         состояние документа, XHR его не сбрасывают.
 
-=== ЗАДАЧА 3. СЛИЯНИЕ ДУБЛЕЙ test_equipment_repo.py + test_equipment_repo_part1.py (ПЛАН; ждёт Act mode) ===
+4. ЧТО ИСПРАВЛЕНО (только тесты, приложение не трогал)
 
-Анализ дублей (по именам и телам):
-- TestEquipmentTypeCRUD (4 теста), TestEquipmentTypeInUseAndDelete (5), TestAttributeDefinition (5,
-  включая delete_attribute_definition_self == delete_attribute_definition) - ИДЕНТИЧНЫ в обоих файлах = 14 дублей.
-- Уникальные в part1 (9): TestAttributeInheritance (5: assigned_only_own, effective_inherits_parent_attributes,
-  effective_child_overrides_parent, effective_parent_without_child_override, show_in_list_effective),
-  TestEquipmentGuardsAndCount (4: equipment_referenced_by_incidents x3, count_all).
-- Уникальные в основном test_equipment_repo.py (14): TestEquipmentCRUD (5), TestGetStockSummary (2),
-  TestUpdateEquipmentTypeMinStockQty (2), TestEquipmentLastEdited (5).
+   * test_05_photos.py: _upload_photo(page, png_path, expected_count) ждёт
+     РЕЗУЛЬТАТ — expect(...).to_have_count(N) вместо networkidle; перед загрузкой
+     чистит висящие тосты (_clear_toasts), чтобы wait_toast ждал новый тост.
+     Вызовы: 43/44/46/48 → 1, в test_47 → 1 и 2 (i + 1). Избыточные assert'ы
+     после этого убраны.
+   * helpers.py: upload_detail_photo получил тот же expected_count и чистку тостов
+     (сейчас функция никем не вызывается — правка на будущее: там был комментарий
+     «Wait for gallery to refresh» ровно про отсутствовавшую гарантию).
+   * test_03_add_engine.py::test_26: networkidle + assert count() == 1 заменены на
+     to_have_count(1) и чистку тостов.
 
-ПЛАН:
-1. База - test_equipment_repo.py (28 тестов), обновить шапку;
-2. Добавить в конец 9 уникальных тестов из part1 (TestAttributeInheritance + TestEquipmentGuardsAndCount)
-   с их исходными телами;
-3. Итог: 28 + 9 = 37 тестов (14 дублей исчезают);
-4. Удалить test_equipment_repo_part1.py (явное подтверждение задачи есть);
-5. Прогнать pytest только по слитому файлу
-   (cd c:\motors_project; python -m pytest tests\test_repositories\test_equipment_repo.py -q) -
-   только in-memory db_conn, боевую БД не трогает;
-6. Прислать результат прогона.
+5. ПРОВЕРКИ
 
-ПРИМЕЧАНИЕ: .clinerules содержит правило "Не гонять pytest/e2e - нерабочие"; по явному запросу
-в задаче 3 pytest будем гонять, интерпретируя падения как возможные предСуществующие.
+   * Фокус: test_05_photos.py + test_26 — 7 passed (19.51 с).
+   * Стресс test_05_photos.py (в нём test_47) — 5 итераций подряд, 30 passed
+     (по 6 в каждой), падений 0.
+   * Полный run_tests.bat: 611 passed + 1 skipped (57.00 с) и 82 passed (149.20 с),
+     test_47_navigate_photos PASSED, строки «Press any key» нет (NO_PAUSE работает).
 
-СТАТУС: задачи 1, 2, 4 - ОТЧЁТЫ ГОТОВЫ. Задача 3 требует переключения в ACT MODE
-(изменение файлов + запуск pytest). Боевая БД не открывалась, git commit не делался.
+6. УБОРКА И ПРОЧЕЕ
+
+   * Удалены битые/обрезанные логи (по согласованию):
+     test_results_20260917_{211545, 211750, 212126}.md.
+   * В run_tests.bat убран пробел перед `>>`: из-за него в шапке лога оставались
+     хвостовые пробелы (теперь строка ровно «# Прогон тестов: 20260917_224219»).
+   * .clinerules: актуализированы цифры (было 591/592 и 81/81 — стало 611 + 1 skip
+     и 82), добавлен раздел «Долгие прогоны тестов (run_tests.bat)» (30-секундный
+     лимит инструмента, отвязанный запуск через WMI, NO_PAUSE) и правило, что для
+     лога нужен pwsh, а не powershell.
+   * Временные обёртки _run_tests_detached.cmd, _e2e_focus.cmd, _e2e_stress.cmd
+     удалены; посторонних процессов не осталось.
+
+7. ОСТАЛОСЬ НА РЕШЕНИЕ
+
+   * Коммит не делал — жду команды.
+   * ~40 вызовов wait_for_load_state("networkidle") в остальных e2e-файлах —
+     формально такие же пустые ожидания. Массовую замену (на проверки реальных
+     результатов/ответов) не делал: это отдельный рефакторинг тестов, при
+     желании оформлю отдельной задачей.
+
+=== КОНЕЦ ===
