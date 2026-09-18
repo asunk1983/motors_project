@@ -19,7 +19,15 @@ import_log.txt
 .claude/
 .claudeignore
 CLAUDE.md
-docs/
+# docs/ — рабочие логи прогонов (test_results_*.md, e2e_test_results.md) и
+# прочая локальная документация: в git не нужны. Паттерн именно docs/* (а не
+# docs/): только так git разрешает вернуть один файл через !-исключение, для
+# исключённого каталога re-include не действует (проверено git check-ignore).
+docs/*
+!docs/TEST_STATUS.md
+# junit-артефакты последнего прогона (--junitxml), из них scripts/update_test_status.py
+# собирает docs/TEST_STATUS.md.
+_pytest_artifacts/
 __clinerules
 _pytest_*.txt
 tests/e2e/screenshots/
