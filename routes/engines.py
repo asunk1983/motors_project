@@ -164,7 +164,8 @@ def set_engine_status(engine_id):
         with db_connection() as conn:
             if not get_by_id(conn, engine_id):
                 return jsonify({'error': 'Двигатель не найден'}), 404
-            engine_update_status(conn, engine_id, status)
+            engine_update_status(conn, engine_id, status,
+                                 actor=getattr(request, 'current_user', None))
 
         return jsonify({'success': True, 'status': status, 'message': 'Статус обновлён'})
     except Exception as e:

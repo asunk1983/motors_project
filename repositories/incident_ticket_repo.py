@@ -80,7 +80,10 @@ def _actor_display_name(actor: dict | None) -> str | None:
 # ---------------------------------------------------------------------
 # Функционал ссылок удалён из инцидентов (см. modules/db.py — CREATE TABLE
 # больше не создаётся). На уже существующих БД таблица остаётся — дропаем
-# её одноразовой миграцией. Модульный флаг гарантирует однократность.
+# её одноразовой миграцией. Модульного флага-кэша здесь нет (та же причина,
+# что и у _ensure_updated_at_column выше): однократность обеспечивает сама
+# проверка существования таблицы через sqlite_master — DROP делается только
+# если таблица есть.
 def _ensure_link_table_dropped(conn: sqlite3.Connection) -> None:
     exists = conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='incident_ticket_link'"
@@ -105,9 +108,9 @@ def _ensure_link_table_dropped(conn: sqlite3.Connection) -> None:
 # DROP CONSTRAINT, поэтому снимаем его одноразовой пересоздающей
 # миграцией. Та же логика, что у _ensure_updated_at_column выше
 # (точечная правка репозитория, modules/db.py не трогаем, чтобы не
-# плодить общие миграции из-за одного модуля): модульный флаг
-# гарантирует однократность, FK-проверка делается через
-# PRAGMA foreign_key_list, на свежих БД функция no-op.
+# плодить общие миграции из-за одного модуля): однократность
+# обеспечивает сама FK-проверка через PRAGMA foreign_key_list —
+# модульного флага-кэша нет, на свежих БД функция no-op.
 #
 # Миграция НЕ трогает PRAGMA foreign_keys. PRAGMA foreign_keys в
 # SQLite — per-connection; get_db_connection() ставит ON на каждом

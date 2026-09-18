@@ -316,6 +316,9 @@ class TestSetEngineStatus:
         m_update_status.assert_called_once()
         assert m_update_status.call_args.args[1] == 1          # engine_id
         assert m_update_status.call_args.args[2] == 'reserve'  # status
+        # actor уходит в журнал изменений (repo пишет его в audit_log) —
+        # как и в остальных роутах engines.py; request.current_user не задан
+        assert m_update_status.call_args.kwargs['actor'] is None
 
     @patch('routes.engines.engine_update_status')
     @patch('routes.engines.get_by_id')
