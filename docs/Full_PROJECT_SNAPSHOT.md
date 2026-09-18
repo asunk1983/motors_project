@@ -5,21 +5,23 @@
 ## 0. Метаданные снимка
 
 - **Дата и время создания:** 2026-09-01 (по локальному времени Windows)
+- **Дата сверки с репозиторием:** 2026-09-16
 - **Рабочая директория проекта (абсолютный путь):** `C:\motors_project`
 - **Текущая ветка git:** `main`
-- **SHA последнего коммита:** `7003563d8a6123eea68e1d7776e4212e2efadf1d`
-- **Незакоммиченные изменения (`git status --porcelain`):**
-  - `M modules/photo_manager/equipment_manager.py`
-  - `M routes/equipment_routes.py`
-  - `M static/js/engineCard.js`
-  - `M static/js/equipment.js`
+- **SHA последнего коммита (на 2026-09-16):** `12a1697ebc0581fd4d6a3a82bc44960cc4a115da`
+  (в первой версии документа был указан `7003563d8a6123eea68e1d7776e4212e2efadf1d`)
+- **Незакоммиченные изменения (`git status --porcelain`) на 2026-09-16:**
+  - `M .gitignore`
+  - `M summary.txt`
+  - `M docs/PROJECT_SNAPSHOT.md`
+  - `M docs/Full_PROJECT_SNAPSHOT.md`
 
 - **Python:** `Python 3.14.6`
 - **Пути к интерпретаторам (`where.exe python`):**
   - `C:\Users\KIPIA\AppData\Local\Microsoft\WindowsApps\python.exe`
   - `C:\Users\KIPIA\AppData\Local\Python\bin\python.exe`
 - **Используемый venv:** `.venv\Scripts\python.exe` (Python 3.14.6)
-- **`requirements.txt`:** отсутствует. Все зависимости установлены в `.venv`.
+- **`requirements.txt`:** присутствует в корне проекта (в первой версии документа было указано «отсутствует» — неверно).
 
 ### Состав `.venv` (`pip freeze`):
 
@@ -54,24 +56,40 @@
 
 `version.txt`: `1.0.5` (только 1 строка).
 
-> Требует уточнения: `routes/status.py::APP_VERSION = '2.0'` — числовой код версии приложения в `/api/status` расходится с `version.txt = 1.0.5`; источник правды не задокументирован.
+> **Обновление 2026-09-16:** расхождение «`version.txt` vs `APP_VERSION`» устранено в коде — `routes/status.py:22-51` теперь читает версию из `version.txt` (`_read_app_version()`), хардкода `'2.0'` больше нет. `/api/status` дополнительно отдаёт `git_commit` (`_read_git_commit()`, `git rev-parse --short HEAD`).
 
 ## 1. Полное дерево проекта
 
-Полный список файлов проекта (без `__pycache__`, `.venv`, `.git`, `.pytest_cache`, `motors`, `photos`, `PhotoE`, `backups`, `backup_staging`, `temp`, и без расширений `.db`/`.log`/`.pyc`):
+Полный список файлов проекта (**219** файлов; без `__pycache__`, `.venv`, `.git`, `.pytest_cache`, каталогов данных `motors`, `photos`, `PhotoE`, `PhotoI`, `backups`, `backup_staging`, каталога артефактов `tests/e2e/screenshots`, и без расширений `.db`/`.log`/`.pyc`). Сверено с диском 2026-09-16:
 
 ```
+C:\motors_project\.clinerules
+C:\motors_project\__clinerules
+C:\motors_project\.gitignore
 C:\motors_project\app.py
 C:\motors_project\config\settings.py
+C:\motors_project\config\tokens.json
+C:\motors_project\config\users.json
+C:\motors_project\data\changelog.json
+C:\motors_project\data\wishlist.json
+C:\motors_project\data\wishlist.json.bak
+C:\motors_project\deploy_log.txt
 C:\motors_project\diag_modal.py
 C:\motors_project\diag_photos.py
+C:\motors_project\docs\e2e_test_results.md
 C:\motors_project\docs\Full_PROJECT_SNAPSHOT.md
-C:\motors_project\docs\PROJECT_SNAPSHOT — копия.md
+C:\motors_project\docs\git_diff_clear_database_review.txt
+C:\motors_project\docs\HANDOFF.md
 C:\motors_project\docs\PROJECT_SNAPSHOT.md
+C:\motors_project\docs\server_reference.md
+C:\motors_project\docs\TEST_PLAN.md
+C:\motors_project\docs\tests.md
+C:\motors_project\import_log.txt
 C:\motors_project\index.html
 C:\motors_project\measurement.py
 C:\motors_project\mockup.html
 C:\motors_project\modules\__init__.py
+C:\motors_project\modules\audit.py
 C:\motors_project\modules\auth\__init__.py
 C:\motors_project\modules\auth\auth.py
 C:\motors_project\modules\auth\db_users.py
@@ -88,10 +106,19 @@ C:\motors_project\modules\photo_manager\__init__.py
 C:\motors_project\modules\photo_manager\equipment_manager.py
 C:\motors_project\modules\photo_manager\incident_manager.py
 C:\motors_project\modules\photo_manager\manager.py
-C:\motors_project\promote_and_cleanup.py
+C:\motors_project\push-deploy.bat
+C:\motors_project\push-deploy.sh
+C:\motors_project\requirements.txt
+C:\motors_project\rollback-remote.sh
+C:\motors_project\summary.txt
+C:\motors_project\test_mode_repo.py
+C:\motors_project\version.txt
+C:\motors_project\Новый текстовый документ.cmd
 C:\motors_project\repositories\__init__.py
+C:\motors_project\repositories\audit_repo.py
 C:\motors_project\repositories\crew_repo.py
 C:\motors_project\repositories\engine_repo.py
+C:\motors_project\repositories\equipment_placement_repo.py
 C:\motors_project\repositories\equipment_repo.py
 C:\motors_project\repositories\incident_equipment_repo.py
 C:\motors_project\repositories\incident_ticket_repo.py
@@ -99,6 +126,7 @@ C:\motors_project\repositories\location_repo.py
 C:\motors_project\repositories\mode_repo.py
 C:\motors_project\repositories\work_repo.py
 C:\motors_project\routes\__init__.py
+C:\motors_project\routes\audit_routes.py
 C:\motors_project\routes\auth.py
 C:\motors_project\routes\backup_routes.py
 C:\motors_project\routes\changelog.py
@@ -118,6 +146,12 @@ C:\motors_project\routes\status.py
 C:\motors_project\schemas\__init__.py
 C:\motors_project\schemas\engine_schema.py
 C:\motors_project\schemas\equipment_schema.py
+C:\motors_project\scripts\add_changelog_entry.py
+C:\motors_project\scripts\diag_audit_log.py
+C:\motors_project\scripts\diag_audit_missing_entities.py
+C:\motors_project\scripts\diag_schema_mismatch.py
+C:\motors_project\scripts\migrate_changelog_to_json.py
+C:\motors_project\scripts\migrate_wishlist_to_json.py
 C:\motors_project\services\__init__.py
 C:\motors_project\services\backup_service.py
 C:\motors_project\services\equipment_location_migration.py
@@ -126,10 +160,9 @@ C:\motors_project\services\incident_service.py
 C:\motors_project\static\css\print.css
 C:\motors_project\static\css\style.css
 C:\motors_project\static\ico\*.svg  (34 файла иконок)
-C:\motors_project\static\js\api.js
-C:\motors_project\static\js\app.js
+C:\motors_project\static\js\audit.js
 C:\motors_project\static\js\auth.js
-C:\motors_project\static\js\backupManager.js
+C:\motors_project\static\js\backup.js
 C:\motors_project\static\js\catalog.js
 C:\motors_project\static\js\common.js
 C:\motors_project\static\js\engineCard.js
@@ -144,10 +177,10 @@ C:\motors_project\static\js\incidentLocations.js
 C:\motors_project\static\js\incidentLocationTree.js
 C:\motors_project\static\js\incidentPrint.js
 C:\motors_project\static\js\incidents.js
+C:\motors_project\static\js\info.js
 C:\motors_project\static\js\locationTree.js
 C:\motors_project\static\js\print.js
 C:\motors_project\static\js\search.js
-C:\motors_project\static\js\state.js
 C:\motors_project\templates\index.html
 C:\motors_project\templates\print.html
 C:\motors_project\templates\print_equipment.html
@@ -156,6 +189,7 @@ C:\motors_project\tests\__init__.py
 C:\motors_project\tests\conftest.py
 C:\motors_project\tests\e2e\__init__.py
 C:\motors_project\tests\e2e\.results.json
+C:\motors_project\tests\e2e\conftest.py
 C:\motors_project\tests\e2e\helpers.py
 C:\motors_project\tests\e2e\test_01_auth.py
 C:\motors_project\tests\e2e\test_02_catalog.py
@@ -168,43 +202,80 @@ C:\motors_project\tests\e2e\test_08_settings.py
 C:\motors_project\tests\e2e\test_09_backups.py
 C:\motors_project\tests\e2e\test_10_info.py
 C:\motors_project\tests\e2e\test_11_misc.py
+C:\motors_project\tests\test_audit\__init__.py
+C:\motors_project\tests\test_audit\test_audit.py
+C:\motors_project\tests\test_audit\test_audit_repo.py
+C:\motors_project\tests\test_audit\test_audit_routes.py
+C:\motors_project\tests\test_auth\__init__.py
+C:\motors_project\tests\test_auth\test_db_users.py
+C:\motors_project\tests\test_auth\test_decorators.py
+C:\motors_project\tests\test_auth\test_hashing.py
+C:\motors_project\tests\test_auth\test_tokens.py
 C:\motors_project\tests\test_backup_system\__init__.py
 C:\motors_project\tests\test_backup_system\test_backup.py
+C:\motors_project\tests\test_engine_parser\test_parser.py
+C:\motors_project\tests\test_photo_manager\__init__.py
+C:\motors_project\tests\test_photo_manager\test_equipment_manager.py
+C:\motors_project\tests\test_photo_manager\test_incident_manager.py
+C:\motors_project\tests\test_photo_manager\test_manager.py
 C:\motors_project\tests\test_repositories\__init__.py
+C:\motors_project\tests\test_repositories\test_crew_repo.py
 C:\motors_project\tests\test_repositories\test_engine_repo.py
+C:\motors_project\tests\test_repositories\test_engine_repo_audit.py
+C:\motors_project\tests\test_repositories\test_equipment_placement_repo.py
+C:\motors_project\tests\test_repositories\test_equipment_repo.py
+C:\motors_project\tests\test_repositories\test_incident_equipment_repo.py
+C:\motors_project\tests\test_repositories\test_incident_ticket_repo.py
+C:\motors_project\tests\test_repositories\test_location_repo.py
+C:\motors_project\tests\test_repositories\test_mode_repo.py
+C:\motors_project\tests\test_repositories\test_work_repo.py
+C:\motors_project\tests\test_routes\test_auth_routes.py
+C:\motors_project\tests\test_routes\test_crew_routes.py
 C:\motors_project\tests\test_routes\test_engines.py
+C:\motors_project\tests\test_routes\test_equipment_photo_routes.py
+C:\motors_project\tests\test_routes\test_equipment_routes.py
+C:\motors_project\tests\test_routes\test_import_routes.py
+C:\motors_project\tests\test_routes\test_incident_photo_routes.py
+C:\motors_project\tests\test_routes\test_incident_ticket_routes.py
+C:\motors_project\tests\test_routes\test_photos.py
+C:\motors_project\tests\test_services\test_incident_service.py
 C:\motors_project\tests\test_utils\__init__.py
 C:\motors_project\tests\test_utils\test_date.py
 C:\motors_project\tests\test_utils\test_file_store.py
+C:\motors_project\tests\test_utils\test_logging.py
 C:\motors_project\tests\test_utils\test_naming.py
 C:\motors_project\utils\__init__.py
 C:\motors_project\utils\date.py
 C:\motors_project\utils\file_store.py
 C:\motors_project\utils\logging.py
 C:\motors_project\utils\naming.py
-C:\motors_project\version.txt
 ```
 
-Сводка количества файлов по категориям:
+Сводка количества файлов по категориям (на 2026-09-16, всего **219**):
 
 | Категория | Кол-во файлов |
 | --- | --- |
-| Корень проекта (`.py`, `.html`, `.txt`) | 7 |
-| `config/` | 1 |
-| `modules/` | 14 |
+| Корень проекта (все файлы, кроме каталогов) | 19 |
+| `config/` | 3 |
+| `data/` | 3 |
+| `docs/` | 8 |
+| `modules/` | 18 |
 | `repositories/` | 11 |
-| `routes/` | 19 |
-| `schemas/` | 5 |
+| `routes/` | 18 |
+| `schemas/` | 3 |
+| `scripts/` | 6 |
 | `services/` | 5 |
 | `static/css/` | 2 |
 | `static/ico/` | 34 |
-| `static/js/` | 22 |
+| `static/js/` | 21 |
 | `templates/` | 4 |
-| `tests/` (unit + e2e, без `__pycache__`) | 18 |
+| `tests/` (unit + e2e, без `__pycache__` и без `screenshots/`) | 59 |
 | `utils/` | 5 |
-| **Всего файлов проекта** | **147** |
+| **Всего файлов проекта** | **219** |
 
-Служебные артефакты этого аудита (после использования документа можно удалить): `docs/_tree.txt`, `docs/_static.txt`, `docs/_templates.txt`, `docs/_tests.txt`, `docs/_usage_scan.txt`.
+> В первой версии документа было **147** файлов и отсутствовали разделы `scripts/`, `data/`, `docs/*` (кроме двух снапшотов), `tests/test_audit|test_auth|test_engine_parser|test_photo_manager|test_services`, `tests/e2e/conftest.py`, `modules/audit.py`, `repositories/audit_repo.py`, `repositories/equipment_placement_repo.py`, `routes/audit_routes.py`, `static/js/audit.js`/`backup.js`/`info.js`.
+
+Служебные артефакты аудита `docs/_tree.txt`, `docs/_static.txt`, `docs/_templates.txt`, `docs/_tests.txt`, `docs/_usage_scan.txt`, упоминавшиеся в первой версии документа, **на диске отсутствуют** (уже удалены) — все цифры раздела 15 пересчитаны заново 2026-09-16.
 
 ## 2. Обзор архитектуры
 
@@ -220,10 +291,11 @@ C:\motors_project\version.txt
 
 ```
 templates/ (index.html, print*.html)
-        ↓ подключаются <script src="..."> 
-static/js/  (auth, common, api, app, state, catalog, engines, engineCard, equipment, equipmentLocationTree, equipmentPrint,
-             exportManager, importer, locationTree, search, incidents, incidentLocations, incidentCrew, 
-             incidentLocationTree, incidentPrint, backupManager, print, state)
+        ↓ подключаются <script src="..."> (обычные скрипты, НЕ ES-модули)
+static/js/  (auth, common, catalog, engines, engineCard, locationTree, importer, exportManager,
+             backup, info, search, equipment, equipmentLocationTree, equipmentPrint,
+             incidents, incidentCrew, incidentLocations, incidentLocationTree, incidentPrint,
+             audit, print — 21 файл; см. раздел 10)
         ↓ fetch /api/...
 routes/    (Flask blueprints — тонкая HTTP-обёртка, parse payload, status codes)
         ↓ ↓ оркестрация через services/
@@ -288,9 +360,11 @@ SQLite файл engine_data.db + дисковые папки photos/ PhotoI/ Pho
 
 ## 3. База данных — полная схема
 
-> **Обновление 2026-09-15:** из раздела удалены описания таблиц вырезанных модулей «База знаний» и «Заявки» (commit 758aa34): `failure_mode`, `failure_cause`, `knowledge_article`, `knowledge_article_cause`, `ticket`, `failure`, `maintenance_action_type`, `equipment_work`. Нумерация остальных таблиц пересчитана.
+> **Обновление 2026-09-16 (сверка с `modules/db.py`, 519 строк):** таблицы `changelog_entries` и `wishlist_items` в схеме **отсутствуют** (журнал изменений и wishlist переведены в JSON — `data/changelog.json`, `data/wishlist.json`; миграция — `scripts/migrate_changelog_to_json.py`, `scripts/migrate_wishlist_to_json.py`), таблицы `incident_ticket_link` тоже нет (`incident_ticket_repo.py::_ensure_link_table_dropped` её дропает). Появились/не были описаны: `audit_log` и `equipment_placement`. Все таблицы в **актуальной** БД (17 штук): `engines`, `operating_modes`, `maintenance_works`, `users`, `tokens`, `audit_log`, `equipment_type`, `attribute_definition`, `equipment_type_attribute`, `equipment`, `equipment_placement`, `location_node`, `crew`, `incident_ticket`, `incident_ticket_initiator`, `incident_ticket_executor`, `incident_ticket_equipment`.
+>
+> Фактические номера строк `CREATE TABLE` в `modules/db.py` (на 2026-09-16, сдвинулись относительно первой версии документа): `engines` 102, `operating_modes` 129, `maintenance_works` 148, `users` 162, `tokens` 173, `audit_log` 200, `equipment_type` 231, `attribute_definition` 240, `equipment_type_attribute` 254, `equipment` 269, `equipment_placement` 314, `location_node` 347, `crew` 365, `incident_ticket` 383, `incident_ticket_initiator` 417, `incident_ticket_executor` 424, `incident_ticket_equipment` 431.
 
-Схема определена в `modules/db.py` (одна функция `init_db()`, строки 60–591). PRAGMA устанавливаются в `get_db_connection()`:
+Схема определена в `modules/db.py` (одна функция `init_db()`, строка 76 — до конца файла). PRAGMA устанавливаются в `get_db_connection()`:
 
 ```
 PRAGMA journal_mode=WAL
@@ -363,27 +437,11 @@ ON DELETE CASCADE: не определён (сама `engines` не имеет �
 
 Индекс: `idx_works_engine`. ON DELETE CASCADE — тот же нюанс, что у `operating_modes`.
 
-### Таблица 4: `changelog_entries` (`modules/db.py:124-130`)
+### Таблицы 4–5 (УДАЛЕНЫ): `changelog_entries`, `wishlist_items`
 
-| Колонка | Тип | PK/AUTOINC | Назначение |
-| --- | --- | --- | --- |
-| `id` | INTEGER | PK AUTOINCREMENT | — |
-| `entry_date` | TEXT | NOT NULL | ГГГГ-ММ-ДД |
-| `text` | TEXT | NOT NULL | Текст записи |
-| `created_at` | TEXT | NOT NULL | ISO-дата создания |
+На 2026-09-16 этих таблиц в схеме **нет**. Журнал изменений и wishlist вкладки «Инфо» хранятся в JSON-файлах (`data/changelog.json`, `data/wishlist.json`); чтение/запись выполняет сам `routes/changelog.py` встроенным модулем `json` (пути — `config.settings.CHANGELOG_JSON_PATH`/`WISHLIST_JSON_PATH`), а НЕ `utils/file_store.py` (он в production не используется). Доступ по API `/api/changelog` (read-only), `/api/wishlist` (CRUD). Перенос выполняют одноразовые скрипты `scripts/migrate_changelog_to_json.py` и `scripts/migrate_wishlist_to_json.py` (создание записей вручную — `scripts/add_changelog_entry.py`).
 
-Индекс: `idx_changelog_date`. Seed: 5 записей об изменениях (`db.py:523-529`).
-
-### Таблица 5: `wishlist_items` (`modules/db.py:131-138`)
-
-| Колонка | Тип | PK/AUTOINC | Назначение |
-| --- | --- | --- | --- |
-| `id` | INTEGER | PK AUTOINCREMENT | — |
-| `text` | TEXT | NOT NULL | Текст пожелания |
-| `done` | INTEGER | NOT NULL DEFAULT 0 | 0/1 — внедрено? |
-| `created_at` | TEXT | NOT NULL | ISO-дата |
-
-### Таблица 6: `users` (`modules/db.py:139-149`)
+### Таблица 6: `users` (`modules/db.py:162`)
 
 | Колонка | Тип | PK/AUTOINC | Назначение |
 | --- | --- | --- | --- |
@@ -543,17 +601,40 @@ PK: `(ticket_id, crew_id)`.
 
 PK: `(ticket_id, equipment_id)`.
 
-### Таблица 18: `incident_ticket_link` (`modules/db.py:431-438`) — ссылки заявки
+### Таблица 18 (УДАЛЕНА): `incident_ticket_link`
+
+Таблицы ссылок заявки в схеме больше **нет** (2026-09-16): `repositories/incident_ticket_repo.py::_ensure_link_table_dropped` дропает её при первом обращении (появилась FK-миграция на «без users-FK», см. `_ensure_no_users_fk`). Ссылки-«линки» заявок в UI/API не поддерживаются.
+
+### Таблица 19: `audit_log` (`modules/db.py:200`)
 
 | Колонка | Тип | PK/AUTOINC | Назначение |
 | --- | --- | --- | --- |
 | `id` | INTEGER | PK AUTOINCREMENT | — |
-| `ticket_id` | INTEGER | NOT NULL, FK→`incident_ticket(id)` ON DELETE CASCADE | — |
-| `url` | TEXT | NOT NULL | — |
-| `caption` | TEXT | (опц.) | — |
+| `entity_type` | TEXT | NOT NULL | Тип сущности: `'engine'`, `'equipment'`, `'incident_ticket'`, … |
+| `entity_id` | INTEGER | NOT NULL | id сущности |
+| `field_name` | TEXT | NOT NULL | Какое поле изменилось (одна строка = одно поле) |
+| `old_value` | TEXT | (опц.) | Прежнее значение |
+| `new_value` | TEXT | (опц.) | Новое значение |
+| `changed_by_user_id` | INTEGER | (опц.) | id пользователя |
+| `changed_by_display_name` | TEXT | (опц.) | Денормализованное имя на момент правки |
+| `changed_at` | TEXT | NOT NULL | Время правки |
+
+Индекс: `idx_audit_log_entity(entity_type, entity_id, changed_at)`.
+
+> Запись ведёт `modules/audit.py` (`log_creation`, `log_deletion`, `log_field_changes`) из репозиториев (`engine_repo`, `equipment_repo`, `incident_ticket_repo`); чтение — `repositories/audit_repo.py` (`list_entries`, `list_entity_types`) через `GET /api/audit/log` и `GET /api/audit/entity-types`; UI — таб «Аудит» (`static/js/audit.js`).
+
+### Таблица 20: `equipment_placement` (`modules/db.py:314`)
+
+| Колонка | Тип | PK/AUTOINC | Назначение |
+| --- | --- | --- | --- |
+| `id` | INTEGER | PK AUTOINCREMENT | — |
+| `equipment_id` | INTEGER | NOT NULL, FK→`equipment(id)` ON DELETE CASCADE | Оборудование |
+| `location_node_id` | INTEGER | NOT NULL, FK→`location_node(id)` | Место установки (узел дерева) |
+| `designation` | TEXT | (опц.) | Схемное обозначение (уникально в пределах места) |
+| `note` | TEXT | (опц.) | Примечание |
 | `created_at` | TEXT | NOT NULL DEFAULT (datetime('now')) | — |
 
-Индекс: `idx_link_ticket`.
+Индексы: `idx_equipment_placement_equipment`, `idx_equipment_placement_location`. CRUD — `repositories/equipment_placement_repo.py`, API — `/api/equipment/<id>/placements*`.
 
 > **Фото Инцидентов НЕ имеют таблицы в БД** — они хранятся на диске в папке `PhotoI/` с маской `ID{ticket_id}_{n}.{ext}`. Аналогично для оборудования — `PhotoE/`.
 
@@ -570,11 +651,13 @@ PK: `(ticket_id, equipment_id)`.
 | `location_node.parent_id` | (не указано) | n/a (см. `repositories/location_repo.py::has_children` для защиты) | — |
 | `incident_ticket.location_node_id` | (не указано) | n/a (см. `repositories/location_repo.py::is_referenced` для защиты) | — |
 | `incident_ticket.created_by_user_id → users.id` | (не указано) | n/a | — |
-| `incident_ticket_initiator/executor/equipment.ticket_id` | CASCADE | ✅ да | `db.py:410,417,424` |
+| `incident_ticket_initiator/executor/equipment.ticket_id` | CASCADE | ✅ да | `db.py:417,424,431` |
 | `incident_ticket_equipment.equipment_id` | (не указано) | n/a | — |
-| `incident_ticket_link.ticket_id` | CASCADE | ✅ да | `db.py:434` |
+| `equipment_placement.equipment_id` | CASCADE | ✅ да | `db.py:316` |
+| `equipment_placement.location_node_id` | (не указано) | n/a (защита — `location_repo.is_referenced`) | `db.py:317` |
+| `incident_ticket_link.ticket_id` | — | **таблицы больше нет** (дропается `_ensure_link_table_dropped`) | — |
 
-> **Требует уточнения:** для таблиц `equipment`, `equipment_type` отсутствуют явные ON DELETE CASCADE/RESTRICT. SQLite БЕЗ `PRAGMA foreign_keys=ON` молча игнорирует FK. В коде `get_db_connection()` явно включает `PRAGMA foreign_keys=ON`, но если кто-то забудет его установить (например, через прямой `sqlite3.connect()` в обход `db_connection`) — связи не будут enforced. `diag_photos.py:6` и `promote_and_cleanup.py:26` используют `sqlite3.connect(DB_PATH)` напрямую без `foreign_keys=ON`.
+> **Требует уточнения:** для таблиц `equipment`, `equipment_type` отсутствуют явные ON DELETE CASCADE/RESTRICT. SQLite БЕЗ `PRAGMA foreign_keys=ON` молча игнорирует FK. В коде `get_db_connection()` явно включает `PRAGMA foreign_keys=ON`, но если кто-то забудет его установить (например, через прямой `sqlite3.connect()` в обход `db_connection`) — связи не будут enforced. Из диагностических скриптов напрямую `sqlite3.connect(DB_PATH)` использует `diag_photos.py:6` (файла `promote_and_cleanup.py` в проекте уже нет — см. раздел 17.12).
 
 ## 4. Backend — карта роутов
 
@@ -713,15 +796,19 @@ PK: `(ticket_id, equipment_id)`.
 
 ### `routes/changelog.py` (changelog_bp, `/api`)
 
+> **Обновление 2026-09-16:** changelog стал **read-only** — `POST /api/changelog` и `DELETE /api/changelog/<id>` удалены из кода (см. docstring `routes/changelog.py:5-7`); новые записи добавляются скриптом `scripts/add_changelog_entry.py`. Данные читаются из `data/changelog.json` (не из БД) — сортировка `entry_date DESC, id DESC`.
+
 | Метод/путь | Функция | Параметры | Возврат | Описание |
 | --- | --- | --- | --- | --- |
-| `GET /api/changelog` | `get_changelog` | — | список записей | отсортирован по `entry_date DESC, id DESC` |
-| `POST /api/changelog` | `create_changelog_entry` | body `{text, date?}` | `{success, id}` | — |
-| `DELETE /api/changelog/<int:entry_id>` | `delete_changelog_entry` | path | 200/404 | — |
-| `GET /api/wishlist` | `get_wishlist` | — | список пожеланий | `ORDER BY done ASC, id DESC` |
-| `POST /api/wishlist` | `create_wishlist_item` | body `{text}` | `{success, id}` | — |
-| `PUT /api/wishlist/<int:item_id>` | `update_wishlist_item` | path, body `{done?, text?}` | 200/404 | — |
-| `DELETE /api/wishlist/<int:item_id>` | `delete_wishlist_item` | path | 200/404 | — |
+| `GET /api/changelog` | `get_changelog` | — | список записей из `data/changelog.json` | read-only (запись через API удалена) |
+| ~~`POST /api/changelog`~~ | — | — | — | **удалён из кода** |
+| ~~`DELETE /api/changelog/<int:entry_id>`~~ | — | — | — | **удалён из кода** |
+| `GET /api/wishlist` | `get_wishlist` | — | список пожеланий из `data/wishlist.json` | сортировка: невыполненные сверху |
+| `POST /api/wishlist` | `create_wishlist_item` | body `{text}` | `{success, item}` | создать пожелание |
+| `PUT /api/wishlist/<int:item_id>` | `update_wishlist_item` | path, body `{done?, text?}` | `{success, item}` / 404 | изменить |
+| `DELETE /api/wishlist/<int:item_id>` | `delete_wishlist_item` | path | `{success}` / 404 | удалить |
+
+> Файлы JSON читаются/пишутся встроенным `json` прямо в `routes/changelog.py` (`_load_wishlist`, `_save_wishlist`), а НЕ через `utils/file_store.py`; пути берутся из `config.settings.CHANGELOG_JSON_PATH` / `WISHLIST_JSON_PATH`.
 
 ### `routes/status.py` (status_bp, `/api`)
 
@@ -1172,23 +1259,25 @@ PK: `(ticket_id, equipment_id)`.
 
 ### Полная таблица использования констант
 
-Кто импортирует каждую константу пути — собрано на основе `docs/_usage_scan.txt` (см. раздел 15):
+Кто импортирует каждую константу пути — пересобрано 2026-09-16 напрямую по коду (`Select-String`/чтение файлов; прежний лог `docs/_usage_scan.txt` на диске отсутствует):
 
 | Константа | Единственное место определения | Кто импортирует (файлы) |
 | --- | --- | --- |
-| `DB_PATH` | `config/settings.py:11` | `app.py`, `modules/db.py` (реэкспорт), `modules/backup_system/backup.py:35` (через `db_module`), `services/backup_service.py:9`, `diag_photos.py:6`, `promote_and_cleanup.py:18` |
-| `MOTORS_FOLDER` | `config/settings.py:12` | `app.py`, `routes/import_routes.py:14` (через `db`) |
-| `PHOTOS_FOLDER` | `config/settings.py:13` | `app.py`, `modules/db.py` (реэкспорт), `modules/backup_system/backup.py:36` (через `db_module`), `services/backup_service.py:9`, `routes/import_routes.py:14` (через `db`), `diag_photos.py:4` |
-| `INCIDENT_PHOTOS_FOLDER` | `config/settings.py:17` | `modules/db.py` (реэкспорт), `modules/photo_manager/incident_manager.py` (через `db_module.INCIDENT_PHOTOS_FOLDER`) |
-| `EQUIPMENT_PHOTOS_FOLDER` | `config/settings.py:20` | `modules/db.py` (реэкспорт), `modules/photo_manager/equipment_manager.py` (через `db_module.EQUIPMENT_PHOTOS_FOLDER`) |
-| `BACKUPS_FOLDER` | `config/settings.py:21` | `app.py`, `modules/backup_system/backup.py:37` (через `db_module`), `services/backup_service.py:9`, `routes/backup_routes.py` (через `db_module`) |
-| `BACKUP_STAGING_FOLDER` | `config/settings.py:22` | `app.py`, `modules/backup_system/backup.py:38` (через `db_module`), `services/backup_service.py:9`, `routes/backup_routes.py` (через `db_module`) |
-| `CONFIG_DIR` | `config/settings.py:23` | `modules/auth/file_users.py:10`, `modules/auth/auth.py:53` (реэкспорт) |
-| `FILE_USERS` | `config/settings.py:24` | `modules/auth/file_users.py:10`, `modules/auth/auth.py:51` (реэкспорт) |
-| `FILE_TOKENS` | `config/settings.py:25` | `modules/auth/file_users.py:10`, `modules/auth/auth.py:52` (реэкспорт) |
-| `ALLOWED_PHOTO_EXT` | `config/settings.py:27` | `modules/db.py:9` (реэкспорт), `modules/photo_manager/manager.py:25`, `incident_manager.py:25`, `equipment_manager.py:28` |
-| `MAX_WORKERS` | `config/settings.py:30` | `routes/import_routes.py:17` |
-| `LOG_FILE` | `config/settings.py:31` | `utils/logging.py:10` |
+| `DB_PATH` | `config/settings.py:25` | `modules/db.py:9` (реэкспорт), `modules/backup_system/backup.py:35` (через `db_module`), `services/backup_service.py:9`, `diag_photos.py:6`, `routes/import_routes.py` (через `db_module.DB_PATH`) |
+| `MOTORS_FOLDER` | `config/settings.py:26` | `modules/db.py:9` (реэкспорт), `app.py:15`, `routes/import_routes.py:14` |
+| `PHOTOS_FOLDER` | `config/settings.py:27` | `modules/db.py:9` (реэкспорт), `modules/backup_system/backup.py:36` (через `db_module`), `services/backup_service.py:9`, `routes/import_routes.py:14`, `diag_photos.py:4`, `modules/photo_manager/manager.py` (через `db_module`) |
+| `INCIDENT_PHOTOS_FOLDER` | `config/settings.py:31` | `modules/db.py:9` (реэкспорт), `modules/backup_system/backup.py:37`, `modules/photo_manager/incident_manager.py` (через `db_module.INCIDENT_PHOTOS_FOLDER`), в списке `PHOTO_FOLDERS` (`settings.py:52`) |
+| `EQUIPMENT_PHOTOS_FOLDER` | `config/settings.py:34` | `modules/db.py:9` (реэкспорт), `modules/backup_system/backup.py:38`, `modules/photo_manager/equipment_manager.py` (через `db_module.EQUIPMENT_PHOTOS_FOLDER`), в списке `PHOTO_FOLDERS` (`settings.py:53`) |
+| `PHOTO_FOLDERS` | `config/settings.py:50` | `modules/db.py:9` (реэкспорт), `routes/import_routes.py:364-365` (`clear_database`) |
+| `BACKUPS_FOLDER` | `config/settings.py:56` | `app.py:15`, `modules/backup_system/backup.py:39` (через `db_module`), `services/backup_service.py:9`, `routes/backup_routes.py` (через `db_module`) |
+| `BACKUP_STAGING_FOLDER` | `config/settings.py:57` | `app.py:15`, `modules/backup_system/backup.py:40` (через `db_module`), `services/backup_service.py:9`, `routes/backup_routes.py` (через `db_module`) |
+| `CONFIG_DIR` | `config/settings.py:58` | `modules/auth/file_users.py:10` (использование — строки 16-17) |
+| `FILE_USERS` | `config/settings.py:59` | `modules/auth/file_users.py:10`, реэкспорт в `modules/auth/auth.py:55` |
+| `FILE_TOKENS` | `config/settings.py:60` | `modules/auth/file_users.py:10`, реэкспорт в `modules/auth/auth.py:56` |
+| `DATA_DIR`, `CHANGELOG_JSON_PATH`, `WISHLIST_JSON_PATH` | `config/settings.py:64-66` | `routes/changelog.py:22-24` (импорт под алиасами) |
+| `ALLOWED_PHOTO_EXT` | `config/settings.py:68` | `modules/db.py:9` (реэкспорт), `modules/photo_manager/manager.py:25`, `incident_manager.py:25`, `equipment_manager.py:28`, `diag_photos.py:4` |
+| `MAX_WORKERS` | `config/settings.py:71` | `routes/import_routes.py:17` |
+| `LOG_FILE` | `config/settings.py:72` | `utils/logging.py` |
 
 ### Другие/дублирующие определения той же константы
 
@@ -1196,13 +1285,13 @@ PK: `(ticket_id, equipment_id)`.
 
 | Константа/паттерн | Где ещё определено или упоминается |
 | --- | --- |
-| `BASE_DIR` | `config/settings.py:9` — ЕДИНСТВЕННОЕ место. В `app.py:15` есть только `from config.settings import ...` (без `BASE_DIR`). В `promote_and_cleanup.py:18` импортируется только `DB_PATH`. |
-| `PHOTOS_FOLDER` | `config/settings.py:13` — ЕДИНСТВЕННОЕ место. Все остальные потребители импортируют из `config.settings` или через `db_module.PHOTOS_FOLDER`. |
-| `DB_PATH` | `config/settings.py:11` — ЕДИНСТВЕННОЕ место. Используется во всех остальных файлах через импорт. |
-| `FILE_USERS`, `FILE_TOKENS`, `CONFIG_DIR` | только `config/settings.py` + реэкспорт через `modules/auth/auth.py`. Нет дубликатов. |
-| `BACKUPS_FOLDER`, `BACKUP_STAGING_FOLDER` | только `config/settings.py` + `modules/backup_system/backup.py` (импорт из `db_module`) + `app.py`. Нет дубликатов. |
-| `MAX_WORKERS` | `config/settings.py:30` — ЕДИНСТВЕННОЕ место. Используется только в `routes/import_routes.py`. |
-| `LOG_FILE` | `config/settings.py:31` — ЕДИНСТВЕННОЕ место. Используется только в `utils/logging.py`. |
+| `BASE_DIR` | `config/settings.py:10` — ЕДИНСТВЕННОЕ место. В `app.py:15` есть только `from config.settings import ...` (без `BASE_DIR`). |
+| `PHOTOS_FOLDER` | `config/settings.py:27` — ЕДИНСТВЕННОЕ место. Все остальные потребители импортируют из `config.settings` или через `db_module.PHOTOS_FOLDER`. |
+| `DB_PATH` | `config/settings.py:25` — ЕДИНСТВЕННОЕ место. Используется во всех остальных файлах через импорт. |
+| `FILE_USERS`, `FILE_TOKENS`, `CONFIG_DIR` | только `config/settings.py:58-60` + реэкспорт через `modules/auth/auth.py`. Нет дубликатов. |
+| `BACKUPS_FOLDER`, `BACKUP_STAGING_FOLDER` | только `config/settings.py:56-57` + `modules/backup_system/backup.py` (импорт из `db_module`) + `app.py`. Нет дубликатов. |
+| `MAX_WORKERS` | `config/settings.py:71` — ЕДИНСТВЕННОЕ место. Используется только в `routes/import_routes.py`. |
+| `LOG_FILE` | `config/settings.py:72` — ЕДИНСТВЕННОЕ место. Используется только в `utils/logging.py`. |
 
 ### Локальные определения, дублирующие config.settings
 
@@ -1287,8 +1376,8 @@ pattern = re.compile(rf'^ID{equipment_id}_(\d+)\.')
 
 - `templates/` — `index.html`, `print.html`, `print_equipment.html`, `print_incident.html` — имена захардкожены, по `ID` не парсятся.
 - `static/js/*.js`, `static/css/*.css`, `static/ico/*.svg` — статические файлы.
-- `app.py`, `engine_data.db` (имя `engine_data.db` фиксировано в `config/settings.py:11`).
-- `index.html`, `mockup.html`, `measurement.py`, `diag_*.py`, `promote_and_cleanup.py` — корневые.
+- `app.py`, `engine_data.db` (имя `engine_data.db` фиксировано в `config/settings.py:25`).
+- `index.html`, `mockup.html`, `measurement.py`, `diag_*.py`, `test_mode_repo.py` — корневые (`promote_and_cleanup.py` в проекте нет).
 
 ### Дублирование логики схемы
 
@@ -1304,7 +1393,7 @@ pattern = re.compile(rf'^ID{equipment_id}_(\d+)\.')
 - Заявки Инцидентов → `PhotoI/`
 - Оборудование → `PhotoE/`
 
-Это явно зафиксировано в комментариях `config/settings.py:14-20`:
+Это явно зафиксировано в комментариях `config/settings.py:28-34`:
 
 ```
 # Фото-вложения заявок "Инцидентов" — отдельная папка от PHOTOS_FOLDER
@@ -1362,32 +1451,23 @@ EQUIPMENT_PHOTOS_FOLDER = str(BASE_DIR / 'PhotoE')
 
 ### Очистка БД (`POST /api/clear`)
 
-Реализована в `routes/import_routes.py::clear_database` (строки 215-253). Шаги:
+> **Обновление 2026-09-16 — реализация полностью изменилась.** Прежняя версия раздела описывала ручные `DELETE FROM ...` + `VACUUM`. Сейчас `routes/import_routes.py::clear_database` (строка 221) **удаляет файл БД целиком** и пересоздаёт схему через `db_module.init_db()` — тогда новые таблицы подхватываются автоматически, без правки списка `DELETE FROM`. Шаги:
 
-1. `DELETE FROM operating_modes` — удалить все режимы
-2. `DELETE FROM maintenance_works` — удалить все работы
-3. `DELETE FROM engines` — удалить все записи о двигателях
-4. `DELETE FROM sqlite_sequence WHERE name IN ('engines', 'operating_modes', 'maintenance_works')` — сбросить автоинкремент-счётчик для трёх таблиц
-5. `conn.commit()`
-6. `conn.execute('PRAGMA wal_checkpoint(TRUNCATE)')` — сбросить WAL
-7. `conn.execute('VACUUM')` — собрать мусор, освободить место
-8. Если `PHOTOS_FOLDER` существует — `shutil.rmtree(PHOTOS_FOLDER, ignore_errors=True)` затем `os.makedirs(PHOTOS_FOLDER, exist_ok=True)` — **удаляет ВСЮ папку `photos/` со всеми фото всех двигателей**
+1. Читаются и сохраняются в память строки `users` и `tokens` (чтобы админ мог снова войти).
+2. Удаляются файлы `engine_data.db`, `engine_data.db-wal`, `engine_data.db-shm` (retry до 5 раз на Windows `PermissionError`; при неудаче — `{success: false, error}` 500 без изменений).
+3. Вызывается `db_module.init_db()` — создаются все таблицы заново + досеиваются справочники (`equipment_type`, `attribute_definition`, `equipment_type_attribute`).
+4. Сохранённые `users` и `tokens` возвращаются обратно (`INSERT`).
+5. Фото-папки очищаются по списку `PHOTO_FOLDERS` из `config.settings` (`photos/`, `PhotoI/`, `PhotoE/`).
 
-Возвращает `{success: True, message: 'База данных и фото очищены'}` или `{error: str}` с кодом 500.
-
-> Комментарий в коде (`routes/import_routes.py:217-227`) явно говорит: "раньше после DELETE файл engine_data.db не уменьшался — SQLite помечает страницы удалённых строк как свободные (freelist), но не отдаёт их обратно файловой системе, пока не выполнен VACUUM. На реальной БД проекта это давало ~36% файла "мёртвого" места после очистки."
+Возвращает `{success: true, message: ...}` или `{error: str}` с кодом 500.
 
 ### Что НЕ очищается при `/api/clear`
 
-Следующие таблицы **НЕ** очищаются (по дизайну — чтобы администратор мог снова зайти после очистки):
+- `users` (пользователи) и `tokens` (сессии) — сохраняются и возвращаются обратно (единственное исключение, by design).
+- Журнал изменений и wishlist — это отдельные JSON-файлы `data/changelog.json`, `data/wishlist.json`; очистка БД их не касается (таблиц `changelog_entries`/`wishlist_items` в схеме вообще нет).
 
-- `users` (пользователи) — НЕ удаляются
-- `tokens` (сессии) — НЕ удаляются
-- `changelog_entries` — НЕ удаляются
-- `wishlist_items` — НЕ удаляются
-- `equipment_type`, `attribute_definition`, `equipment_type_attribute` (номенклатура) — НЕ удаляются
-- `equipment` — НЕ удаляется
-- `incident_ticket` + связанные — НЕ удаляются
+**Всё остальное теряется безвозвратно** (пересоздаётся пустым): `engines` (+modes/works), `audit_log`, вся подсистема инцидентов (`incident_ticket*` и связанные), номенклатура оборудования (`equipment*`), `crew`, `location_node`. Прежняя версия документа ошибочно утверждала, что номенклатура, оборудование и инциденты «не удаляются».
+
 
 ### Защита через prompt на фронте (`static/js/importer.js::confirmClearDatabase`)
 
@@ -1412,7 +1492,7 @@ conn.execute('PRAGMA synchronous=NORMAL')        # fsync только при che
 conn.execute('PRAGMA foreign_keys=ON')            # enforce FK-constraints
 ```
 
-Журналирование переключается только при создании соединения (т.е. через `get_db_connection()` или `db_connection()`). Прямые вызовы `sqlite3.connect(DB_PATH)` в `diag_photos.py:6` и `promote_and_cleanup.py:26` НЕ включают `journal_mode=WAL` и `foreign_keys=ON` (см. раздел 16).
+Журналирование переключается только при создании соединения (т.е. через `get_db_connection()` или `db_connection()`). Прямой вызов `sqlite3.connect(DB_PATH)` в `diag_photos.py:6` НЕ включает `journal_mode=WAL` и `foreign_keys=ON` (см. раздел 16). Раньше здесь упоминался `promote_and_cleanup.py:26` — файла в проекте нет.
 
 ### Очистка staging-папки бэкапов
 
@@ -1433,11 +1513,10 @@ except OSError:
 
 | Файл | Назначение |
 | --- | --- |
-| `static/js/api.js` | **API-клиент** на объекте `window.Api`: обёртка над `fetch`, Bearer-токен, методы `login/logout/me`, `listEngines/getEngine/createEngine/updateEngine/deleteEngine`, `updateModes/updateWorks`, `getPhotos/uploadPhotos/deletePhoto`, `listBackups/createBackup/inspectUpload/restoreBackup/confirmRestore/downloadBackup/deleteBackup`, `getChangelog/createChangelogEntry/deleteChangelogEntry`, `getWishlist/createWishlistItem/updateWishlistItem/deleteWishlistItem` |
-| `static/js/app.js` | **Точка входа**: создаёт глобалы `window.App` (объект с `init`, `api`, `state`, `handleError`, `loadEngines`, `loadBackups`, `loadChangelog`, `loadWishlist`); `init()` вызывает `api.me()` для определения пользователя. `DOMContentLoaded` → `App.init()` |
+| *(нет такого файла)* | **`static/js/api.js` и `static/js/app.js` в проекте отсутствуют** (сверено 2026-09-16). Прежняя версия документа описывала раннюю архитектуру с глобалами `window.Api` (API-клиент) и `window.App` (точка входа). Сейчас: API-обёртка — `apiFetch()` в `auth.js`, инициализация страницы — инлайн-скрипт в конце `index.html` + `authInit()` из `auth.js`, переключение табов — `switchTab()` в `catalog.js`. |
 | `static/js/auth.js` | **Авторизация клиента**: константы `AUTH_TOKEN_KEY='motors_auth_token'`, `AUTH_USER_KEY='motors_auth_user'`. `getAuthToken/setAuthToken/clearAuth/getAuthUser`. `authPhotoUrl(path)` — добавляет `?token=` к URL для тега `<img>`. `apiFetch()` — обёртка над fetch с автоматической подстановкой Bearer, на 401 — `clearAuth() + location.reload()`. `parseJsonResponse`. `hideAppLoadingOverlay()`. UI-функции вкладки Админ |
 | `static/js/common.js` | **Общие утилиты**: `escapeHtml`, `escapeAttr`, `debounce`, `highlightMatch`, `applyTheme`. Поля и утилиты карточки: `DETAIL_CHAR_FIELDS`, `PRINT_CHAR_FIELDS`, `_formatRuDate`, `formatRuDateTime`, `toggleModalMaximize`, `showToast`, `attachEntitySuggest`, `initPanelResizer` |
-| `static/js/state.js` | **State store**: `window.State` с состоянием `engines, totalEngines, currentEngine, filters, sort, currentPage, pageSize, searchQuery, searchField, user, backups, changelog, wishlist, isLoading, error`. Методы `get/set/subscribe/reset` |
+| *(нет такого файла)* | **`static/js/state.js` в проекте отсутствует** (сверено 2026-09-16). Глобального store `window.State` нет — состояние каталога живёт в плоских переменных `engines.js` и `locationTree.js` (см. раздел 11). |
 | `static/js/catalog.js` | **Каталог**: `updateStats`, `loadSettings`, переключение вкладок, `loadEngines`, `applyDynamicPageSize`, `renderTable`, `navigateEngine`, `editEngine`, `deleteEngine`, сортировка, поиск с debounce, экспорт через `POST /api/engines/export` |
 | `static/js/engines.js` | **Двигатели**: глобалы `currentPage`, `allEngines`, `currentSort`, `currentEngineId`, `currentPhotos`, `currentEngineData`, `detailEditMode`, `detailPhotoFiles`, `pendingPhotoFiles`, `selectedEngineIds`, `photoCacheBust`. `attachSuggestDropdown`, клавиатурная навигация (ArrowLeft/Right) |
 | `static/js/engineCard.js` | **Детальная карточка двигателя**: `showDetail/closeDetail/renderDetailContent`, `navigateEngine`, `editEngine`, `openPhotoAddModal/closePhotoAddModal/renderDetailPhotoPreview/submitDetailPhotoAdd`, обрезка фото (`openCropModal`/`_openCropStage` и т.п.) |
@@ -1454,7 +1533,11 @@ except OSError:
 | `static/js/locationTree.js` | **Дерево Цех→Место на Каталоге**: `activeWorkshop`, `activeLocation`, `pendingNewEngineId`. `createAndOpenEngine/loadLocationTree/renderLocationTree/toggleTreeWorkshop/selectTreeLocation/resetLocationFilter` |
 | `static/js/print.js` | **Печать двигателя**: `getEngineIdFromUrl/renderCharacteristics/renderModesTable/renderWorksTable/renderPhotos/renderPage/waitForImages/loadAndRender` |
 | `static/js/search.js` | **Расширенный поиск**: `SEARCH_FIELDS` (массив `{value,label,type,operatorType?}`), `OPERATORS_TEXT/NUMBER`. `executeSearch/_renderSearchResultsTable`. Поиск перезаписывает `allEngines` (сохраняется в `originalAllEngines`) |
-| `static/js/backupManager.js` | **Бэкапы + Инфо (changelog/wishlist)**: `_formatBackupDate/_formatBackupSize/loadBackupsList/renderBackupsList/downloadBackup/restoreServerBackup/confirmRestoreBackup/deleteBackupFile`, `loadChangelog/renderChangelog/addChangelogEntry/deleteChangelogEntry`, `loadWishlist/renderWishlist/addWishlistItem/toggleWishlistItem/deleteWishlistItem` |
+| `static/js/backup.js` | **Вкладка «Настройки → Бэкапы»**: `_formatBackupSize/loadBackupsList/renderBackupsList/createBackup/downloadBackup/deleteBackupFile/restoreServerBackup` |
+| `static/js/info.js` | **Вкладка «Инфо»**: `switchInfoSubtab/loadInfoTab/loadSystemInfo`, changelog — `loadChangelog/renderChangelog`, wishlist — `loadWishlist/renderWishlist/addWishlistItem/toggleWishlistItem/deleteWishlistItem` (данные — JSON-эндпоинты `/api/changelog`, `/api/wishlist`) |
+| `static/js/audit.js` | **Таб «Аудит»**: `loadAuditTab/loadAuditEntityTypes/loadAuditEntries/renderAuditTable/applyAuditFilters/resetAuditFilters/auditPrevPage/auditNextPage`, `_auditSectionLabel/_auditFilterParams` (`GET /api/audit/log`, `/api/audit/entity-types`) |
+
+> **Файла `static/js/backupManager.js` в проекте нет** (сверено 2026-09-16) — его функции разделены между `backup.js` (бэкапы) и `info.js` (changelog/wishlist).
 
 > **Три дерева мест:** `locationTree.js` (старое — текстовые `workshop/location` у engines, на вкладке Каталог), `equipmentLocationTree.js` (новое — таблица `location_node` на вкладке Оборудование), `incidentLocationTree.js` (то же дерево на вкладке Инциденты). Все три используют общий ресурс `location_node` (последние два), но потребляют по-разному — фильтрация списка заявок/оборудования vs. навигация по дереву.
 
@@ -1518,16 +1601,14 @@ except OSError:
 | Имя | Что |
 | --- | --- |
 | `cropState` (engineCard.js) | `{list, index, image, sel, ...}` для обрезки |
-| `wishlistItems` (backupManager.js) | кэш пожеланий |
+| `wishlistItems` (info.js) | кэш пожеланий |
 
 ### Глобалы общего state
 
 | Имя | Что |
 | --- | --- |
-| `window.State` (state.js) | реактивный store (см. выше) |
-| `window.Api` (api.js) | обёртки над fetch |
-| `window.App` (app.js) | точка входа с `init/handleError/...` |
-| `authPhotoUrl`, `getAuthUser`, `getAuthToken`, `setAuthToken`, `clearAuth` | функции auth.js |
+| *(нет)* | `window.State` / `window.Api` / `window.App` в проекте **отсутствуют** — файлов `state.js`, `api.js`, `app.js` нет (сверено 2026-09-16) |
+| `authPhotoUrl`, `getAuthUser`, `getAuthToken`, `setAuthToken`, `clearAuth`, `apiFetch` | функции auth.js |
 | `escapeHtml`, `escapeAttr`, `debounce`, `highlightMatch`, `applyTheme`, `INITIAL_THEME`, `DETAIL_CHAR_FIELDS`, `PRINT_CHAR_FIELDS`, `_formatRuDate`, `formatRuDateTime`, `toggleModalMaximize`, `showToast`, `attachEntitySuggest`, `attachFieldAutocomplete`, `initPanelResizer`, `toggleDetailMaximize` | функции common.js |
 
 ### Глобалы localStorage
@@ -1556,8 +1637,7 @@ except OSError:
 | `escapeHtml`, `escapeAttr`, `highlightMatch`, `applyTheme`, `showToast`, `formatRuDateTime`, `toggleModalMaximize` | `common.js` | Экранирование/UI | из HTML и из других JS |
 | `toggleDetailMaximize` | `engineCard.js` | fullscreen toggle карточки двигателя | `onclick="toggleDetailMaximize()"` в index.html |
 | `initPanelResizer` | `common.js` | drag-resizer для боковых панелей | `catalog.js`, `equipment.js`, `incidentLocationTree.js`, `incidentLocations.js` |
-| `Window.App.init/handleError/loadEngines/loadBackups/loadChangelog/loadWishlist` | `app.js` | Загрузка данных | `index.html::DOMContentLoaded` |
-| `Window.Api.*` | `api.js` | Fetch-обёртки | повсеместно из других JS |
+| *(нет)* | `app.js` / `api.js` в проекте отсутствуют — загрузку данных выполняют `auth.js::authInit`, `catalog.js::loadEngines`, `backup.js::loadBackupsList`, `info.js::loadChangelog/loadWishlist` | — | — |
 | `authInit/showLoginScreen/clearAuth/getAuthUser/getAuthToken/setAuthToken/authPhotoUrl/apiFetch/parseJsonResponse/hideAppLoadingOverlay` | `auth.js` | авторизация | init приложения |
 | `loadAdminUsers/adminCreateUser/adminChangePassword/adminDeleteUser/adminRevokeUser/promptChangePassword` | `auth.js` | UI админки | `onclick="..."` в index.html |
 | `updateStats/loadSettings/switchTab/loadEngines/applyDynamicPageSize/toggleEngineSelection/exportSelected/navigateEngine/editEngine/deleteEngine/sortSelect.onchange` | `catalog.js` | UI каталога | `onclick`/`onchange` в index.html |
@@ -1565,8 +1645,9 @@ except OSError:
 | `loadEquipmentTab/loadEquipmentTypes/loadAttributeDefinitions/loadEquipmentLocationTree/loadEquipmentList/loadStockSummary/selectEquipmentLocation/resetEquipmentLocationFilter/createEquipmentType/...` | `equipment.js`, `equipmentLocationTree.js` | UI вкладки Оборудование | `onclick`/`onchange` в HTML |
 | `loadIncidentsTab/loadIncidentsList/openIncidentModal/closeIncidentModal/renderIncidentDetailToolbar/navigateIncident/createIncidentAtLocation/submitIncident/printIncident/deleteCurrentIncident/...` | `incidents.js` | UI вкладки Инциденты | `onclick` в HTML |
 | `executeSearch/resetSearch/_renderSearchResultsTable` | `search.js` | Расширенный поиск | `onclick="executeSearch()"` в HTML |
-| `loadBackupsList/createServerBackup/restoreServerBackup/confirmRestoreBackup/downloadBackup/deleteBackupFile` | `backupManager.js` | UI бэкапов | `onclick` в HTML настроек |
-| `loadChangelog/addChangelogEntry/deleteChangelogEntry/loadWishlist/addWishlistItem/toggleWishlistItem/deleteWishlistItem` | `backupManager.js` | UI вкладки Инфо | `onclick` в HTML |
+| `loadBackupsList/createBackup/restoreServerBackup/downloadBackup/deleteBackupFile` | `backup.js` | UI бэкапов | `onclick` в HTML настроек |
+| `loadChangelog/loadWishlist/addWishlistItem/toggleWishlistItem/deleteWishlistItem/switchInfoSubtab/loadSystemInfo` | `info.js` | UI вкладки Инфо | `onclick` в HTML |
+| `loadAuditTab/loadAuditEntries/applyAuditFilters/resetAuditFilters/auditPrevPage/auditNextPage` | `audit.js` | Таб «Аудит» | `onclick` в HTML |
 | `showDetail/closeDetail/renderDetailContent/navigateEngine/editEngine/openPhotoAddModal/closePhotoAddModal/renderDetailPhotoPreview/submitDetailPhotoAdd/removeDetailPendingPhoto/openCropModal/closeCropModal` | `engineCard.js` | Карточка двигателя | `onclick` в HTML |
 | `renderPhotosPreview/removePendingPhoto/uploadPendingPhotos/resetForm/saveEngine/addModeRow/addWorkRow/collectRows` | `exportManager.js` | Форма добавления | `onclick`/`oninput`/`submit` в HTML |
 | `importFiles/clearAll/confirmClearDatabase` | `importer.js` | Импорт + очистка | `onclick` в HTML импорта |
@@ -1591,7 +1672,7 @@ except OSError:
 ### Каталог двигателей: таблица, сортировка, поиск, дерево, тулбар
 
 - HTML: `templates/index.html` — `.catalog-layout`, `.catalog-left` (дерево мест `#locationTreeBody`), `.catalog-divider`, `.catalog-right` (таблица `#enginesTableBody`, пагинация `#pagination`, тулбар `#sortSelect`, `#searchInput`, `#searchFieldSelect`).
-- JS: `static/js/locationTree.js` (дерево), `static/js/catalog.js` (таблица, пагинация, поиск, сортировка), `static/js/engines.js` (глобалы), `static/js/state.js`.
+- JS: `static/js/locationTree.js` (дерево), `static/js/catalog.js` (таблица, пагинация, поиск, сортировка), `static/js/engines.js` (глобалы). Файла `static/js/state.js` нет.
 - CSS: `static/css/style.css::.catalog-layout`, `.tree-*`, `.data-table`, `.search-input`, `.pagination`.
 
 ### Детальная карточка двигателя (модалка)
@@ -1655,15 +1736,21 @@ except OSError:
 - HTML: `templates/index.html` — `<div id="tab-admin">` с `#adminUsersList`, `#addUserForm`, `#newUsername`, `#newPassword`, `#newRole`.
 - JS: `static/js/auth.js::loadAdminUsers/adminCreateUser/adminDeleteUser/adminRevokeUser/adminChangePassword/promptChangePassword`.
 
+### Вкладка Аудит
+
+- HTML: `templates/index.html` — `<button class="tab-btn" data-tab="audit" style="display:none">` (строка 60) и `<div class="tab-content" id="tab-audit">` (строка 565); кнопка показывается только админам/суперадминам через `auth.js::applyRoleUI`.
+- JS: `static/js/audit.js::loadAuditTab/loadAuditEntityTypes/loadAuditEntries/renderAuditTable/applyAuditFilters/resetAuditFilters/auditPrevPage/auditNextPage`.
+- Данные: `GET /api/audit/entity-types` и `GET /api/audit/log` (таблица `audit_log`, наполняется `modules/audit.py`).
+
 ### Вкладка Настройки — подвкладки (БД, Фото, Бэкапы)
 
 - HTML: `templates/index.html` — `<div id="tab-settings">` с `#settingsTabDb`, `#settingsTabPhotos`, `#settingsTabBackups`, контент с `#settingsEquipmentCount`, `#settingsPhotos`, `#settingsDbSize`, `#backupsList`.
-- JS: `static/js/catalog.js::updateStats/loadSettings`, `static/js/backupManager.js::loadBackupsList/...`.
+- JS: `static/js/catalog.js::updateStats/loadSettings`, `static/js/backup.js::loadBackupsList/...`.
 
 ### Вкладка Инфо — подвкладки (Changelog, Wishlist, О системе)
 
 - HTML: `templates/index.html` — `<div id="tab-info">` с `#infoSubtab-changelog`, `#infoSubtab-wishlist`, `#infoSubtab-system`, поля `#changelogTextInput`, `#wishlistTextInput`, контейнеры `#changelogList`, `#wishlistList`.
-- JS: `static/js/backupManager.js::loadChangelog/addChangelogEntry/deleteChangelogEntry/loadWishlist/addWishlistItem/toggleWishlistItem/deleteWishlistItem`. (Содержимое `#infoSubtab-system` заполняется на сервере в `settings: '#sysAppVersion'/'#sysPythonVersion'/'#sysFlaskVersion'/'#sysSqliteVersion'`.)
+- JS: `static/js/info.js::loadChangelog/loadWishlist/addWishlistItem/toggleWishlistItem/deleteWishlistItem/switchInfoSubtab/loadSystemInfo`. (Содержимое `#infoSubtab-system` заполняется из `GET /api/status`: `app_version`, `python_version`, `flask_version`, `sqlite_version`, `git_commit`.)
 
 ### Печатные страницы
 
@@ -1684,40 +1771,40 @@ except OSError:
 
 ## 14. Тестовая инфраструктура
 
+> **Обновление 2026-09-16:** раздел переписан по факту прогонов. Фактические цифры: **592** unit/route/service теста (`591 passed, 1 skipped in 56.65s`) и **81** e2e-сценарий (`81 passed in 157.55s`). В первой версии документа значилось «65 unit + 81 e2e» — unit-цифра устарела.
+
 ### Общая структура
 
 ```
 tests/
 ├──__init__.py
-├──conftest.py                              # фикстура db_conn (in-memory SQLite)
-├──test_repositories/
-│   ├──__init__.py
-│   └──test_engine_repo.py                  # 16 сценариев для engine_repo
-├──test_routes/
-│   └──test_engines.py                      # 4 сценария (моки photo_manager/engine_delete/get_by_id)
-├──test_utils/
-│   ├──__init__.py
-│   ├──test_date.py                         # 11 сценариев
-│   ├──test_file_store.py                   # 10 сценариев
-│   └──test_naming.py                       # 8 сценариев
-├──test_backup_system/
-│   ├──__init__.py
-│   └──test_backup.py                       # 16 сценариев
-└──e2e/                                     # Playwright E2E
+├──conftest.py                          # фикстуры db_conn (in-memory SQLite) и file_users_env
+├──test_audit/                          # 28 тестов (test_audit.py, test_audit_repo.py, test_audit_routes.py)
+├──test_auth/                           # 52 теста (test_db_users, test_decorators, test_hashing, test_tokens)
+├──test_backup_system/                  # 16 тестов (test_backup.py)
+├──test_engine_parser/                  # 13 тестов (test_parser.py)
+├──test_photo_manager/                  # 81 тест (test_manager, test_equipment_manager, test_incident_manager)
+├──test_repositories/                   # 159 тестов (11 файлов по всем *_repo.py)
+├──test_routes/                         # 183 теста (9 файлов; __init__.py отсутствует)
+├──test_services/                       # 33 теста (test_incident_service.py)
+├──test_utils/                          # 27 тестов (test_date, test_file_store, test_logging, test_naming)
+└──e2e/                                 # Playwright E2E — 81 сценарий
     ├──__init__.py
-    ├──helpers.py                            # 183 строки
+    ├──conftest.py                      # 463 строки: изоляция MOTORS_*, live_server, браузер, storage_state
+    ├──helpers.py                       # 298 строк
     ├──.results.json
-    ├──test_01_auth.py                      # 12 сценариев
-    ├──test_02_catalog.py                   # 11
-    ├──test_03_add_engine.py                # 9
-    ├──test_04_detail.py                    # 10
-    ├──test_05_photos.py                    # 6
-    ├──test_06_import.py                    # 3
-    ├──test_07_search.py                    # 6
-    ├──test_08_settings.py                  # 6
-    ├──test_09_backups.py                   # 4
-    ├──test_10_info.py                      # 9
-    └──test_11_misc.py                      # 5
+    ├──screenshots/                     # скриншоты падений (артефакт прогонов)
+    ├──test_01_auth.py                  # 12 сценариев
+    ├──test_02_catalog.py               # 11
+    ├──test_03_add_engine.py            # 9
+    ├──test_04_detail.py                # 10
+    ├──test_05_photos.py                # 6
+    ├──test_06_import.py                # 3
+    ├──test_07_search.py                # 6
+    ├──test_08_settings.py              # 6
+    ├──test_09_backups.py               # 4
+    ├──test_10_info.py                  # 9
+    └──test_11_misc.py                  # 5
 ```
 
 ### Unit-тесты (pytest)
@@ -1725,8 +1812,13 @@ tests/
 **Команда запуска (через venv):**
 
 ```bash
-.venv\Scripts\python.exe -m pytest tests\test_repositories tests\test_utils tests\test_routes tests\test_backup_system -v
+.venv\Scripts\python.exe -m pytest tests -q --ignore=tests/e2e
+# фактически 2026-09-16: 591 passed, 1 skipped in 56.65s (собрано 592)
 ```
+
+**Разбивка по каталогам (собрано 592):** `test_routes` 183, `test_repositories` 159, `test_photo_manager` 81, `test_auth` 52, `test_services` 33, `test_audit` 28, `test_utils` 27, `test_backup_system` 16, `test_engine_parser` 13.
+
+**Крупнейшие файлы:** `test_routes/test_equipment_routes.py` 63, `test_repositories/test_equipment_repo.py` 37, `test_services/test_incident_service.py` 33, `test_photo_manager/test_manager.py` 31, `test_repositories/test_incident_ticket_repo.py` 31, `test_routes/test_incident_ticket_routes.py` 30, `test_routes/test_auth_routes.py` 28, `test_routes/test_engines.py` 26.
 
 **Фикстуры (`tests/conftest.py`):**
 
@@ -1737,30 +1829,45 @@ def db_conn():
     with db_connection(':memory:') as conn:
         init_db(conn)
         yield conn
+
+@pytest.fixture
+def file_users_env(tmp_path, monkeypatch):
+    """Изолированное файловое хранилище users.json / tokens.json."""
 ```
 
-**Что покрыто:**
+**Конфигурации pytest нет:** файлы `pytest.ini`, `pyproject.toml`, `setup.cfg`, `tox.ini` в проекте отсутствуют — pytest работает на дефолтах, discovery идёт от корня проекта.
+
+**Что покрыто (основное):**
 
 | Файл | Кол-во сценариев | Что покрывает |
 | --- | --- | --- |
-| `tests/test_repositories/test_engine_repo.py` | 16 (TestCreateAndGet: 3, TestUpdate: 3, TestDelete: 3, TestGetAll: 6, TestPhotoCount: 1, TestGetByFilename: 2) | `get_by_id`, `get_with_details`, `get_all` (пустой, с данными, пагинация, поиск), `count_all`, `create`, `update`, `delete` (включая каскад на modes/works), `update_photo_count`, `get_by_filename` |
-| `tests/test_routes/test_engines.py` | 4 (TestDeleteEngine) | `delete_engine` через моки: успешное удаление, ошибка удаления фото, удаление несуществующего, ошибка БД после удаления фото |
-| `tests/test_utils/test_date.py` | 11 | `format_ru_date` (стандарт, нестандарт, empty, None, partial), `is_valid_iso_date` |
-| `tests/test_utils/test_file_store.py` | 10 | `load_json` (existing, nonexistent, default, corrupted), `save_json` (roundtrip, mkdir, ensure_ascii) |
-| `tests/test_utils/test_naming.py` | 8 | `normalize_base_name` (simple, with_ext, special_chars, empty+id, None+id, no_ext, multiple_dots) |
-| `tests/test_backup_system/test_backup.py` | 16 | Резервное копирование и восстановление |
+| `tests/test_repositories/*` | 159 | все 10 репозиториев, включая `test_engine_repo_audit.py` (интеграция с `audit_log`) и тесты гонки самовосстанавливающихся миграций |
+| `tests/test_routes/*` | 183 | engines, auth, crew, equipment (+photos), incident tickets (+photos), import, photos |
+| `tests/test_photo_manager/*` | 81 | три параллельных photo-менеджера (двигатели/оборудование/инциденты) |
+| `tests/test_auth/*` | 52 | hashing, db_users, file-пользователи, токены, декораторы |
+| `tests/test_services/test_incident_service.py` | 33 | бизнес-логика заявок и связей |
+| `tests/test_audit/*` | 28 | `modules/audit.py`, `repositories/audit_repo.py`, `routes/audit_routes.py` |
+| `tests/test_utils/*` | 27 | `format_ru_date`, `load_json/save_json`, `log_message`, `normalize_base_name` |
+| `tests/test_backup_system/test_backup.py` | 16 | создание/инспекция/восстановление бэкапов |
+| `tests/test_engine_parser/test_parser.py` | 13 | парсер xlsx |
 
-**Итого unit-тестов: 65 сценариев** (16 + 4 + 11 + 10 + 8 + 16).
+**Итого unit/route/service тестов: 592 сценария** (183+159+81+52+33+28+27+16+13), из них 1 skip — `tests/test_backup_system/test_backup.py:216` («Windows-specific os.replace lock issue — fix in production, not blocking»).
 
 ### E2E-тесты (Playwright)
 
 **Команда запуска:**
 
 ```bash
-.venv\Scripts\python.exe -m pytest tests\e2e -v --headed
+.venv\Scripts\python.exe -m pytest tests/e2e -q
+# фактически 2026-09-16: 81 passed, 199 warnings in 157.55s
 ```
 
-(или `--browser chromium` и т.д.; см. `tests/e2e/helpers.py`)
+**Ключевое (проверено в коде `tests/e2e/conftest.py`, 463 строки):**
+- Браузер запускается **безголовым**: `pw.chromium.launch(headless=True, args=["--window-size=1300,820", "--no-first-run"])` (строки 176–182). Значение `headless=True` — фактическое.
+- Параметр `channel="chrome"` **не передаётся**: используется Chromium из состава Playwright (упоминание `channel="chrome"` осталось только в docstring `conftest.py` и в заголовке генерируемого `docs/e2e_test_results.md` — это устаревший текст). Для прогона нужен `playwright install chromium`.
+- Флаг `--headed` в команде запуска не используется (в первой версии документа он был указан ошибочно).
+- `live_server` поднимает Flask через `werkzeug.serving.make_server("127.0.0.1", 0, app, threaded=True)` — свободный порт, изолированная временная БД (`MOTORS_*` → `tempfile.mkdtemp()`), продакшен-данные не затрагиваются. **Поднимать `app.py` вручную не нужно.**
+- `helpers.py` (298 строк) — общие утилиты Playwright: `make_engine/make_mode/make_work`, `login_ui/logout_ui/switch_tab/wait_toast`, `create_engine_direct/engine_id_by_serial/delete_engine_by_serial`, `open_engine_card/open_detail_edit/save_detail_card/fill_detail_fields`, `make_test_png/upload_detail_photo`, `set_local_storage`, `prompt_accept/accept_dialogs`.
 
 **Что покрыто (по файлам):**
 
@@ -1778,13 +1885,13 @@ def db_conn():
 | `test_10_info.py` | 9 | Changelog, wishlist, о системе |
 | `test_11_misc.py` | 5 | Прочие сценарии |
 
-**Итого e2e-тестов: 81 сценарий** (12+11+9+10+6+3+6+6+4+9+5).
+**Итого e2e-тестов: 81 сценарий** (12+11+9+10+6+3+6+6+4+9+5) — совпадает с фактическим прогоном.
 
-### Конфигурация pytest
+### Артефакты прогона
 
-`tests/e2e/helpers.py` (183 строки) содержит общие утилиты для Playwright (запуск браузера, фикстуры для логина, ожидание элементов и т.д.).
-
-> **Требует уточнения:** `tests/test_routes/test_engines.py` использует `@patch('routes.engines.photo_manager')` и `engine_delete = as imported from repositories.engine_repo`. Я не смог полностью прочитать `routes/engines.py::delete_engine` в одном блоке, поэтому фикстура `auth_headers` в этом тесте — заглушка (комментарий "В реальных тестах нужно было бы получить токен через логин").
+- `docs/e2e_test_results.md` — таблица результатов по группам + строка «**Итого:** 81 passed, 0 failed, 0 skipped» (файл перезаписывается при каждом прогоне e2e).
+- `tests/e2e/.results.json` — те же данные в JSON (накопительно, merge по nodeid).
+- `tests/e2e/screenshots/` — скриншоты упавших тестов (55 файлов от прошлых прогонов).
 
 ## 15. Карта использования (Select-String по всему репозиторию)
 
@@ -1795,28 +1902,41 @@ $include = @('*.py')
 Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\__pycache__' -and $_.FullName -notmatch '\.venv' -and $_.FullName -notmatch '\.git' -and $_.FullName -notmatch '\.pytest_cache' } | Select-String -Pattern 'photo_manager|PHOTOS_FOLDER|DB_PATH|_engine_photo_disk_paths|normalize_base_name|INCIDENT_PHOTOS_FOLDER|EQUIPMENT_PHOTOS_FOLDER|BACKUPS_FOLDER|BACKUP_STAGING_PATH|engine_photo_disk_paths|ticket_photo_disk_paths|equipment_photo_disk_paths|next_photo_index' | Select-Object Path, LineNumber, Line
 ```
 
-> **ВНИМАНИЕ:** `BACKUP_STAGING_FOLDER` — реальная константа; `BACKUP_STAGING_PATH` — не существует. Всего найдено **259 совпадений**. Точные строки сохранены в `docs/_usage_scan.txt`.
+> **ВНИМАНИЕ:** `BACKUP_STAGING_FOLDER` — реальная константа; `BACKUP_STAGING_PATH` — не существует. Всего найдено **393 совпадения** (расширенный pattern, 2026-09-16; в первой версии документа было 259). Лог `docs/_usage_scan.txt` больше не существует — цифры пересчитаны заново.
 
 ### Сводная таблица: файл → кол-во упоминаний
 
+Сокращённый pattern (`photo_manager|PHOTOS_FOLDER|DB_PATH|_engine_photo_disk_paths|normalize_base_name`), пересчёт 2026-09-16 — **304 совпадения** (в первой версии документа было 259):
+
 | Файл | Кол-во |
 | --- | --- |
-| `config/settings.py` | 9 |
-| `app.py` | 2 |
-| `diag_photos.py` | 3 |
-| `promote_and_cleanup.py` | 3 |
-| `modules/db.py` | 5+ |
-| `modules/backup_system/backup.py` | ~25 |
-| `modules/photo_manager/manager.py` | ~30 |
-| `modules/photo_manager/incident_manager.py` | ~25 |
-| `modules/photo_manager/equipment_manager.py` | ~25 |
-| `routes/import_routes.py` | 4 |
-| `routes/backup_routes.py` | ~8 |
-| `services/backup_service.py` | 4 |
-| `tests/conftest.py` | 0 |
-| `tests/test_routes/test_engines.py` | ~10 |
-| `tests/test_utils/test_naming.py` | 9 |
-| `utils/naming.py` | 4 |
+| `tests/test_photo_manager/test_manager.py` | 64 |
+| `modules/backup_system/backup.py` | 50 |
+| `tests/test_routes/test_engines.py` | 19 |
+| `tests/test_routes/test_import_routes.py` | 14 |
+| `tests/test_backup_system/test_backup.py` | 13 |
+| `modules/photo_manager/equipment_manager.py` | 12 |
+| `config/settings.py` | 12 |
+| `modules/photo_manager/incident_manager.py` | 11 |
+| `modules/photo_manager/manager.py` | 10 |
+| `tests/test_routes/test_photos.py` | 10 |
+| `modules/db.py` | 9 |
+| `routes/import_routes.py` | 9 |
+| `tests/conftest.py` | 8 |
+| `tests/test_utils/test_naming.py` | 8 |
+| `routes/photos.py` | 7 |
+| `diag_photos.py` | 5 |
+| `tests/test_photo_manager/test_incident_manager.py` | 4 |
+| `tests/test_photo_manager/test_equipment_manager.py` | 4 |
+| `services/export_service.py` | 4 |
+| `tests/test_repositories/test_engine_repo.py` | 4 |
+| `routes/status.py` | 3 |
+| `utils/naming.py` | 3 |
+| `modules/engine_parser/parser.py` | 3 |
+| `routes/incident_ticket_routes.py`, `routes/equipment_routes.py`, `routes/engines.py`, `repositories/engine_repo.py`, `app.py`, `modules/photo_manager/__init__.py` | по 2 |
+| `routes/incident_photo_routes.py`, `routes/equipment_photo_routes.py`, `services/backup_service.py`, `scripts/migrate_wishlist_to_json.py` | по 1 |
+
+> Файла `promote_and_cleanup.py` (3 упоминания в первой версии документа) в проекте больше нет.
 
 ### Избранные результаты по константам
 
@@ -1824,13 +1944,13 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 | Файл | Строка | Контекст |
 | --- | --- | --- |
-| `config/settings.py` | 11 | определение: `DB_PATH = str(BASE_DIR / 'engine_data.db')` |
-| `app.py` | 15 | импорт через `from config.settings import ... DB_PATH, ...` |
+| `config/settings.py` | 25 | определение: `DB_PATH = _env('MOTORS_DB_PATH', BASE_DIR / 'engine_data.db')` |
+| `app.py` | — | **`DB_PATH` в `app.py` не импортируется** (там только `PHOTOS_FOLDER, MOTORS_FOLDER, BACKUPS_FOLDER, BACKUP_STAGING_FOLDER`, строка 15) |
 | `modules/db.py` | 9 | импорт `DB_PATH, MOTORS_FOLDER, ...` |
 | `modules/backup_system/backup.py` | 35 | `DB_PATH = db_module.DB_PATH` (прокси) |
 | `services/backup_service.py` | 9 | `from config.settings import DB_PATH, ...` |
 | `diag_photos.py` | 6 | `conn = sqlite3.connect(DB_PATH)` — **напрямую, без `db_connection()`!** |
-| `promote_and_cleanup.py` | 18, 22-26 | `from config.settings import DB_PATH`; `Path(DB_PATH).exists()`, `sqlite3.connect(DB_PATH)` — **напрямую!** |
+| ~~`promote_and_cleanup.py`~~ | — | файла в проекте **нет** |
 
 **PHOTOS_FOLDER:**
 
@@ -1847,15 +1967,16 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 **INCIDENT_PHOTOS_FOLDER / EQUIPMENT_PHOTOS_FOLDER:**
 
-- Определены в `config/settings.py:17, 20`.
+- Определены в `config/settings.py:31` и `config/settings.py:34` (не 17/20 — строки сдвинулись).
 - Импортируются в `modules/db.py:9`.
 - Используются через `db_module.INCIDENT_PHOTOS_FOLDER` / `db_module.EQUIPMENT_PHOTOS_FOLDER` в `incident_manager.py` и `equipment_manager.py` соответственно.
+- Обе входят в список `PHOTO_FOLDERS` (`config/settings.py:50`) — единая точка для backup/restore/`clear_database`.
 
 **BACKUPS_FOLDER / BACKUP_STAGING_FOLDER:**
 
 | Файл | Строка | Контекст |
 | --- | --- | --- |
-| `config/settings.py` | 21, 22 | определения |
+| `config/settings.py` | 56, 57 | определения (`BACKUPS_FOLDER`, `BACKUP_STAGING_FOLDER`) |
 | `app.py` | 15, 21 | импорт + создание папок при старте |
 | `modules/backup_system/backup.py` | 37-38 | прокси через `db_module` |
 | `modules/backup_system/backup.py` | 47-49 | создание BACKUPS_FOLDER если нет |
@@ -1887,11 +2008,11 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 **ALLOWED_PHOTO_EXT:**
 
-- Определена в `config/settings.py:27`. Импортируется в `modules/db.py:9` (реэкспорт). Используется во всех трёх photo_manager.
+- Определена в `config/settings.py:68`. Импортируется в `modules/db.py` (реэкспорт). Используется во всех трёх photo_manager и в `diag_photos.py:4`.
 
 ### Дополнительные Select-String (по запросу из задания)
 
-Команда `Get-ChildItem -Recurse -Include *.py | Select-String -Pattern 'photo_manager|PHOTOS_FOLDER|DB_PATH|_engine_photo_disk_paths|normalize_base_name' | Select-Object Path, LineNumber, Line` даёт тот же результат. Точные строки (всего 259) сохранены в `docs/_usage_scan.txt`.
+Команда `Get-ChildItem -Recurse -Include *.py | Select-String -Pattern 'photo_manager|PHOTOS_FOLDER|DB_PATH|_engine_photo_disk_paths|normalize_base_name' | Select-Object Path, LineNumber, Line` даёт тот же результат. Пересчёт 2026-09-16: **304 совпадения** (в первой версии документа — 259); таблица по файлам — выше. Файл `docs/_usage_scan.txt` отсутствует.
 
 ## 16. Найденные расхождения
 
@@ -1903,9 +2024,9 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 ### 16.2 Локальные определения, дублирующие config.settings
 
-- Два места с локальными `sqlite3.connect(DB_PATH)` напрямую в обход `db_connection()`:
+- Одно место с локальным `sqlite3.connect(DB_PATH)` напрямую в обход `db_connection()`:
   - `diag_photos.py:6` — `conn = sqlite3.connect(DB_PATH)`. НЕ устанавливает `PRAGMA foreign_keys=ON`, `journal_mode=WAL`, `synchronous=NORMAL`.
-  - `promote_and_cleanup.py:26` — `conn = sqlite3.connect(DB_PATH)`. Та же проблема.
+  - Ранее здесь упоминался `promote_and_cleanup.py:26`, но этого файла в проекте **нет** (сверено 2026-09-16).
 - **НЕТ других** локальных переопределений путей.
 
 ### 16.3 Функции с одинаковым назначением, реализованные независимо
@@ -1952,7 +2073,7 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 | `get_current_user` (decorators.py) | `modules/auth/decorators.py:25` | Определена, но не вызывается — `routes/auth.py` имеет свою копию. |
 | `_extract_bearer_token` (decorators.py) | `modules/auth/decorators.py:13` | Аналогично. |
 | `load_json`, `save_json` | `utils/file_store.py` | Используются только в тестах. `modules/auth/file_users.py` использует собственный `json.load`/`json.dump`. |
-| `format_ru_date`, `is_valid_iso_date` | `utils/date.py` | Используются только в тестах. Frontend имеет `static/js/common.js::_formatRuDate` как аналог. |
+| `format_ru_date`, `is_valid_iso_date` | `utils/date.py` | **Вызываются из production**: `services/export_service.py:155,302` (`format_ru_date`). `is_valid_iso_date` — только внутри `utils/date.py`. Frontend имеет `static/js/common.js::_formatRuDate` как аналог. |
 
 ### 16.5 Расхождения в сигнатурах
 
@@ -1993,17 +2114,17 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 #### 16.7.7 Прямые `sqlite3.connect(DB_PATH)` обходят PRAGMA
 
-`diag_photos.py:6` и `promote_and_cleanup.py:26` используют `sqlite3.connect(DB_PATH)` напрямую, без установки `PRAGMA foreign_keys=ON`, `journal_mode=WAL`, `synchronous=NORMAL`. Это значит:
+`diag_photos.py:6` (файла `promote_and_cleanup.py` в проекте нет) использует `sqlite3.connect(DB_PATH)` напрямую, без установки `PRAGMA foreign_keys=ON`, `journal_mode=WAL`, `synchronous=NORMAL`. Это значит:
 - FK-каскады НЕ enforced для этих соединений.
 - WAL не используется.
 
-#### 16.7.8 Конфликт версий: `version.txt=1.0.5` vs `routes/status.py::APP_VERSION='2.0'`
+#### 16.7.8 Конфликт версий `version.txt` vs `APP_VERSION` — УСТРАНЁН
 
-`config` сообщает `version.txt=1.0.5`, а `routes/status.py::APP_VERSION='2.0'`. Какой из них источник правды — не задокументировано.
+Ранее `routes/status.py::APP_VERSION` был хардкодом `'2.0'` и расходился с `version.txt = 1.0.5`. Сейчас (2026-09-16) `APP_VERSION = _read_app_version()` читает значение из `version.txt` — источник правды один.
 
 #### 16.7.9 Сидинг admin-пользователя только при при старте, если БД пуста
 
-`modules/db.py:513-517`: создаётся пользователь `admin/admin123` ТОЛЬКО если `SELECT COUNT(*) FROM users == 0`. После `/api/clear` users НЕ очищаются (см. раздел 9), так что это безопасно для продакшена.
+`modules/db.py` (см. seed-блок в конце `init_db()`): создаётся пользователь `admin/admin123` ТОЛЬКО если `SELECT COUNT(*) FROM users == 0`. После `/api/clear` пользователи сохраняются (см. раздел 9), так что это безопасно для продакшена.
 
 ## 17. Известные особенности и история инцидентов
 
@@ -2065,16 +2186,17 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 `from modules.photo_manager import manager as photo_manager` — работает, но `from modules.photo_manager import incident_manager` — НЕ работает (нет в `__init__.py`). `routes/incident_ticket_routes.py` и `routes/equipment_routes.py` импортируют явно. Не добавлять `incident_manager` и `equipment_manager` в `__init__.py` без явной причины — это может сломать ожидание «`from modules.photo_manager` импортирует только двигатели».
 
-### 17.11 Расхождение `version.txt` vs `APP_VERSION`
+### 17.11 Расхождение `version.txt` vs `APP_VERSION` — УСТРАНЕНО
 
-`version.txt = 1.0.5`, но `routes/status.py::APP_VERSION = '2.0'`. **Требует уточнения** — какой из них источник правды. На текущий момент обе версии не синхронизированы.
+`version.txt = 1.0.5`. На 2026-09-16 `routes/status.py:51` — `APP_VERSION = _read_app_version()`, то есть значение читается из `version.txt` (хардкода `'2.0'` в коде больше нет, расхождения нет).
 
-### 17.12 Файлы `diag_photos.py` и `promote_and_cleanup.py` — диагностические утилиты
+### 17.12 Файлы `diag_photos.py`, `diag_modal.py`, `measurement.py`, `test_mode_repo.py` — диагностические утилиты
 
-- `diag_photos.py` — диагностика фото (дамп).
-- `promote_and_cleanup.py` — одноразовый скрипт миграции.
+- `diag_photos.py` — диагностика фото (дамп, лаунчер).
+- `diag_modal.py`, `measurement.py`, `test_mode_repo.py` — разовые отладочные скрипты.
+- `promote_and_cleanup.py`, упоминавшийся в первой версии документа, в проекте **отсутствует** (сверено 2026-09-16).
 
-Они не зарегистрированы как blueprint и не используются приложением. Содержат `sqlite3.connect(DB_PATH)` напрямую без `PRAGMA foreign_keys=ON`. Это может привести к ошибкам FK-каскада в старых БД. Использовать с осторожностью.
+Они не зарегистрированы как blueprint и не используются приложением. `diag_photos.py:6` содержит `sqlite3.connect(DB_PATH)` напрямую без `PRAGMA foreign_keys=ON`. Это может привести к ошибкам FK-каскада в старых БД. Использовать с осторожностью.
 
 ### 17.13 Сидинг admin-пользователя только при пустой БД
 
@@ -2086,7 +2208,9 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 ### 17.15 Что НЕ сбрасывается при `/api/clear`
 
-`/api/clear` НЕ удаляет: `users`, `tokens`, `changelog_entries`, `wishlist_items`, `equipment_type`/`attribute_definition`/`equipment_type_attribute` (номенклатура), `equipment` (учёт оборудования), `incident_ticket` и связанные. Это by design — чтобы админ мог снова зайти.
+`/api/clear` удаляет файл БД целиком и пересоздаёт её через `init_db()`. Сохраняются и возвращаются обратно только `users` и `tokens` (чтобы админ мог войти). Отдельные JSON-файлы `data/changelog.json` / `data/wishlist.json` очисткой не затрагиваются.
+
+**Всё остальное теряется безвозвратно**, в т.ч. `audit_log`, номенклатура `equipment*`, `incident_ticket*`, `crew`, `location_node`, `engines` (см. раздел 9 — прежняя версия этого раздела ошибочно утверждала, что номенклатура и инциденты не удаляются).
 
 ### 17.16 `routes/auth.py` использует свою `get_current_user()`
 
@@ -2096,12 +2220,14 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 
 | Показатель | Значение |
 | --- | --- |
-| **Файлов проекта** | 147 |
-| **Модулей** (Python пакетов) | 10 (`config`, `modules`, `repositories`, `routes`, `schemas`, `services`, `tests`, `static/js`, `static/css`, `static/ico`) + утилиты (`utils`) + `templates` |
+| **Файлов проекта** | 219 (на 2026-09-16; в первой версии документа — 147) |
+| **Модулей** (Python пакетов) | `config`, `modules` (+`auth`, `backup_system`, `engine_parser`, `photo_manager`), `repositories`, `routes`, `schemas`, `scripts`, `services`, `tests`, `utils` + `static/js`, `static/css`, `static/ico`, `templates` |
 | **Файлов с путевыми константами** | 4 (`config/settings.py` — определение; `modules/db.py`, `services/backup_service.py`, `modules/backup_system/backup.py` — реэкспорт/прокси) |
-| **Уникальных путевых констант** | 13 (`BASE_DIR`, `DB_PATH`, `MOTORS_FOLDER`, `PHOTOS_FOLDER`, `INCIDENT_PHOTOS_FOLDER`, `EQUIPMENT_PHOTOS_FOLDER`, `BACKUPS_FOLDER`, `BACKUP_STAGING_FOLDER`, `CONFIG_DIR`, `FILE_USERS`, `FILE_TOKENS`, `ALLOWED_PHOTO_EXT`, `MAX_WORKERS`, `LOG_FILE`) |
-| **Мест использования констант путей** | ~15+ файлов (см. раздел 6) |
+| **Уникальных путевых констант** | 18 (`BASE_DIR`, `DB_PATH`, `MOTORS_FOLDER`, `PHOTOS_FOLDER`, `INCIDENT_PHOTOS_FOLDER`, `EQUIPMENT_PHOTOS_FOLDER`, `PHOTO_FOLDERS`, `BACKUPS_FOLDER`, `BACKUP_STAGING_FOLDER`, `CONFIG_DIR`, `FILE_USERS`, `FILE_TOKENS`, `DATA_DIR`, `CHANGELOG_JSON_PATH`, `WISHLIST_JSON_PATH`, `ALLOWED_PHOTO_EXT`, `MAX_WORKERS`, `LOG_FILE`) |
+| **Мест использования констант путей** | 30+ файлов (см. раздел 15) |
 | **Найденных дублей/расхождений (раздел 16)** | 9 категорий (см. ниже) |
+| **Таблиц в схеме БД** | 17 (см. раздел 3) |
+| **Тестов** | 592 unit/route/service (591 passed, 1 skipped) + 81 e2e (passed) |
 | **`__init__.py` с явными re-export списками** | 7 (`routes`, `modules/auth`, `modules/backup_system`, `modules/engine_parser`, `modules/photo_manager`, `modules/auth/auth.py`, `routes/__init__.py`) |
 | **Из них синхронизированы с реальным содержимым модуля** | 6 (verified) |
 | **`__init__.py` с расхождениями** | 1 — `modules/photo_manager/__init__.py` реэкспортирует **только** из `manager.py`; `incident_manager.py` и `equipment_manager.py` НЕ реэкспортируются (см. раздел 17.10) |
@@ -2111,9 +2237,9 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 | # | Категория | Количество |
 | --- | --- | --- |
 | 16.1 | Дубли определения констант путей | 0 |
-| 16.2 | Прямые `sqlite3.connect(DB_PATH)` в обход PRAGMA | 2 |
+| 16.2 | Прямые `sqlite3.connect(DB_PATH)` в обход PRAGMA | 1 (`diag_photos.py:6`) |
 | 16.3 | Тройное дублирование фото-менеджеров | 3 файла × ~10 функций |
-| 16.4 | Мёртвый код | ~18 имён |
+| 16.4 | Мёртвый код | ~17 имён |
 | 16.5 | Дубли helpers auth | 2 пары |
 | 16.6 | Относительные пути | 0 (в production) |
 | 16.7.1 | `services/backup_service.py` — неиспользуемый слой | 6 функций |
@@ -2122,12 +2248,13 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 | 16.7.4 | `delete_*_photos_from_disk` не вызываются | 2 функции → orphan фото |
 | 16.7.5 | `engine_repo.update_photo_count` не вызывается | 1 функция |
 | 16.7.6 | Auto-migration колонки в репозитории (осознанно) | 1 (не дубль) |
-| 16.7.7 | Обход PRAGMA в diag-скриптах | 2 файла |
-| 16.7.8 | Конфликт `version.txt` vs `APP_VERSION` | 2 значения |
+| 16.7.7 | Обход PRAGMA в diag-скриптах | 1 файл (`diag_photos.py`) |
+| 16.7.8 | Конфликт `version.txt` vs `APP_VERSION` | **0 — устранён** |
 | 16.7.9 | Авто-сидинг admin при пустой users | 1 место |
 
 ### Подтверждение через Select-String (раздел 15)
 
-- **259 совпадений** для `photo_manager|PHOTOS_FOLDER|DB_PATH|...` по всему `.py` репозиторию (без `__pycache__`, `.venv`, `.git`, `.pytest_cache`).
+- **393 совпадения** для расширенного pattern (`photo_manager|PHOTOS_FOLDER|DB_PATH| ...`) по всему `.py` репозиторию (без `__pycache__`, `.venv`, `.git`, `.pytest_cache`) — пересчёт 2026-09-16; в первой версии документа было 259.
+- **304 совпадения** для сокращённого pattern (`photo_manager|PHOTOS_FOLDER|DB_PATH|_engine_photo_disk_paths|normalize_base_name`) — таблица по файлам в разделе 15.
 - Сводные таблицы по каждой константе — в разделе 6.
-- Полный лог сохранён в `docs/_usage_scan.txt` (можно удалить после использования).
+- Файл `docs/_usage_scan.txt` (в первой версии документа — «полный лог») на диске **отсутствует**.
