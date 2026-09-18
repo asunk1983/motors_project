@@ -57,6 +57,8 @@
 `version.txt`: `1.0.5` (только 1 строка).
 
 > **Обновление 2026-09-16:** расхождение «`version.txt` vs `APP_VERSION`» устранено в коде — `routes/status.py:22-51` теперь читает версию из `version.txt` (`_read_app_version()`), хардкода `'2.0'` больше нет. `/api/status` дополнительно отдаёт `git_commit` (`_read_git_commit()`, `git rev-parse --short HEAD`).
+> **Обновление 2026-09-18:** тесты — 611 unit/route (1 skip) + 83 e2e, все зелёные (было 592+81 на 16.09; расхождение в 83 против прежних 82 e2e — из-за нового e2e-теста обрезки фото `test_45_crop_photo` (коммит ab6ebd6), а 82 против 81 на 16.09 — из-за e2e-тестов смены роли в `test_01_auth.py` (коммит c09fa0b); коммит 257bf70 — фикс гонки ожидания загрузки фото, счётчик тестов он не менял). Добавлена смена роли пользователя в админке (PATCH /api/auth/admin/users/<id>): роль superadmin через эту функцию не назначается и не снимается никем — только при создании пользователя; защита от самоблокировки. Добавлен модуль tests/descriptions.py — русские описания тестов в живом выводе `pytest -v` (маркер scn, докстринг, либо автогенерация из имени). Добавлен run_tests.bat для локального прогона с логом в docs/.
+
 
 ## 1. Полное дерево проекта
 
@@ -1780,25 +1782,25 @@ tests/
 ├──__init__.py
 ├──conftest.py                          # фикстуры db_conn (in-memory SQLite) и file_users_env
 ├──test_audit/                          # 28 тестов (test_audit.py, test_audit_repo.py, test_audit_routes.py)
-├──test_auth/                           # 52 теста (test_db_users, test_decorators, test_hashing, test_tokens)
+├──test_auth/                           # 59 тестов (test_db_users, test_decorators, test_hashing, test_tokens, test_file_users)
 ├──test_backup_system/                  # 16 тестов (test_backup.py)
 ├──test_engine_parser/                  # 13 тестов (test_parser.py)
 ├──test_photo_manager/                  # 81 тест (test_manager, test_equipment_manager, test_incident_manager)
 ├──test_repositories/                   # 159 тестов (11 файлов по всем *_repo.py)
-├──test_routes/                         # 183 теста (9 файлов; __init__.py отсутствует)
+├──test_routes/                         # 196 тестов (9 файлов; __init__.py отсутствует)
 ├──test_services/                       # 33 теста (test_incident_service.py)
 ├──test_utils/                          # 27 тестов (test_date, test_file_store, test_logging, test_naming)
-└──e2e/                                 # Playwright E2E — 81 сценарий
+└──e2e/                                 # Playwright E2E — 83 сценария
     ├──__init__.py
     ├──conftest.py                      # 463 строки: изоляция MOTORS_*, live_server, браузер, storage_state
     ├──helpers.py                       # 298 строк
     ├──.results.json
     ├──screenshots/                     # скриншоты падений (артефакт прогонов)
-    ├──test_01_auth.py                  # 12 сценариев
+    ├──test_01_auth.py                  # 13 сценариев
     ├──test_02_catalog.py               # 11
     ├──test_03_add_engine.py            # 9
     ├──test_04_detail.py                # 10
-    ├──test_05_photos.py                # 6
+    ├──test_05_photos.py                # 7
     ├──test_06_import.py                # 3
     ├──test_07_search.py                # 6
     ├──test_08_settings.py              # 6
@@ -1816,7 +1818,7 @@ tests/
 # фактически 2026-09-16: 591 passed, 1 skipped in 56.65s (собрано 592)
 ```
 
-**Разбивка по каталогам (собрано 592):** `test_routes` 183, `test_repositories` 159, `test_photo_manager` 81, `test_auth` 52, `test_services` 33, `test_audit` 28, `test_utils` 27, `test_backup_system` 16, `test_engine_parser` 13.
+**Разбивка по каталогам (собрано 612):** `test_routes` 196, `test_repositories` 159, `test_photo_manager` 81, `test_auth` 59, `test_services` 33, `test_audit` 28, `test_utils` 27, `test_backup_system` 16, `test_engine_parser` 13.
 
 **Крупнейшие файлы:** `test_routes/test_equipment_routes.py` 63, `test_repositories/test_equipment_repo.py` 37, `test_services/test_incident_service.py` 33, `test_photo_manager/test_manager.py` 31, `test_repositories/test_incident_ticket_repo.py` 31, `test_routes/test_incident_ticket_routes.py` 30, `test_routes/test_auth_routes.py` 28, `test_routes/test_engines.py` 26.
 
@@ -1842,16 +1844,16 @@ def file_users_env(tmp_path, monkeypatch):
 | Файл | Кол-во сценариев | Что покрывает |
 | --- | --- | --- |
 | `tests/test_repositories/*` | 159 | все 10 репозиториев, включая `test_engine_repo_audit.py` (интеграция с `audit_log`) и тесты гонки самовосстанавливающихся миграций |
-| `tests/test_routes/*` | 183 | engines, auth, crew, equipment (+photos), incident tickets (+photos), import, photos |
+| `tests/test_routes/*` | 196 | engines, auth, crew, equipment (+photos), incident tickets (+photos), import, photos |
 | `tests/test_photo_manager/*` | 81 | три параллельных photo-менеджера (двигатели/оборудование/инциденты) |
-| `tests/test_auth/*` | 52 | hashing, db_users, file-пользователи, токены, декораторы |
+| `tests/test_auth/*` | 59 | hashing, db_users, file-пользователи, токены, декораторы |
 | `tests/test_services/test_incident_service.py` | 33 | бизнес-логика заявок и связей |
 | `tests/test_audit/*` | 28 | `modules/audit.py`, `repositories/audit_repo.py`, `routes/audit_routes.py` |
 | `tests/test_utils/*` | 27 | `format_ru_date`, `load_json/save_json`, `log_message`, `normalize_base_name` |
 | `tests/test_backup_system/test_backup.py` | 16 | создание/инспекция/восстановление бэкапов |
 | `tests/test_engine_parser/test_parser.py` | 13 | парсер xlsx |
 
-**Итого unit/route/service тестов: 592 сценария** (183+159+81+52+33+28+27+16+13), из них 1 skip — `tests/test_backup_system/test_backup.py:216` («Windows-specific os.replace lock issue — fix in production, not blocking»).
+**Итого unit/route/service тестов: 612 сценариев** (196+159+81+59+33+28+27+16+13), из них 1 skip — `tests/test_backup_system/test_backup.py:216` («Windows-specific os.replace lock issue — fix in production, not blocking»).
 
 ### E2E-тесты (Playwright)
 
@@ -1873,11 +1875,11 @@ def file_users_env(tmp_path, monkeypatch):
 
 | Файл | Сценариев | Что покрывает |
 | --- | --- | --- |
-| `test_01_auth.py` | 12 | Логин, logout, токен, попытки неверного пароля |
+| `test_01_auth.py` | 13 | Логин, logout, токен, попытки неверного пароля |
 | `test_02_catalog.py` | 11 | Загрузка каталога, пагинация, сортировка, фильтры |
 | `test_03_add_engine.py` | 9 | Создание двигателя, добавление режимов/работ/фото |
 | `test_04_detail.py` | 10 | Открытие карточки, редактирование, навигация |
-| `test_05_photos.py` | 6 | Загрузка фото, обрезка, удаление |
+| `test_05_photos.py` | 7 | Загрузка фото, обрезка, удаление |
 | `test_06_import.py` | 3 | Импорт из Excel, переключение вкладки, очистка БД |
 | `test_07_search.py` | 6 | Расширенный поиск: поля, операторы |
 | `test_08_settings.py` | 6 | Статистика БД, вкладки настроек, бэкапы |
@@ -1885,11 +1887,11 @@ def file_users_env(tmp_path, monkeypatch):
 | `test_10_info.py` | 9 | Changelog, wishlist, о системе |
 | `test_11_misc.py` | 5 | Прочие сценарии |
 
-**Итого e2e-тестов: 81 сценарий** (12+11+9+10+6+3+6+6+4+9+5) — совпадает с фактическим прогоном.
+**Итого e2e-тестов: 83 сценария** (13+11+9+10+7+3+6+6+4+9+5) — совпадает с фактическим прогоном.
 
 ### Артефакты прогона
 
-- `docs/e2e_test_results.md` — таблица результатов по группам + строка «**Итого:** 81 passed, 0 failed, 0 skipped» (файл перезаписывается при каждом прогоне e2e).
+- `docs/e2e_test_results.md` — таблица результатов по группам + строка «**Итого:** 83 passed, 0 failed, 0 skipped» (файл перезаписывается при каждом прогоне e2e).
 - `tests/e2e/.results.json` — те же данные в JSON (накопительно, merge по nodeid).
 - `tests/e2e/screenshots/` — скриншоты упавших тестов (55 файлов от прошлых прогонов).
 
@@ -2227,7 +2229,7 @@ Get-ChildItem -Recurse -Include $include -ErrorAction SilentlyContinue | Where-O
 | **Мест использования констант путей** | 30+ файлов (см. раздел 15) |
 | **Найденных дублей/расхождений (раздел 16)** | 9 категорий (см. ниже) |
 | **Таблиц в схеме БД** | 17 (см. раздел 3) |
-| **Тестов** | 592 unit/route/service (591 passed, 1 skipped) + 81 e2e (passed) |
+| **Тестов** | 612 unit/route/service (611 passed, 1 skipped) + 83 e2e (passed) |
 | **`__init__.py` с явными re-export списками** | 7 (`routes`, `modules/auth`, `modules/backup_system`, `modules/engine_parser`, `modules/photo_manager`, `modules/auth/auth.py`, `routes/__init__.py`) |
 | **Из них синхронизированы с реальным содержимым модуля** | 6 (verified) |
 | **`__init__.py` с расхождениями** | 1 — `modules/photo_manager/__init__.py` реэкспортирует **только** из `manager.py`; `incident_manager.py` и `equipment_manager.py` НЕ реэкспортируются (см. раздел 17.10) |

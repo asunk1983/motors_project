@@ -5,6 +5,8 @@
 > Дата снимка: 2026-01-09.
 > **Обновление 2026-09-15:** удалены описания вырезанных модулей «База знаний»/«Заявки» (`knowledge_*`, `ticket_*` — commit 758aa34).
 > **Обновление 2026-09-16 (сверка с реальным репозиторием, commit 12a1697 / ветка main):** актуализировано дерево файлов и все ссылки на пути; добавлены реально существующие, но не описанные файлы (в т.ч. `modules/audit.py`, `repositories/audit_repo.py`, `routes/audit_routes.py`, `static/js/audit.js`, `utils/date.py`, `utils/logging.py`, `services/equipment_location_migration.py`, `scripts/`); удалены несуществующие пути (`static/js/app.js`, `state.js`, `api.js`, `services/import_service.py`, `schemas/incident_ticket_schema.py`, каталоги `photos_equipment/`/`photos_incidents/`/`uploads/`/`exports/`, `README.md`); пересчитаны цифры тестов (§13) и метрики (§16).
+> **Обновление 2026-09-18:** тесты — 611 unit/route (1 skip) + 83 e2e, все зелёные (было 592+81 на 16.09; расхождение в 83 против прежних 82 e2e — из-за нового e2e-теста обрезки фото `test_45_crop_photo` (коммит ab6ebd6), а 82 против 81 на 16.09 — из-за e2e-тестов смены роли в `test_01_auth.py` (коммит c09fa0b); коммит 257bf70 — фикс гонки ожидания загрузки фото, счётчик тестов он не менял). Добавлена смена роли пользователя в админке (PATCH /api/auth/admin/users/<id>): роль superadmin через эту функцию не назначается и не снимается никем — только при создании пользователя; защита от самоблокировки. Добавлен модуль tests/descriptions.py — русские описания тестов в живом выводе `pytest -v` (маркер scn, докстринг, либо автогенерация из имени). Добавлен run_tests.bat для локального прогона с логом в docs/.
+
 
 ---
 
@@ -52,7 +54,7 @@
 | Frontend    | Vanilla JS (классические `<script src>`, без ES-модулей и сборки), HTML, CSS (без фреймворков) |
 | Excel       | `openpyxl`                                                   |
 | Архивация   | стандартный `zipfile` + `sqlite3` Online Backup API          |
-| Тесты       | `pytest` — 592 unit/route-теста (591 passed, 1 skipped); `playwright` — 81 e2e (Chrome headless, запускается на изолированном Flask-сервере) |
+| Тесты       | `pytest` — 612 unit/route-теста (611 passed, 1 skipped); `playwright` — 83 e2e (Chrome headless, запускается на изолированном Flask-сервере) |
 
 **Ключевые принципы архитектуры (как они видны в коде):**
 - **Repository pattern** — SQL изолирован в `repositories/`, сервисы и роуты работают с функциями-репозиториями.
@@ -639,8 +641,8 @@ fetch(url, { headers, ... })
   - Сессионная фикстура `storage_state` — логинит admin через реальную UI-форму один раз.
   - Результаты агрегируются в `docs/e2e_test_results.md` (таблица + totals) и `tests/e2e/.results.json`; порядок групп — `GROUP_ORDER` в `_write_results()` (11 групп).
 - `helpers.py` (298 строк) — переиспользуемые функции: `make_engine/make_mode/make_work`, `login_ui/logout_ui/switch_tab/wait_toast`, `engine_id_by_serial/delete_engine_by_serial`, `create_engine_direct`, `fill_detail_fields/open_engine_card/close_detail/open_detail_edit/save_detail_card`, `make_test_png`, `upload_detail_photo`, `set_local_storage`, `accept_dialogs/prompt_accept`.
-- Тестовые модули и сценарии (81):
-  - `test_01_auth.py` — 12, `test_02_catalog.py` — 11, `test_03_add_engine.py` — 9, `test_04_detail.py` — 10, `test_05_photos.py` — 6, `test_06_import.py` — 3, `test_07_search.py` — 6, `test_08_settings.py` — 6, `test_09_backups.py` — 4, `test_10_info.py` — 9, `test_11_misc.py` — 5.
+- Тестовые модули и сценарии (83):
+  - `test_01_auth.py` — 13, `test_02_catalog.py` — 11, `test_03_add_engine.py` — 9, `test_04_detail.py` — 10, `test_05_photos.py` — 7, `test_06_import.py` — 3, `test_07_search.py` — 6, `test_08_settings.py` — 6, `test_09_backups.py` — 4, `test_10_info.py` — 9, `test_11_misc.py` — 5.
 
 ### 13.3. Как запускать
 
@@ -732,7 +734,7 @@ fetch(url, { headers, ... })
 |---|---|---|
 | `static/js/engines.js`, `locationTree.js` | Глобальные `currentSort`/`activeWorkshop`/... — много плоских переменных. | По мере роста — выделить `catalogFilters`, `tablePagination` в подобъекты (ES-модулей в проекте нет, всё в глобальной области). |
 | `routes/import_routes.py` | Стратегия сопоставления фото с двигателем — по точному совпадению нормализованного имени. | Добавить fuzzy-match по `serial_number` или `engine_type` с приоритетами. |
-| `tests/e2e/` | 11 тестовых модулей, 81 сценарий; группы жёстко перечислены в `GROUP_ORDER` (`conftest.py::_write_results`). | При добавлении группы >11 — расширить `GROUP_ORDER`. |
+| `tests/e2e/` | 11 тестовых модулей, 83 сценария; группы жёстко перечислены в `GROUP_ORDER` (`conftest.py::_write_results`). | При добавлении группы >11 — расширить `GROUP_ORDER`. |
 | `routes/photos.py` и `modules/photo_manager/manager.py` | Фото двигателей хранятся по `<engine_id>/...`, но при переимпорте xlsx с тем же `serial_number` могут дублироваться. | Добавить дедупликацию по хешу содержимого. |
 | `repositories/equipment_repo.py` | Оборудование связано с двигателями только косвенно (через заявки инцидентов). | При необходимости — жёсткая связь `equipment.engine_id` (через `_ensure_column`). |
 | `templates/index.html` | Единая SPA-страница на 1064 строки, раздувается при росте функциональности. | Разнести по partials (через `<template>` и клонирование), либо перейти к per-tab страницам. |
@@ -781,10 +783,10 @@ fetch(url, { headers, ... })
 # Поднять приложение
 .venv\Scripts\python.exe app.py
 
-# Прогнать unit/route/service тесты (592 теста)
+# Прогнать unit/route/service тесты (612 тестов)
 .venv\Scripts\python.exe -m pytest tests -q --ignore=tests/e2e
 
-# Прогнать e2e (81 сценарий; app.py поднимать НЕ нужно — свой сервер в фикстуре)
+# Прогнать e2e (83 сценария; app.py поднимать НЕ нужно — свой сервер в фикстуре)
 .venv\Scripts\python.exe -m pytest tests/e2e -q
 
 # Посмотреть отчёт e2e
